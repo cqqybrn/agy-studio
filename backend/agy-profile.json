@@ -95,7 +95,12 @@
     "statuslineInHeadless": false,
     "usageCommand": "/usage",
     "creditsCommand": "/credits",
-    "usageParser": "text-v1"
+    "usageParser": "text-v1",
+    "tokenUrl": "https://oauth2.googleapis.com/token",
+    "loadCodeAssistUrl": "https://daily-cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
+    "quotaSummaryUrl": "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
+    "ideType": "ANTIGRAVITY",
+    "userAgentTemplate": "antigravity/{{version}} {{platform}}/{{arch}}"
   },
   "catalog": {
     "versionArgv": [

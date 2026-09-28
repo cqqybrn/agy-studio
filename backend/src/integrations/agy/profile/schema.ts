@@ -74,6 +74,11 @@ export const QuotaConfigSchema = z.object({
   usageCommand: z.string(),
   creditsCommand: z.string().nullable().optional(),
   usageParser: z.string(),
+  tokenUrl: z.string().optional(),
+  loadCodeAssistUrl: z.string().optional(),
+  quotaSummaryUrl: z.string().optional(),
+  ideType: z.string().optional(),
+  userAgentTemplate: z.string().optional(),
 });
 
 export const CatalogConfigSchema = z.object({

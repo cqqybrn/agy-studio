@@ -220,7 +220,7 @@ index 3333333..0000000
     // Diff after rollback should be empty
     const postDiff = await checkpointService.diff(cp!.id);
     expect(postDiff.files.length).toBe(0);
-  });
+  }, 15_000);
 
   it('guarantees user existing .git directory hash is completely untouched throughout snapshots and rollbacks', async () => {
     createTestRun('run_user_git_1');

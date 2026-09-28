@@ -1,0 +1,145 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Quota API Integration & Pure Parser > Pure Parser & Fixture Snapshots > parses quota-summary.json matching expected structure and matches snapshot 1`] = `
+{
+  "accountName": "test-user",
+  "cached": false,
+  "credits": {
+    "available": false,
+    "balance": null,
+  },
+  "description": "Within each group, models share a weekly limit and a 5-hour limit. Quota is consumed proportionally to the cost of the tokens. Thus, limits will last longer with shorter tasks or using more cost-effective models. The 5-hour limit smooths out aggregate demand to fairly distribute global capacity across all users, while your weekly limit is tied directly to your individual tier.",
+  "email": "user@example.com",
+  "fetchedAt": "2026-09-28T18:50:41.565Z",
+  "groups": [
+    {
+      "buckets": [
+        {
+          "bucketId": "gemini-weekly",
+          "description": "You have used some of your weekly limit, it will fully refresh in 6 days, 19 hours.",
+          "disabled": false,
+          "displayName": "Weekly Limit Remaining",
+          "remainingFraction": 0.9838571,
+          "resetInSeconds": 587791,
+          "resetTime": "2026-10-05T14:07:13Z",
+          "window": "weekly",
+        },
+        {
+          "bucketId": "gemini-5h",
+          "description": "You have used some of your 5-hour limit, it will fully refresh in 1 hour, 27 minutes.",
+          "disabled": false,
+          "displayName": "Five Hour Limit Remaining",
+          "remainingFraction": 0.9031425,
+          "resetInSeconds": 5221,
+          "resetTime": "2026-09-28T20:17:43Z",
+          "window": "5h",
+        },
+      ],
+      "description": "Models within this group: Gemini Flash, Gemini Pro",
+      "displayName": "Gemini Models",
+    },
+    {
+      "buckets": [
+        {
+          "bucketId": "3p-weekly",
+          "description": "You have used some of your weekly limit, it will fully refresh in 5 days, 15 hours.",
+          "disabled": false,
+          "displayName": "Weekly Limit Remaining",
+          "remainingFraction": 0.1893564,
+          "resetInSeconds": 486397,
+          "resetTime": "2026-10-04T09:57:19Z",
+          "window": "weekly",
+        },
+        {
+          "bucketId": "3p-5h",
+          "description": "You have used some of your 5-hour limit, it will fully refresh in 54 minutes.",
+          "disabled": false,
+          "displayName": "Five Hour Limit Remaining",
+          "remainingFraction": 0.2974208,
+          "resetInSeconds": 3293,
+          "resetTime": "2026-09-28T19:45:35Z",
+          "window": "5h",
+        },
+      ],
+      "description": "Models within this group: Claude Opus, Claude Sonnet, GPT-OSS",
+      "displayName": "Claude and GPT models",
+    },
+  ],
+  "planTier": "Google AI Pro",
+  "source": "quota_api",
+  "stale": false,
+  "title": "Model Quotas",
+}
+`;
+
+exports[`Quota API Integration & Pure Parser > Pure Parser & Fixture Snapshots > parses quota-summary-empty-body.json matching snapshot 1`] = `
+{
+  "accountName": null,
+  "cached": false,
+  "credits": {
+    "available": false,
+    "balance": null,
+  },
+  "description": "Within each group, models share a weekly limit and a 5-hour limit. Quota is consumed proportionally to the cost of the tokens. Thus, limits will last longer with shorter tasks or using more cost-effective models. The 5-hour limit smooths out aggregate demand to fairly distribute global capacity across all users, while your weekly limit is tied directly to your individual tier.",
+  "email": null,
+  "fetchedAt": "2026-09-28T18:50:41.565Z",
+  "groups": [
+    {
+      "buckets": [
+        {
+          "bucketId": "gemini-weekly",
+          "description": "You have used some of your weekly limit, it will fully refresh in 6 days, 19 hours.",
+          "disabled": false,
+          "displayName": "Weekly Limit Remaining",
+          "remainingFraction": 0.9838571,
+          "resetInSeconds": 587791,
+          "resetTime": "2026-10-05T14:07:13Z",
+          "window": "weekly",
+        },
+        {
+          "bucketId": "gemini-5h",
+          "description": "You have used some of your 5-hour limit, it will fully refresh in 1 hour, 27 minutes.",
+          "disabled": false,
+          "displayName": "Five Hour Limit Remaining",
+          "remainingFraction": 0.9031425,
+          "resetInSeconds": 5221,
+          "resetTime": "2026-09-28T20:17:43Z",
+          "window": "5h",
+        },
+      ],
+      "description": "Models within this group: Gemini Flash, Gemini Pro",
+      "displayName": "Gemini Models",
+    },
+    {
+      "buckets": [
+        {
+          "bucketId": "3p-weekly",
+          "description": "You have used some of your weekly limit, it will fully refresh in 5 days, 15 hours.",
+          "disabled": false,
+          "displayName": "Weekly Limit Remaining",
+          "remainingFraction": 0.1893564,
+          "resetInSeconds": 486397,
+          "resetTime": "2026-10-04T09:57:19Z",
+          "window": "weekly",
+        },
+        {
+          "bucketId": "3p-5h",
+          "description": "You have used some of your 5-hour limit, it will fully refresh in 54 minutes.",
+          "disabled": false,
+          "displayName": "Five Hour Limit Remaining",
+          "remainingFraction": 0.2974208,
+          "resetInSeconds": 3293,
+          "resetTime": "2026-09-28T19:45:35Z",
+          "window": "5h",
+        },
+      ],
+      "description": "Models within this group: Claude Opus, Claude Sonnet, GPT-OSS",
+      "displayName": "Claude and GPT models",
+    },
+  ],
+  "planTier": null,
+  "source": "quota_api",
+  "stale": false,
+  "title": "Model Quotas",
+}
+`;

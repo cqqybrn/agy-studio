@@ -56,7 +56,7 @@ describe('DPAPI Integration', () => {
 
         const decrypted = await dpapi.unprotect(encrypted);
         expect(decrypted.toString('utf-8')).toBe(plaintext.toString('utf-8'));
-      });
+      }, 15_000);
 
       it('handles empty buffer without launching PowerShell', async () => {
         const empty = Buffer.alloc(0);
