@@ -416,7 +416,10 @@ export class CheckpointService {
   /**
    * Returns unified diff between the target checkpoint and the current workspace state.
    */
-  async diff(checkpointId: string): Promise<CheckpointDiff> {
+  async diff(
+    checkpointId: string,
+    options?: { timeoutMs?: number },
+  ): Promise<CheckpointDiff> {
     const checkpoint = this.checkpointsRepo.findById(checkpointId);
     if (!checkpoint) {
       throw new AppError('NOT_FOUND', `Checkpoint ${checkpointId} not found`);
@@ -427,52 +430,88 @@ export class CheckpointService {
       throw new AppError('NOT_FOUND', `Workspace ${checkpoint.workspaceId} not found`);
     }
 
-    return this.mutex.runExclusive(checkpoint.workspaceId, async () => {
-      const shadowRepo = this.getShadowRepoPath(checkpoint.workspaceId);
-      await this.ensureRepoInitialized(shadowRepo);
-      await this.updateExcludeRules(shadowRepo, workspace.path);
+    const timeoutMs = options?.timeoutMs ?? 30_000;
+    const controller = new AbortController();
+    let timer: NodeJS.Timeout | null = null;
+    let isTimedOut = false;
 
-      // Stage intent-to-add so untracked files are visible in git diff
-      await this.execGit([
-        '--git-dir=' + shadowRepo,
-        '--work-tree=' + workspace.path,
-        'add',
-        '-N',
-        '-A',
-      ]);
+    if (timeoutMs > 0) {
+      timer = setTimeout(() => {
+        isTimedOut = true;
+        controller.abort(new Error(`Checkpoint diff timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+    }
 
-      let diffOutput = '';
-      try {
-        const { stdout } = await this.execGit([
-          '--git-dir=' + shadowRepo,
-          '--work-tree=' + workspace.path,
-          'diff',
-          checkpoint.commitSha,
-          '--',
-        ]);
-        diffOutput = stdout;
-      } finally {
-        // Clear intent-to-add from shadow index without affecting working tree
+    try {
+      return await this.mutex.runExclusive(checkpoint.workspaceId, async () => {
+        const shadowRepo = this.getShadowRepoPath(checkpoint.workspaceId);
+        await this.ensureRepoInitialized(shadowRepo, controller.signal);
+        await this.updateExcludeRules(shadowRepo, workspace.path, controller.signal);
+
+        // Stage intent-to-add so untracked files are visible in git diff
+        await this.execGit(
+          [
+            '--git-dir=' + shadowRepo,
+            '--work-tree=' + workspace.path,
+            'add',
+            '-N',
+            '-A',
+          ],
+          { signal: controller.signal },
+        );
+
+        let diffOutput = '';
         try {
-          await this.execGit(['--git-dir=' + shadowRepo, 'reset', 'HEAD']);
-        } catch {
-          // ignore reset error
+          const { stdout } = await this.execGit(
+            [
+              '--git-dir=' + shadowRepo,
+              '--work-tree=' + workspace.path,
+              'diff',
+              checkpoint.commitSha,
+              '--',
+            ],
+            { signal: controller.signal },
+          );
+          diffOutput = stdout;
+        } finally {
+          // Clear intent-to-add from shadow index without affecting working tree
+          try {
+            await this.execGit(['--git-dir=' + shadowRepo, 'reset', 'HEAD'], {
+              signal: controller.signal,
+            });
+          } catch {
+            // ignore reset error
+          }
         }
-      }
 
-      const files = parseCheckpointDiff(diffOutput);
-      return {
-        checkpointId,
-        files,
-      };
-    });
+        const files = parseCheckpointDiff(diffOutput);
+        return {
+          checkpointId,
+          files,
+        };
+      });
+    } catch (err) {
+      if (isTimedOut || (err instanceof Error && err.name === 'AbortError')) {
+        throw new AppError('CHECKPOINT_FAILED', `Checkpoint diff timed out after ${timeoutMs}ms`, {
+          cause: err,
+        });
+      }
+      throw err;
+    } finally {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    }
   }
 
   /**
    * Rolls back the workspace to the state of the target checkpoint.
    * Performs defensive snapshot before restoring, and rejects with SESSION_BUSY if active runs exist.
    */
-  async rollback(checkpointId: string): Promise<{ ok: true; restoredFiles: number }> {
+  async rollback(
+    checkpointId: string,
+    options?: { timeoutMs?: number },
+  ): Promise<{ ok: true; restoredFiles: number }> {
     const checkpoint = this.checkpointsRepo.findById(checkpointId);
     if (!checkpoint) {
       throw new AppError('NOT_FOUND', `Checkpoint ${checkpointId} not found`);
@@ -491,94 +530,143 @@ export class CheckpointService {
       );
     }
 
-    return this.mutex.runExclusive(checkpoint.workspaceId, async () => {
-      if (this.supervisor?.hasActiveRunsForWorkspace(checkpoint.workspaceId)) {
-        throw new AppError(
-          'SESSION_BUSY',
-          `Cannot rollback: workspace ${checkpoint.workspaceId} currently has active runs`,
+    const timeoutMs = options?.timeoutMs ?? 30_000;
+    const controller = new AbortController();
+    let timer: NodeJS.Timeout | null = null;
+    let isTimedOut = false;
+
+    if (timeoutMs > 0) {
+      timer = setTimeout(() => {
+        isTimedOut = true;
+        controller.abort(new Error(`Checkpoint rollback timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+    }
+
+    try {
+      return await this.mutex.runExclusive(checkpoint.workspaceId, async () => {
+        if (this.supervisor?.hasActiveRunsForWorkspace(checkpoint.workspaceId)) {
+          throw new AppError(
+            'SESSION_BUSY',
+            `Cannot rollback: workspace ${checkpoint.workspaceId} currently has active runs`,
+          );
+        }
+
+        const shadowRepo = this.getShadowRepoPath(checkpoint.workspaceId);
+        await this.ensureRepoInitialized(shadowRepo, controller.signal);
+        await this.updateExcludeRules(shadowRepo, workspace.path, controller.signal);
+
+        // 1. Defensive snapshot before rollback
+        await this.execGit(
+          [
+            '--git-dir=' + shadowRepo,
+            '--work-tree=' + workspace.path,
+            'add',
+            '-A',
+          ],
+          { signal: controller.signal },
         );
+        await this.execGit(
+          [
+            '--git-dir=' + shadowRepo,
+            '--work-tree=' + workspace.path,
+            'commit',
+            '-m',
+            `checkpoint:defensive-before-rollback:${checkpointId}`,
+            '--allow-empty',
+          ],
+          { signal: controller.signal },
+        );
+
+        const { stdout: defShaOut } = await this.execGit(
+          [
+            '--git-dir=' + shadowRepo,
+            'rev-parse',
+            'HEAD',
+          ],
+          { signal: controller.signal },
+        );
+        const defSha = defShaOut.trim();
+
+        const defensiveCheckpoint: Checkpoint = {
+          id: createId('chk'),
+          workspaceId: checkpoint.workspaceId,
+          sessionId: checkpoint.sessionId,
+          runId: checkpoint.runId,
+          commitSha: defSha,
+          filesChanged: null,
+          createdAt: new Date().toISOString(),
+        };
+        this.checkpointsRepo.create(defensiveCheckpoint);
+
+        // 2. Count restored files (diff between target commit and defensive snapshot commit)
+        const { stdout: diffNamesOut } = await this.execGit(
+          [
+            '--git-dir=' + shadowRepo,
+            'diff',
+            '--name-only',
+            checkpoint.commitSha,
+            defSha,
+          ],
+          { signal: controller.signal },
+        );
+        const changedFiles = diffNamesOut.trim().split(/\r?\n/).filter(Boolean);
+        const restoredFiles = changedFiles.length;
+
+        // 3. Restore workspace to target snapshot state and clean untracked additions
+        await this.execGit(
+          [
+            '--git-dir=' + shadowRepo,
+            '--work-tree=' + workspace.path,
+            'read-tree',
+            checkpoint.commitSha,
+          ],
+          { signal: controller.signal },
+        );
+        await this.execGit(
+          [
+            '--git-dir=' + shadowRepo,
+            '--work-tree=' + workspace.path,
+            'checkout-index',
+            '-a',
+            '-f',
+          ],
+          { signal: controller.signal },
+        );
+        await this.execGit(
+          [
+            '--git-dir=' + shadowRepo,
+            '--work-tree=' + workspace.path,
+            'clean',
+            '-fd',
+          ],
+          { signal: controller.signal },
+        );
+        await this.execGit(
+          [
+            '--git-dir=' + shadowRepo,
+            'update-ref',
+            'HEAD',
+            checkpoint.commitSha,
+          ],
+          { signal: controller.signal },
+        );
+
+        return {
+          ok: true,
+          restoredFiles,
+        };
+      });
+    } catch (err) {
+      if (isTimedOut || (err instanceof Error && err.name === 'AbortError')) {
+        throw new AppError('CHECKPOINT_FAILED', `Checkpoint rollback timed out after ${timeoutMs}ms`, {
+          cause: err,
+        });
       }
-
-      const shadowRepo = this.getShadowRepoPath(checkpoint.workspaceId);
-      await this.ensureRepoInitialized(shadowRepo);
-      await this.updateExcludeRules(shadowRepo, workspace.path);
-
-      // 1. Defensive snapshot before rollback
-      await this.execGit([
-        '--git-dir=' + shadowRepo,
-        '--work-tree=' + workspace.path,
-        'add',
-        '-A',
-      ]);
-      await this.execGit([
-        '--git-dir=' + shadowRepo,
-        '--work-tree=' + workspace.path,
-        'commit',
-        '-m',
-        `checkpoint:defensive-before-rollback:${checkpointId}`,
-        '--allow-empty',
-      ]);
-
-      const { stdout: defShaOut } = await this.execGit([
-        '--git-dir=' + shadowRepo,
-        'rev-parse',
-        'HEAD',
-      ]);
-      const defSha = defShaOut.trim();
-
-      const defensiveCheckpoint: Checkpoint = {
-        id: createId('chk'),
-        workspaceId: checkpoint.workspaceId,
-        sessionId: checkpoint.sessionId,
-        runId: checkpoint.runId,
-        commitSha: defSha,
-        filesChanged: null,
-        createdAt: new Date().toISOString(),
-      };
-      this.checkpointsRepo.create(defensiveCheckpoint);
-
-      // 2. Count restored files (diff between target commit and defensive snapshot commit)
-      const { stdout: diffNamesOut } = await this.execGit([
-        '--git-dir=' + shadowRepo,
-        'diff',
-        '--name-only',
-        checkpoint.commitSha,
-        defSha,
-      ]);
-      const changedFiles = diffNamesOut.trim().split(/\r?\n/).filter(Boolean);
-      const restoredFiles = changedFiles.length;
-
-      // 3. Restore workspace to target snapshot state and clean untracked additions
-      await this.execGit([
-        '--git-dir=' + shadowRepo,
-        '--work-tree=' + workspace.path,
-        'read-tree',
-        checkpoint.commitSha,
-      ]);
-      await this.execGit([
-        '--git-dir=' + shadowRepo,
-        '--work-tree=' + workspace.path,
-        'checkout-index',
-        '-a',
-        '-f',
-      ]);
-      await this.execGit([
-        '--git-dir=' + shadowRepo,
-        '--work-tree=' + workspace.path,
-        'clean',
-        '-fd',
-      ]);
-      await this.execGit([
-        '--git-dir=' + shadowRepo,
-        'update-ref',
-        'HEAD',
-        checkpoint.commitSha,
-      ]);
-
-      return {
-        ok: true,
-        restoredFiles,
-      };
-    });
+      throw err;
+    } finally {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    }
   }
 }

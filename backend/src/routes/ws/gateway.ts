@@ -285,12 +285,18 @@ export async function registerWsGateway(
           // Step 2: Replay events with seq > lastSeq from DB in batches of replayBatchSize
           let currentAfterSeq = clientLastSeq;
           while (socket.readyState === socket.OPEN && !isCleanedUp) {
+            if (activeSubscriptions.get(sessionId) !== sub) {
+              return;
+            }
             const batch = eventsRepo.listAfter(sessionId, currentAfterSeq, replayBatchSize);
             if (batch.length === 0) {
               break;
             }
 
             for (const env of batch) {
+              if (activeSubscriptions.get(sessionId) !== sub) {
+                return;
+              }
               safeSend({ type: 'event', envelope: env });
               sub.hasSentAny = true;
               if (env.seq > sub.maxSentSeq) {
@@ -304,11 +310,18 @@ export async function registerWsGateway(
             }
           }
 
+          if (isCleanedUp || socket.readyState !== socket.OPEN || activeSubscriptions.get(sessionId) !== sub) {
+            return;
+          }
+
           // Step 3: Discard buffered events with seq <= maximum seq already sent
           const remaining = sub.buffer.filter((env) => env.seq > sub.maxSentSeq);
 
           // Step 4: Flush remaining buffered events, then switch directly to live push
           for (const env of remaining) {
+            if (activeSubscriptions.get(sessionId) !== sub) {
+              return;
+            }
             safeSend({ type: 'event', envelope: env });
             sub.hasSentAny = true;
             if (env.seq > sub.maxSentSeq) {
@@ -317,6 +330,10 @@ export async function registerWsGateway(
           }
           sub.buffer = [];
           sub.state = 'live';
+
+          if (isCleanedUp || socket.readyState !== socket.OPEN || activeSubscriptions.get(sessionId) !== sub) {
+            return;
+          }
 
           // Step 5: Send ServerFrame subscribed { latestSeq, activeRunId }
           const dbLatest = eventsRepo.latestSeq(sessionId);
@@ -328,6 +345,10 @@ export async function registerWsGateway(
             activeRunId = (await sessionService.getActiveRunId(sessionId)) ?? null;
           } catch {
             activeRunId = null;
+          }
+
+          if (isCleanedUp || socket.readyState !== socket.OPEN || activeSubscriptions.get(sessionId) !== sub) {
+            return;
           }
 
           safeSend({
