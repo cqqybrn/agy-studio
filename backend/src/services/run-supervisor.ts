@@ -19,6 +19,8 @@ import type { SessionsRepository } from '../repositories/sessions.js';
 import { killTree } from '../utils/proc-tree.js';
 import { AppError } from '../utils/errors.js';
 import { createId } from '../utils/ids.js';
+import type { CheckpointService } from './checkpoint.js';
+import type { PrefsRepository } from '../repositories/prefs.js';
 
 export interface SupervisorLogger {
   error(obj: unknown, msg?: string): void;
@@ -65,6 +67,8 @@ export interface RunSupervisorOptions {
   autoApprove?: AutoApproveService;
   stallTimeoutSeconds?: number;
   terminalExitGraceMs?: number;
+  checkpointService?: CheckpointService;
+  prefsRepo?: PrefsRepository;
 }
 
 export interface StartRunInput {
@@ -129,6 +133,8 @@ export class RunSupervisor {
   private readonly autoApprove?: AutoApproveService;
   private readonly stallTimeoutSeconds?: number;
   private readonly terminalExitGraceMs: number;
+  private readonly checkpointService?: CheckpointService;
+  private readonly prefsRepo?: PrefsRepository;
   private readonly eventListeners: SupervisorEventListener[] = [];
 
   private readonly activeSessions = new Map<string, string>(); // sessionId -> runId
@@ -148,6 +154,8 @@ export class RunSupervisor {
       options.autoApprove ?? (options.settings ? new AutoApproveService(options.settings) : undefined);
     this.stallTimeoutSeconds = options.stallTimeoutSeconds;
     this.terminalExitGraceMs = options.terminalExitGraceMs ?? 10_000;
+    this.checkpointService = options.checkpointService;
+    this.prefsRepo = options.prefsRepo;
 
     if (options.onEvent) {
       this.eventListeners.push(options.onEvent);
@@ -194,7 +202,7 @@ export class RunSupervisor {
     const model = input.model !== undefined ? input.model : (session?.model ?? null);
     const effort = input.effort !== undefined ? input.effort : (session?.effort ?? null);
     const mode = input.mode !== undefined ? input.mode : (session?.mode ?? null);
-    const checkpointId = input.checkpointId ?? null;
+    let checkpointId = input.checkpointId ?? null;
     const cwd = input.cwd ?? process.cwd();
     const startTime = Date.now();
     const startedAt = new Date().toISOString();
@@ -373,6 +381,27 @@ export class RunSupervisor {
         }
       } catch (err) {
         this.logger?.error({ err, sessionId, runId }, 'Failed to run autoApprove ensureSettings');
+      }
+    }
+
+    // 启动 runner 之前接入快照
+    const workspaceId = session?.workspaceId;
+    if (this.checkpointService && workspaceId) {
+      const enabled = this.prefsRepo ? this.prefsRepo.get().checkpointsEnabled : true;
+      if (enabled) {
+        try {
+          const checkpoint = await this.checkpointService.snapshot(workspaceId, sessionId, runId);
+          if (checkpoint) {
+            checkpointId = checkpoint.id;
+            initialRecord.checkpointId = checkpoint.id;
+            this.runsRepo.update(runId, { checkpointId: checkpoint.id });
+          }
+        } catch (err) {
+          this.logger?.warn?.(
+            { err, workspaceId, sessionId, runId },
+            'Failed to create checkpoint snapshot; continuing run without checkpoint',
+          );
+        }
       }
     }
 
@@ -642,6 +671,19 @@ export class RunSupervisor {
     }
     for (const active of this.activeRunsMap.values()) {
       if (active.accountName === accountName) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Checks whether a workspace currently has active runs.
+   */
+  hasActiveRunsForWorkspace(workspaceId: string): boolean {
+    for (const [activeSessionId] of this.activeSessions) {
+      const session = this.sessionsRepo.findById(activeSessionId);
+      if (session?.workspaceId === workspaceId) {
         return true;
       }
     }
