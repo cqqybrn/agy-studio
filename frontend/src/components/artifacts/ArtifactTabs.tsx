@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Artifact } from '@agy-studio/contracts';
-import { getArtifactRaw, getArtifacts } from '../../api/endpoints';
+import type { Artifact, Checkpoint } from '@agy-studio/contracts';
+import { getArtifactRaw, getArtifacts, getCheckpoints } from '../../api/endpoints';
 import { useSessionStore } from '../../stores/session.store';
 import { useUiStore } from '../../stores/ui.store';
 import { LoadingSpinner } from '../timeline/icons';
+import { ChangesView } from './ChangesView';
 import { MarkdownArtifactView } from './MarkdownArtifactView';
 import { isImageArtifact, isVideoArtifact, MediaGallery } from './MediaGallery';
 import { TaskView } from './TaskView';
@@ -49,13 +50,14 @@ export function findMediaArtifacts(artifacts: Artifact[]): Artifact[] {
   return artifacts.filter((a) => isImageArtifact(a) || isVideoArtifact(a));
 }
 
-export function getTabContentMap(artifacts: Artifact[]): Record<ArtifactTabKey, boolean> {
+export function getTabContentMap(
+  artifacts: Artifact[],
+  hasChanges = false,
+): Record<ArtifactTabKey, boolean> {
   const hasTask = Boolean(findTaskArtifact(artifacts));
   const hasPlan = Boolean(findPlanArtifact(artifacts));
   const hasWalkthrough = Boolean(findWalkthroughArtifact(artifacts));
   const hasMedia = findMediaArtifacts(artifacts).length > 0;
-  // Changes 由模块 2.12 实现，当前无内容
-  const hasChanges = false;
 
   return {
     Task: hasTask,
@@ -90,14 +92,24 @@ export function ArtifactTabs({
   onClose,
   className = '',
 }: ArtifactTabsProps) {
-  const storeSessionId = useSessionStore((s) => s.activeSessionId);
+  const storeSessionId =
+    typeof window === 'undefined'
+      ? useSessionStore.getState().activeSessionId ?? useSessionStore((s) => s.activeSessionId)
+      : useSessionStore((s) => s.activeSessionId);
   const sessionId = propSessionId !== undefined ? propSessionId : storeSessionId;
 
-  const activeTab = useUiStore((s) => s.activeArtifactTab) as ArtifactTabKey;
+  const storeActiveTab = useUiStore((s) => s.activeArtifactTab);
+  const activeTab = (
+    typeof window === 'undefined'
+      ? (useUiStore.getState().activeArtifactTab || storeActiveTab)
+      : storeActiveTab
+  ) as ArtifactTabKey;
   const setActiveTab = useUiStore((s) => s.setActiveArtifactTab);
 
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [listLoading, setListLoading] = useState(false);
+  const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([]);
+  const [checkpointsLoading, setCheckpointsLoading] = useState(false);
   const [rawContents, setRawContents] = useState<Record<string, string>>({});
   const [rawLoadingMap, setRawLoadingMap] = useState<Record<string, boolean>>({});
 
@@ -124,6 +136,25 @@ export function ArtifactTabs({
         return [];
       } finally {
         setListLoading(false);
+      }
+    },
+    [],
+  );
+
+  // 加载 checkpoints 列表
+  const fetchCheckpointsList = useCallback(
+    async (targetSessionId: string) => {
+      try {
+        setCheckpointsLoading(true);
+        const list = await getCheckpoints(targetSessionId);
+        setCheckpoints(list);
+        return list;
+      } catch (err) {
+        console.warn('Failed to fetch checkpoints for session:', targetSessionId, err);
+        setCheckpoints([]);
+        return [];
+      } finally {
+        setCheckpointsLoading(false);
       }
     },
     [],
@@ -179,9 +210,10 @@ export function ArtifactTabs({
     }, 1500);
   };
 
-  // 会话切换时，重置并拉取新会话的 artifacts
+  // 会话切换时，重置并拉取新会话的 artifacts 与 checkpoints
   useEffect(() => {
     setArtifacts([]);
+    setCheckpoints([]);
     setRawContents({});
     setRawLoadingMap({});
     setHighlightedArtifactId(null);
@@ -190,6 +222,7 @@ export function ArtifactTabs({
 
     if (sessionId) {
       void fetchArtifactsList(sessionId);
+      void fetchCheckpointsList(sessionId);
     }
 
     return () => {
@@ -197,9 +230,9 @@ export function ArtifactTabs({
         clearTimeout(highlightTimerRef.current);
       }
     };
-  }, [sessionId, fetchArtifactsList]);
+  }, [sessionId, fetchArtifactsList, fetchCheckpointsList]);
 
-  // 监听会话槽位事件：捕获 artifact.updated 事件实时刷新
+  // 监听会话槽位事件：捕获 artifact.updated 以及 run 运行事件实时刷新
   useEffect(() => {
     if (!slot || !sessionId) return;
 
@@ -218,12 +251,21 @@ export function ArtifactTabs({
         void fetchArtifactsList(sessionId);
         // 若为文本型产物，重新加载其 raw 内容并触发 1.5s 渐变高亮
         void fetchRawText(sessionId, updatedArtifact, true);
+      } else if (
+        envelope.event.type === 'run.started' ||
+        envelope.event.type === 'run.completed'
+      ) {
+        void fetchCheckpointsList(sessionId);
       }
     }
-  }, [slot, sessionId, fetchArtifactsList, fetchRawText]);
+  }, [slot, sessionId, fetchArtifactsList, fetchCheckpointsList, fetchRawText]);
 
   // 计算各标签页是否存在内容
-  const tabContentMap = useMemo(() => getTabContentMap(artifacts), [artifacts]);
+  const hasChanges = checkpoints.length > 0;
+  const tabContentMap = useMemo(
+    () => getTabContentMap(artifacts, hasChanges),
+    [artifacts, hasChanges],
+  );
 
   const taskArtifact = useMemo(() => findTaskArtifact(artifacts), [artifacts]);
   const planArtifact = useMemo(() => findPlanArtifact(artifacts), [artifacts]);
@@ -319,7 +361,12 @@ export function ArtifactTabs({
         <div className="flex items-center gap-1.5">
           <button
             type="button"
-            onClick={() => void fetchArtifactsList(sessionId)}
+            onClick={() => {
+              if (sessionId) {
+                void fetchArtifactsList(sessionId);
+                void fetchCheckpointsList(sessionId);
+              }
+            }}
             className="rounded p-1 text-text-tertiary hover:bg-bg-surface hover:text-text-primary transition-colors"
             title="手动刷新产物列表"
             data-testid="refresh-artifacts-btn"
@@ -381,7 +428,7 @@ export function ArtifactTabs({
 
       {/* 内容展示区 */}
       <div className="flex-1 overflow-y-auto" data-testid="artifact-tab-content">
-        {artifacts.length === 0 && !listLoading ? (
+        {activeTab !== 'Changes' && artifacts.length === 0 && !listLoading ? (
           <div
             className="flex h-64 flex-col items-center justify-center p-6 text-center text-text-tertiary"
             data-testid="artifacts-empty-state"
@@ -440,15 +487,16 @@ export function ArtifactTabs({
             )}
 
             {activeTab === 'Changes' && (
-              <div
-                className="flex h-64 flex-col items-center justify-center p-6 text-center text-text-tertiary"
-                data-testid="changes-placeholder"
-              >
-                <div className="rounded-lg border border-dashed border-border-default p-6">
-                  <p className="text-sm font-medium text-text-secondary">检查点与代码改动</p>
-                  <p className="mt-1 text-xs">模块 2.12 将实现检查点对比与代码变更 Diff 视图</p>
-                </div>
-              </div>
+              <ChangesView
+                sessionId={sessionId}
+                checkpoints={checkpoints}
+                onCheckpointsLoaded={setCheckpoints}
+                onRollbackSuccess={() => {
+                  if (sessionId) {
+                    void fetchCheckpointsList(sessionId);
+                  }
+                }}
+              />
             )}
           </>
         )}
