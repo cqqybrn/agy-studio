@@ -1,59 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { Entry } from '@napi-rs/keyring';
 import type { CredentialPort, CredentialSnapshot } from '../../services/ports/credential.port.js';
 import type { AgyProfile } from './profile/schema.js';
 import { resolveDataDir } from '../../utils/config.js';
 import { AppError } from '../../utils/errors.js';
 import { dpapi as defaultDpapi, type DpapiPort } from './dpapi.js';
-
-export interface KeyringEntry {
-  getSecret(): Uint8Array | number[] | null | undefined;
-  setSecret(secret: Uint8Array): void;
-  deleteCredential(): boolean;
-}
-
-export interface KeyringProvider {
-  getEntry(target: string, service: string, username: string): KeyringEntry;
-}
-
-export const defaultKeyringProvider: KeyringProvider = {
-  getEntry: (target, service, username) => {
-    return Entry.withTarget(target, service, username);
-  },
-};
-
-export class MemoryKeyringProvider implements KeyringProvider {
-  private readonly store = new Map<string, Buffer>();
-
-  getEntry(target: string, _service?: string, _username?: string): KeyringEntry {
-    return {
-      getSecret: () => {
-        const val = this.store.get(target);
-        return val ? new Uint8Array(val) : null;
-      },
-      setSecret: (secret: Uint8Array) => {
-        this.store.set(target, Buffer.from(secret));
-      },
-      deleteCredential: () => {
-        return this.store.delete(target);
-      },
-    };
-  }
-
-  clear(): void {
-    this.store.clear();
-  }
-
-  set(target: string, secret: Buffer): void {
-    this.store.set(target, secret);
-  }
-
-  has(target: string): boolean {
-    const val = this.store.get(target);
-    return !!val && val.length > 0;
-  }
-}
+import { WindowsCredentialManager, type WinCredPort } from './wincred.js';
 
 export interface IdTokenClaims {
   sub?: string;
@@ -109,29 +61,13 @@ export interface CredentialStoreOptions {
   };
   dataDir?: string;
   dpapi?: DpapiPort;
-  keyringProvider?: KeyringProvider;
+  wincred?: WinCredPort;
 }
 
-interface ParsedTarget {
-  target: string;
-  service: string;
-  username: string;
-}
-
-function parseTargetPattern(pattern: string): ParsedTarget {
-  if (pattern.includes(':')) {
-    const idx = pattern.indexOf(':');
-    return {
-      target: pattern,
-      service: pattern.slice(0, idx),
-      username: pattern.slice(idx + 1),
-    };
-  }
-  return {
-    target: pattern,
-    service: pattern,
-    username: pattern,
-  };
+/** "gemini:antigravity" -> "antigravity", matching the UserName go-keyring writes. */
+export function defaultUserNameForTarget(target: string): string {
+  const idx = target.indexOf(':');
+  return idx >= 0 ? target.slice(idx + 1) : target;
 }
 
 export class CredentialStore implements CredentialPort {
@@ -139,7 +75,7 @@ export class CredentialStore implements CredentialPort {
   private readonly credentialFiles: string[];
   private readonly dataDir: string;
   private readonly dpapi: DpapiPort;
-  private readonly keyringProvider: KeyringProvider;
+  private readonly wincred: WinCredPort;
 
   constructor(options?: CredentialStoreOptions) {
     this.wincredTargetPatterns =
@@ -147,12 +83,7 @@ export class CredentialStore implements CredentialPort {
     this.credentialFiles = options?.profile?.credentials?.credentialFiles ?? [];
     this.dataDir = options?.dataDir ?? resolveDataDir();
     this.dpapi = options?.dpapi ?? defaultDpapi;
-    this.keyringProvider = options?.keyringProvider ?? defaultKeyringProvider;
-  }
-
-  private getEntryForPattern(pattern: string): KeyringEntry {
-    const parsed = parseTargetPattern(pattern);
-    return this.keyringProvider.getEntry(parsed.target, parsed.service, parsed.username);
+    this.wincred = options?.wincred ?? new WindowsCredentialManager();
   }
 
   private resolveFilePath(filePathTemplate: string): string {
@@ -176,18 +107,12 @@ export class CredentialStore implements CredentialPort {
    * Check whether any live credentials currently exist in the system store / file locations.
    */
   async isPresent(): Promise<boolean> {
+    // Read errors propagate: reporting "absent" on a failed read would let callers
+    // skip the live backup and then clear() a credential that is actually there.
     for (const pattern of this.wincredTargetPatterns) {
-      try {
-        const entry = this.getEntryForPattern(pattern);
-        const secret = entry.getSecret();
-        if (secret) {
-          const buf = Buffer.from(secret);
-          if (buf.length > 0) {
-            return true;
-          }
-        }
-      } catch {
-        // Ignored, check next pattern
+      const res = await this.wincred.read(pattern);
+      if (res.status === 'ok') {
+        return true;
       }
     }
 
@@ -214,14 +139,10 @@ export class CredentialStore implements CredentialPort {
   async readLiveClaims(): Promise<IdTokenClaims | null> {
     for (const pattern of this.wincredTargetPatterns) {
       try {
-        const entry = this.getEntryForPattern(pattern);
-        const secret = entry.getSecret();
-        if (secret) {
-          const buf = Buffer.from(secret);
-          if (buf.length > 0) {
-            const claims = extractClaimsFromSecret(buf);
-            if (claims) return claims;
-          }
+        const res = await this.wincred.read(pattern);
+        if (res.status === 'ok') {
+          const claims = extractClaimsFromSecret(res.data);
+          if (claims) return claims;
         }
       } catch {
         // Ignored
@@ -235,21 +156,22 @@ export class CredentialStore implements CredentialPort {
    */
   async takeLiveSnapshot(): Promise<CredentialSnapshot> {
     const targets: Record<string, string> = {};
+    const targetUserNames: Record<string, string> = {};
     const files: Record<string, string> = {};
 
     for (const pattern of this.wincredTargetPatterns) {
-      try {
-        const entry = this.getEntryForPattern(pattern);
-        const secret = entry.getSecret();
-        if (secret) {
-          const buf = Buffer.from(secret);
-          if (buf.length > 0) {
-            targets[pattern] = buf.toString('base64');
-          }
-        }
-      } catch {
-        // Ignored
+      const res = await this.wincred.read(pattern);
+      if (res.status !== 'ok') {
+        throw new AppError(
+          'AGY_NOT_AUTHENTICATED',
+          res.status === 'missing'
+            ? `Live credential "${pattern}" does not exist; log in to agy first`
+            : `Live credential "${pattern}" exists but is empty; log in to agy again`,
+          { details: { target: pattern, reason: res.status } },
+        );
       }
+      targets[pattern] = res.data.toString('base64');
+      targetUserNames[pattern] = res.userName ?? defaultUserNameForTarget(pattern);
     }
 
     for (const fileTemplate of this.credentialFiles) {
@@ -268,6 +190,7 @@ export class CredentialStore implements CredentialPort {
       version: 1,
       createdAt: new Date().toISOString(),
       targets,
+      targetUserNames,
       files,
     };
   }
@@ -323,21 +246,46 @@ export class CredentialStore implements CredentialPort {
   /**
    * Restore a snapshot into live credentials locations and verify success.
    */
+  /**
+   * Throws unless every configured target is present in the snapshot and every target payload
+   * decodes to a non-empty blob. Performs no writes.
+   */
+  assertRestorable(snapshot: CredentialSnapshot): void {
+    const targets = snapshot?.targets ?? {};
+    for (const pattern of this.wincredTargetPatterns) {
+      if (!Object.prototype.hasOwnProperty.call(targets, pattern)) {
+        throw new AppError('INTERNAL', `Credential snapshot has no payload for target "${pattern}"; refusing to restore`, {
+          details: { target: pattern, reason: 'missing_payload' },
+        });
+      }
+    }
+    for (const [target, b64Payload] of Object.entries(targets)) {
+      if (typeof b64Payload !== 'string' || Buffer.from(b64Payload, 'base64').length === 0) {
+        throw new AppError('INTERNAL', `Credential snapshot payload for target "${target}" is empty; refusing to restore`, {
+          details: { target, reason: 'empty_payload' },
+        });
+      }
+    }
+  }
+
   async restore(snapshot: CredentialSnapshot): Promise<void> {
+    this.assertRestorable(snapshot);
+
     // 1. Restore targets
     for (const [targetPattern, b64Payload] of Object.entries(snapshot.targets)) {
-      const entry = this.getEntryForPattern(targetPattern);
       const secretBytes = Buffer.from(b64Payload, 'base64');
-      entry.setSecret(secretBytes);
+      const userName = snapshot.targetUserNames?.[targetPattern] || defaultUserNameForTarget(targetPattern);
+      await this.wincred.write(targetPattern, userName, secretBytes);
 
-      // Verify write succeeded
-      const readBack = entry.getSecret();
-      if (!readBack) {
-        throw new AppError('INTERNAL', `Failed to verify keyring write for target "${targetPattern}": readBack is null`);
+      const readBack = await this.wincred.read(targetPattern);
+      if (readBack.status !== 'ok' || readBack.data.length === 0) {
+        throw new AppError(
+          'INTERNAL',
+          `Failed to verify credential write for target "${targetPattern}": read back ${readBack.status === 'ok' ? 'empty' : readBack.status}`,
+        );
       }
-      const readBuf = Buffer.from(readBack);
-      if (!readBuf.equals(secretBytes)) {
-        throw new AppError('INTERNAL', `Failed to verify keyring write for target "${targetPattern}": content mismatch`);
+      if (!readBack.data.equals(secretBytes)) {
+        throw new AppError('INTERNAL', `Failed to verify credential write for target "${targetPattern}": content mismatch`);
       }
     }
 
@@ -357,21 +305,11 @@ export class CredentialStore implements CredentialPort {
   async clear(): Promise<void> {
     for (const pattern of this.wincredTargetPatterns) {
       try {
-        const entry = this.getEntryForPattern(pattern);
-        entry.deleteCredential();
+        await this.wincred.delete(pattern);
       } catch (err: unknown) {
-        const msg = String((err as { message?: string })?.message || err);
-        if (
-          msg.includes('NotFound') ||
-          msg.includes('not found') ||
-          msg.includes('The specified item could not be found')
-        ) {
-          // Already removed
-        } else {
-          throw new AppError('INTERNAL', `Failed to delete keyring credential for "${pattern}": ${msg}`, {
-            cause: err,
-          });
-        }
+        throw new AppError('INTERNAL', `Failed to delete credential for "${pattern}": ${(err as Error)?.message ?? String(err)}`, {
+          cause: err,
+        });
       }
     }
 

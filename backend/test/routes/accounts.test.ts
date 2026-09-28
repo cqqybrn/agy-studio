@@ -6,10 +6,8 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import type Database from 'better-sqlite3';
 import type { Account, WhoAmI } from '@agy-studio/contracts';
 import { createDatabase, AccountsRepository, EventsRepository } from '../../src/repositories/index.js';
-import {
-  CredentialStore,
-  MemoryKeyringProvider,
-} from '../../src/integrations/agy/credential-store.js';
+import { CredentialStore } from '../../src/integrations/agy/credential-store.js';
+import { MemoryWinCred } from '../../src/integrations/agy/wincred.js';
 import { MemoryDpapi } from '../../src/integrations/agy/dpapi.js';
 import { AccountService } from '../../src/services/account/account.js';
 import { AccountLeaseLock } from '../../src/services/account/lease-lock.js';
@@ -44,7 +42,7 @@ describe('Accounts HTTP Routes', () => {
   let accountsRepo: AccountsRepository;
   let eventsRepo: EventsRepository;
   let eventBus: EventBus;
-  let keyring: MemoryKeyringProvider;
+  let keyring: MemoryWinCred;
   let dpapi: MemoryDpapi;
   let store: CredentialStore;
   let lock: AccountLeaseLock;
@@ -57,13 +55,13 @@ describe('Accounts HTTP Routes', () => {
     accountsRepo = new AccountsRepository(db);
     eventsRepo = new EventsRepository(db);
     eventBus = new EventBus({ eventsRepo });
-    keyring = new MemoryKeyringProvider();
+    keyring = new MemoryWinCred();
     dpapi = new MemoryDpapi();
     lock = new AccountLeaseLock();
 
     store = new CredentialStore({
       dataDir: tempDir,
-      keyringProvider: keyring,
+      wincred: keyring,
       dpapi,
       profile: {
         credentials: {

@@ -2,6 +2,8 @@ export interface CredentialSnapshot {
   readonly version: number;
   readonly createdAt: string;
   readonly targets: Record<string, string>;
+  /** Credential manager UserName per target; older snapshots may lack it. */
+  readonly targetUserNames?: Record<string, string>;
   readonly files: Record<string, string>; // relativePath -> base64 payload
 }
 

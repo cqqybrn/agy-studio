@@ -337,6 +337,7 @@ export class AccountService {
   async switchAccount(name: string): Promise<{ whoami: WhoAmI }> {
     const writeLease = this.leaseLock.acquireWriteLease();
     let liveBackup: CredentialSnapshot | null = null;
+    let liveTouched = false;
 
     try {
       const targetAcc = this.accountsRepo.findByName(name);
@@ -348,15 +349,17 @@ export class AccountService {
         throw new AppError('NOT_FOUND', `Credential snapshot for account "${name}" not found`);
       }
 
-      // 1. 备份当前 live 凭据（若有）到临时快照
+      // 1. 从磁盘读取并解密目标账号的快照，校验载荷非空（未通过则不碰 live 凭据）
+      const targetSnapshot = await this.credentialStore.loadSnapshot(name);
+      this.credentialStore.assertRestorable(targetSnapshot);
+
+      // 2. 备份当前 live 凭据（若有）到临时快照
       if (await this.credentialStore.isPresent()) {
         liveBackup = await this.credentialStore.takeLiveSnapshot();
       }
 
-      // 2. 从磁盘读取并解密目标账号的快照
-      const targetSnapshot = await this.credentialStore.loadSnapshot(name);
-
       // 3. restore 目标凭据
+      liveTouched = true;
       await this.credentialStore.restore(targetSnapshot);
 
       // 4. 校验凭据已生效（isPresent()，且 id_token.sub 符合）
@@ -403,7 +406,7 @@ export class AccountService {
 
       return { whoami };
     } catch (err) {
-      if (liveBackup) {
+      if (liveBackup && liveTouched) {
         try {
           await this.credentialStore.restore(liveBackup);
           this.logger.info('Rolled back to previous live credentials after switch failure');

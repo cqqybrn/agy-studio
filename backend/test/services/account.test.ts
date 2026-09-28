@@ -4,10 +4,8 @@ import os from 'node:os';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import { createDatabase, AccountsRepository, EventsRepository } from '../../src/repositories/index.js';
-import {
-  CredentialStore,
-  MemoryKeyringProvider,
-} from '../../src/integrations/agy/credential-store.js';
+import { CredentialStore } from '../../src/integrations/agy/credential-store.js';
+import { MemoryWinCred } from '../../src/integrations/agy/wincred.js';
 import { MemoryDpapi } from '../../src/integrations/agy/dpapi.js';
 import { AccountService } from '../../src/services/account/account.js';
 import { AccountLeaseLock } from '../../src/services/account/lease-lock.js';
@@ -41,7 +39,7 @@ describe('AccountService and LeaseLock', () => {
   let accountsRepo: AccountsRepository;
   let eventsRepo: EventsRepository;
   let eventBus: EventBus;
-  let keyring: MemoryKeyringProvider;
+  let keyring: MemoryWinCred;
   let dpapi: MemoryDpapi;
   let store: CredentialStore;
   let lock: AccountLeaseLock;
@@ -53,13 +51,13 @@ describe('AccountService and LeaseLock', () => {
     accountsRepo = new AccountsRepository(db);
     eventsRepo = new EventsRepository(db);
     eventBus = new EventBus({ eventsRepo });
-    keyring = new MemoryKeyringProvider();
+    keyring = new MemoryWinCred();
     dpapi = new MemoryDpapi();
     lock = new AccountLeaseLock();
 
     store = new CredentialStore({
       dataDir: tempDir,
-      keyringProvider: keyring,
+      wincred: keyring,
       dpapi,
       profile: {
         credentials: {
@@ -352,8 +350,8 @@ describe('AccountService and LeaseLock', () => {
 
       // Verify rollback: restore original claims spy and check keyring
       vi.spyOn(store, 'readLiveClaims').mockImplementation(origReadLiveClaims);
-      const restoredSecret = keyring.getEntry('gemini:antigravity', 'gemini', 'antigravity').getSecret();
-      expect(restoredSecret).toBeDefined();
+      const restoredSecret = keyring.get('gemini:antigravity');
+      expect(restoredSecret?.length).toBeGreaterThan(0);
       const claims = await origReadLiveClaims();
       expect(claims?.email).toBe('orig@example.com');
     });
@@ -380,6 +378,62 @@ describe('AccountService and LeaseLock', () => {
       // Verify rollback occurred
       const claims = await store.readLiveClaims();
       expect(claims?.email).toBe('valid@example.com');
+    });
+
+    async function writeRawSnapshot(accountName: string, targets: Record<string, string>): Promise<void> {
+      accountsRepo.save({
+        name: accountName,
+        type: 'oauth',
+        isolation: 'credential_snapshot',
+        email: null,
+        note: null,
+        savedAt: new Date().toISOString(),
+        active: false,
+      });
+      const snapshotPath = store.getSnapshotPath(accountName);
+      await fs.promises.mkdir(path.dirname(snapshotPath), { recursive: true });
+      const raw = Buffer.from(JSON.stringify({ version: 1, createdAt: '', targets, files: {} }), 'utf-8');
+      await fs.promises.writeFile(snapshotPath, await dpapi.protect(raw));
+    }
+
+    it.each([
+      ['an empty target payload', { 'gemini:antigravity': '' }],
+      ['no targets at all', {}],
+    ])('keeps live credentials untouched when the target snapshot has %s', async (_label, targets) => {
+      const live = makeCredJson('sub-live', 'live@example.com');
+      keyring.set('gemini:antigravity', live, 'antigravity');
+      await service.saveAccount({ name: 'live-acc' });
+      await writeRawSnapshot('empty-acc', targets);
+
+      const writeSpy = vi.spyOn(keyring, 'write');
+      const deleteSpy = vi.spyOn(keyring, 'delete');
+
+      await expect(service.switchAccount('empty-acc')).rejects.toThrow(AppError);
+
+      expect(writeSpy).not.toHaveBeenCalled();
+      expect(deleteSpy).not.toHaveBeenCalled();
+      expect(keyring.get('gemini:antigravity')?.equals(live)).toBe(true);
+      expect(accountsRepo.findDefault()?.name).toBe('live-acc');
+      expect(lock.isWriting).toBe(false);
+    });
+
+    it('rolls back to the live backup when the restore write itself fails', async () => {
+      const live = makeCredJson('sub-live', 'live@example.com');
+      keyring.set('gemini:antigravity', makeCredJson('sub-t', 't@example.com'), 'antigravity');
+      await service.saveAccount({ name: 'target-acc' });
+      keyring.set('gemini:antigravity', live, 'antigravity');
+
+      const realWrite = keyring.write.bind(keyring);
+      let calls = 0;
+      vi.spyOn(keyring, 'write').mockImplementation(async (target, userName, data) => {
+        calls++;
+        if (calls === 1) throw new AppError('INTERNAL', 'simulated CredWrite failure');
+        return realWrite(target, userName, data);
+      });
+
+      await expect(service.switchAccount('target-acc')).rejects.toThrow('simulated CredWrite failure');
+      expect(calls).toBe(2);
+      expect(keyring.get('gemini:antigravity')?.equals(live)).toBe(true);
     });
   });
 
