@@ -1,9 +1,10 @@
 import type {
-  AgentEvent,
   ISODateString,
   SessionEventEnvelope,
+  SubagentStatus,
   ToolCall,
   ToolKind,
+  TranscriptStep,
 } from '@agy-studio/contracts';
 import type {
   AssistantMessageItem,
@@ -217,6 +218,189 @@ function insertSubagentItem(items: readonly TimelineItem[], subagent: SubagentIt
   return [...items, subagent];
 }
 
+function findToolInItems(items: readonly TimelineItem[], toolCallId: string): ToolItem | null {
+  for (const item of items) {
+    if (item.kind === 'tool' && item.toolCallId === toolCallId) {
+      return item;
+    }
+    if (item.kind === 'tool_group') {
+      const found = item.tools.find((t) => t.toolCallId === toolCallId);
+      if (found) {
+        return found;
+      }
+    }
+  }
+  return null;
+}
+
+function findSubagentInItems(
+  items: readonly TimelineItem[],
+  conversationId: string
+): SubagentItem | null {
+  for (const item of items) {
+    if (item.kind === 'subagent' && item.conversationId === conversationId) {
+      return item;
+    }
+    if (item.kind === 'tool') {
+      const found = item.subagents.find((s) => s.conversationId === conversationId);
+      if (found) {
+        return found;
+      }
+    }
+    if (item.kind === 'tool_group') {
+      for (const tool of item.tools) {
+        const found = tool.subagents.find((s) => s.conversationId === conversationId);
+        if (found) {
+          return found;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Inserts a transcript step keyed by stepIndex: an existing index is replaced,
+ * otherwise the step is placed in ascending stepIndex order.
+ */
+function upsertStep(steps: readonly TranscriptStep[], step: TranscriptStep): TranscriptStep[] {
+  const existingIdx = steps.findIndex((s) => s.stepIndex === step.stepIndex);
+  if (existingIdx !== -1) {
+    return steps.map((s, i) => (i === existingIdx ? step : s));
+  }
+  const insertAt = steps.findIndex((s) => s.stepIndex > step.stepIndex);
+  if (insertAt === -1) {
+    return [...steps, step];
+  }
+  return [...steps.slice(0, insertAt), step, ...steps.slice(insertAt)];
+}
+
+function createPlaceholderSubagent(
+  conversationId: string,
+  status: SubagentStatus,
+  steps: TranscriptStep[],
+  runId: string | null,
+  ts: ISODateString
+): SubagentItem {
+  return {
+    id: `subagent-${conversationId}`,
+    kind: 'subagent',
+    type: 'subagent',
+    conversationId,
+    role: 'subagent',
+    typeName: 'subagent',
+    initialPrompt: null,
+    status,
+    parentToolCallId: null,
+    steps,
+    runId,
+    createdAt: ts,
+    updatedAt: ts,
+  };
+}
+
+/**
+ * `null` means the run ended normally; otherwise it is the error recorded on
+ * tools that were still running when the run ended.
+ */
+type InterruptReason = string | null;
+
+const INTERRUPT_REASON = {
+  aborted: 'Run aborted before this step finished',
+  failed: 'Run failed before this step finished',
+  superseded: 'A new run started before this step finished',
+} as const;
+
+function closeSubagent(subagent: SubagentItem, reason: InterruptReason, ts: ISODateString): SubagentItem {
+  if (subagent.status !== 'running') {
+    return subagent;
+  }
+  return {
+    ...subagent,
+    status: reason === null ? 'completed' : 'failed',
+    updatedAt: ts,
+  };
+}
+
+function closeTool(item: ToolItem, reason: InterruptReason, ts: ISODateString): ToolItem {
+  const subagents = item.subagents.map((s) => closeSubagent(s, reason, ts));
+  const subagentsChanged = subagents.some((s, i) => s !== item.subagents[i]);
+  const toolRunning = item.tool.status === 'running';
+  if (!toolRunning && !subagentsChanged) {
+    return item;
+  }
+  return {
+    ...item,
+    tool: toolRunning
+      ? {
+          ...item.tool,
+          status: reason === null ? 'succeeded' : 'failed',
+          error: reason === null ? item.tool.error : (item.tool.error ?? reason),
+          endedAt: item.tool.endedAt ?? ts,
+        }
+      : item.tool,
+    subagents: subagentsChanged ? subagents : item.subagents,
+    updatedAt: ts,
+  };
+}
+
+/**
+ * Settles every still-open item of a run: running tools and subagents get a
+ * terminal status, streaming messages and thinking blocks are marked complete.
+ * The backend emits no tool.finished / message.done for steps cut off by an
+ * abort or crash, so without this they would render as in-progress forever.
+ */
+function closeRunItems(
+  items: readonly TimelineItem[],
+  targetRunId: string | null,
+  reason: InterruptReason,
+  ts: ISODateString
+): TimelineItem[] {
+  let changed = false;
+  const nextItems = items.map((item): TimelineItem => {
+    if (item.runId !== targetRunId) {
+      return item;
+    }
+    switch (item.kind) {
+      case 'assistant_message': {
+        if (item.isComplete) return item;
+        changed = true;
+        return { ...item, isComplete: true, updatedAt: ts };
+      }
+      case 'thinking': {
+        if (item.isComplete) return item;
+        changed = true;
+        const durationMs = calculateDurationMs(item.startedAt, ts);
+        return {
+          ...item,
+          isComplete: true,
+          endedAt: ts,
+          durationMs: durationMs ?? item.durationMs,
+        };
+      }
+      case 'tool': {
+        const closed = closeTool(item, reason, ts);
+        if (closed !== item) changed = true;
+        return closed;
+      }
+      case 'tool_group': {
+        const tools = item.tools.map((t) => closeTool(t, reason, ts));
+        if (tools.every((t, i) => t === item.tools[i])) return item;
+        changed = true;
+        return { ...item, tools, updatedAt: ts };
+      }
+      case 'subagent': {
+        const closed = closeSubagent(item, reason, ts);
+        if (closed !== item) changed = true;
+        return closed;
+      }
+      default:
+        return item;
+    }
+  });
+  return changed ? nextItems : (items as TimelineItem[]);
+}
+
 /**
  * Pure reducer function mapping a sequence of session events into a TimelineState.
  * Guarantees that neither `state` nor `envelope` is mutated.
@@ -227,17 +411,20 @@ export function reduce(
 ): TimelineState {
   const { event, seq, runId, ts } = envelope;
   const lastSeq = Math.max(state.lastSeq, seq);
-  const activeRunId =
-    event.type === 'run.started'
-      ? event.runId
-      : event.type === 'run.completed'
-        ? null
-        : (state.activeRunId ?? runId);
+  // Only run.started / run.completed may change the active run; events that
+  // straggle in after run.completed must not revive it.
+  const activeRunId = state.activeRunId;
 
   switch (event.type) {
     case 'run.started': {
+      const previousRunId = state.activeRunId;
+      const items =
+        previousRunId !== null && previousRunId !== event.runId
+          ? closeRunItems(state.items, previousRunId, INTERRUPT_REASON.superseded, ts)
+          : state.items;
       return {
         ...state,
+        items,
         lastSeq,
         activeRunId: event.runId,
       };
@@ -503,6 +690,7 @@ export function reduce(
         name: 'unknown',
         kind: 'other',
         input: {},
+        target: null,
         output: null,
         error: null,
         status: 'running',
@@ -573,6 +761,43 @@ export function reduce(
     }
 
     case 'subagent.spawned': {
+      const info = event.subagent;
+      const existing = findSubagentInItems(state.items, info.conversationId);
+
+      if (existing) {
+        const merged: SubagentItem = {
+          ...existing,
+          role: info.role,
+          typeName: info.typeName,
+          initialPrompt: info.initialPrompt ?? existing.initialPrompt,
+          // A subagent.finished that arrived first already holds the real outcome.
+          status: existing.status === 'running' ? info.status : existing.status,
+          parentToolCallId: existing.parentToolCallId ?? event.parentToolCallId,
+          updatedAt: ts,
+        };
+
+        const shouldReparent =
+          existing.parentToolCallId === null &&
+          event.parentToolCallId !== null &&
+          findToolInItems(state.items, event.parentToolCallId) !== null;
+
+        const items = shouldReparent
+          ? insertSubagentItem(
+              state.items.filter(
+                (it) => !(it.kind === 'subagent' && it.conversationId === info.conversationId)
+              ),
+              merged
+            )
+          : updateSubagentInItems(state.items, info.conversationId, () => merged).items;
+
+        return {
+          ...state,
+          items,
+          lastSeq,
+          activeRunId,
+        };
+      }
+
       const subagentItem: SubagentItem = {
         id: `subagent-${event.subagent.conversationId}`,
         kind: 'subagent',
@@ -608,7 +833,7 @@ export function reduce(
         event.conversationId,
         (s) => ({
           ...s,
-          steps: [...s.steps, stepCopy],
+          steps: upsertStep(s.steps, stepCopy),
           updatedAt: ts,
         })
       );
@@ -623,21 +848,13 @@ export function reduce(
       }
 
       // If subagent wasn't spawned yet, synthesize top-level subagent
-      const fallbackSubagent: SubagentItem = {
-        id: `subagent-${event.conversationId}`,
-        kind: 'subagent',
-        type: 'subagent',
-        conversationId: event.conversationId,
-        role: 'subagent',
-        typeName: 'subagent',
-        initialPrompt: null,
-        status: 'running',
-        parentToolCallId: null,
-        steps: [stepCopy],
-        runId: runId ?? state.activeRunId,
-        createdAt: ts,
-        updatedAt: ts,
-      };
+      const fallbackSubagent = createPlaceholderSubagent(
+        event.conversationId,
+        'running',
+        [stepCopy],
+        runId ?? state.activeRunId,
+        ts
+      );
 
       return {
         ...state,
@@ -658,20 +875,45 @@ export function reduce(
         })
       );
 
+      if (found) {
+        return {
+          ...state,
+          items,
+          lastSeq,
+          activeRunId,
+        };
+      }
+
+      const placeholder = createPlaceholderSubagent(
+        event.conversationId,
+        event.status,
+        [],
+        runId ?? state.activeRunId,
+        ts
+      );
+
       return {
         ...state,
-        items: found ? items : state.items,
+        items: [...state.items, placeholder],
         lastSeq,
         activeRunId,
       };
     }
 
     case 'run.completed': {
+      const completedRunId = runId ?? state.activeRunId;
+      const closedItems = closeRunItems(
+        state.items,
+        completedRunId,
+        event.status === 'completed' ? null : INTERRUPT_REASON[event.status],
+        ts
+      );
+
       const divider: RunDividerItem = {
         id: `run-divider-${runId ?? seq}`,
         kind: 'run_divider',
         type: 'run_divider',
-        runId: runId ?? state.activeRunId,
+        runId: completedRunId,
         status: event.status,
         durationMs: event.durationMs,
         usage: event.usage ? { ...event.usage } : null,
@@ -682,9 +924,13 @@ export function reduce(
 
       return {
         ...state,
-        items: [...state.items, divider],
+        items: [...closedItems, divider],
         lastSeq,
-        activeRunId: null,
+        // A late run.completed for an older run must not clear the current one.
+        activeRunId:
+          completedRunId === null || completedRunId === state.activeRunId
+            ? null
+            : state.activeRunId,
       };
     }
 
@@ -775,42 +1021,12 @@ export function reduceAll(
  * Utility to find a tool across items, whether top-level or inside a ToolGroupItem.
  */
 export function findTool(state: TimelineState, toolCallId: string): ToolItem | null {
-  for (const item of state.items) {
-    if (item.kind === 'tool' && item.toolCallId === toolCallId) {
-      return item;
-    }
-    if (item.kind === 'tool_group') {
-      const found = item.tools.find((t) => t.toolCallId === toolCallId);
-      if (found) {
-        return found;
-      }
-    }
-  }
-  return null;
+  return findToolInItems(state.items, toolCallId);
 }
 
 /**
  * Utility to find a subagent across items (top-level, inside ToolItem, or inside ToolGroupItem).
  */
 export function findSubagent(state: TimelineState, conversationId: string): SubagentItem | null {
-  for (const item of state.items) {
-    if (item.kind === 'subagent' && item.conversationId === conversationId) {
-      return item;
-    }
-    if (item.kind === 'tool') {
-      const found = item.subagents.find((s) => s.conversationId === conversationId);
-      if (found) {
-        return found;
-      }
-    }
-    if (item.kind === 'tool_group') {
-      for (const tool of item.tools) {
-        const found = tool.subagents.find((s) => s.conversationId === conversationId);
-        if (found) {
-          return found;
-        }
-      }
-    }
-  }
-  return null;
+  return findSubagentInItems(state.items, conversationId);
 }

@@ -19,7 +19,10 @@ export interface SessionSlot {
   events: SessionEventEnvelope[];
   timeline: TimelineState;
   lastSeq: number;
+  /** Always mirrors `timeline.activeRunId`; only run.started / run.completed change it. */
   activeRunId: string | null;
+  /** runId acked by `session.send` whose run.started has not arrived yet. */
+  pendingRunId: string | null;
   loading: boolean;
   error: string | null;
 }
@@ -63,6 +66,7 @@ export function createEmptySlot(loading = false): SessionSlot {
     timeline: createInitialTimelineState(),
     lastSeq: 0,
     activeRunId: null,
+    pendingRunId: null,
     loading,
     error: null,
   };
@@ -70,6 +74,38 @@ export function createEmptySlot(loading = false): SessionSlot {
 
 // Active WebSocket subscriptions map to avoid leaking subscribers across re-opens.
 const activeSubscriptions = new Map<string, () => void>();
+
+// Bumped on every openSession / closeSession so an in-flight openSession can
+// tell it has been superseded or cancelled after each await.
+const openGenerations = new Map<string, number>();
+
+function nextGeneration(sessionId: string): number {
+  const gen = (openGenerations.get(sessionId) ?? 0) + 1;
+  openGenerations.set(sessionId, gen);
+  return gen;
+}
+
+function releaseSubscription(sessionId: string): void {
+  const unsub = activeSubscriptions.get(sessionId);
+  if (!unsub) return;
+  try {
+    unsub();
+  } catch {
+    // ignore
+  }
+  activeSubscriptions.delete(sessionId);
+}
+
+function resolvePendingRunId(
+  pendingRunId: string | null,
+  envelope: SessionEventEnvelope,
+): string | null {
+  if (pendingRunId === null) return null;
+  const { event } = envelope;
+  if (event.type === 'run.started' && event.runId === pendingRunId) return null;
+  if (event.type === 'run.completed' && envelope.runId === pendingRunId) return null;
+  return pendingRunId;
+}
 
 export function clearActiveSubscriptions(): void {
   for (const unsub of activeSubscriptions.values()) {
@@ -80,6 +116,7 @@ export function clearActiveSubscriptions(): void {
     }
   }
   activeSubscriptions.clear();
+  openGenerations.clear();
 }
 
 export const useSessionStore = create<SessionState>()((set, get) => ({
@@ -93,7 +130,10 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     set({ activeSessionId: sessionId });
     if (sessionId) {
       const slot = get().slots[sessionId];
-      if (!slot) {
+      const needsOpen =
+        !slot ||
+        (!slot.loading && (slot.error !== null || !activeSubscriptions.has(sessionId)));
+      if (needsOpen) {
         void get().openSession(sessionId);
       }
     }
@@ -113,6 +153,9 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   },
 
   openSession: async (sessionId: string) => {
+    const generation = nextGeneration(sessionId);
+    const isCurrent = () => openGenerations.get(sessionId) === generation;
+
     // Initialize or mark slot as loading
     set((state) => {
       const existing = state.slots[sessionId];
@@ -133,6 +176,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     try {
       while (hasMore) {
         const res = await getSessionEvents(sessionId, { afterSeq, limit: 100 });
+        if (!isCurrent()) return;
         if (res.items && res.items.length > 0) {
           allEvents.push(...res.items);
           afterSeq = res.items[res.items.length - 1].seq;
@@ -147,30 +191,28 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       const lastSeq = allEvents.length > 0 ? allEvents[allEvents.length - 1].seq : 0;
       const activeRunId = timeline.activeRunId;
 
-      set((state) => ({
-        slots: {
-          ...state.slots,
-          [sessionId]: {
-            events: allEvents,
-            timeline,
-            lastSeq,
-            activeRunId,
-            loading: false,
-            error: null,
-          },
-        },
-      }));
-
-      // Clean up any existing subscription for this session
-      const existingUnsub = activeSubscriptions.get(sessionId);
-      if (existingUnsub) {
-        try {
-          existingUnsub();
-        } catch {
-          // ignore
+      set((state) => {
+        let pendingRunId = state.slots[sessionId]?.pendingRunId ?? null;
+        for (const envelope of allEvents) {
+          pendingRunId = resolvePendingRunId(pendingRunId, envelope);
         }
-        activeSubscriptions.delete(sessionId);
-      }
+        return {
+          slots: {
+            ...state.slots,
+            [sessionId]: {
+              events: allEvents,
+              timeline,
+              lastSeq,
+              activeRunId,
+              pendingRunId,
+              loading: false,
+              error: null,
+            },
+          },
+        };
+      });
+
+      releaseSubscription(sessionId);
 
       // Subscribe to real-time events via wsClient
       const unsub = wsClient.subscribe(
@@ -188,6 +230,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
 
       activeSubscriptions.set(sessionId, unsub);
     } catch (err: unknown) {
+      if (!isCurrent()) return;
       const msg = err instanceof Error ? err.message : String(err);
       set((state) => ({
         slots: {
@@ -203,15 +246,14 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   },
 
   closeSession: (sessionId: string) => {
-    const unsub = activeSubscriptions.get(sessionId);
-    if (unsub) {
-      try {
-        unsub();
-      } catch {
-        // ignore
-      }
-      activeSubscriptions.delete(sessionId);
-    }
+    nextGeneration(sessionId);
+    releaseSubscription(sessionId);
+    set((state) => {
+      if (!(sessionId in state.slots)) return state;
+      const slots = { ...state.slots };
+      delete slots[sessionId];
+      return { slots };
+    });
   },
 
   send: async (sessionId: string, text: string, options?: SendMessageOptions) => {
@@ -226,16 +268,21 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       requestId: options?.requestId,
     });
 
-    if (res.runId) {
+    const ackedRunId = res.runId;
+    if (ackedRunId) {
       set((state) => {
         const slot = state.slots[sessionId];
         if (!slot) return state;
+        const alreadyStarted = slot.events.some(
+          (e) => e.event.type === 'run.started' && e.event.runId === ackedRunId,
+        );
+        if (alreadyStarted) return state;
         return {
           slots: {
             ...state.slots,
             [sessionId]: {
               ...slot,
-              activeRunId: res.runId!,
+              pendingRunId: ackedRunId,
             },
           },
         };
@@ -276,6 +323,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
             timeline: nextTimeline,
             lastSeq: nextLastSeq,
             activeRunId: nextActiveRunId,
+            pendingRunId: resolvePendingRunId(slot.pendingRunId, envelope),
           },
         },
       };
@@ -286,7 +334,10 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     set((state) => ({
       slots: {
         ...state.slots,
-        [sessionId]: createEmptySlot(true),
+        [sessionId]: {
+          ...createEmptySlot(true),
+          pendingRunId: state.slots[sessionId]?.pendingRunId ?? null,
+        },
       },
     }));
     void get().openSession(sessionId);
@@ -322,11 +373,11 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       const nextList = state.list.map((s) => {
         if (s.id === run.sessionId) {
           const sessionStatus: SessionStatus =
-            run.status === 'running' || run.status === 'starting'
-              ? 'running'
-              : run.status === 'failed'
-                ? 'error'
-                : 'idle';
+            run.status === 'failed'
+              ? 'error'
+              : run.status === 'completed' || run.status === 'aborted'
+                ? 'idle'
+                : 'running';
           return {
             ...s,
             status: sessionStatus,

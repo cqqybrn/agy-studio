@@ -16,14 +16,8 @@ export function FileEditCard({
 }: FileEditCardProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
-  // Extract file path from input or fileChanges
   const input = tool.input || {};
-  const filePath =
-    (input.path as string) ||
-    (input.filePath as string) ||
-    (input.target_file as string) ||
-    tool.fileChanges[0]?.path ||
-    tool.name;
+  const filePath = tool.target || tool.fileChanges[0]?.path || tool.name;
 
   // Extract additions and deletions
   let additions = 0;

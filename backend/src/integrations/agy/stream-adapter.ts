@@ -198,6 +198,45 @@ export function extractFileChanges(
 }
 
 /**
+ * Parameter keys holding each tool kind's subject, in priority order.
+ * agy itself uses PascalCase (`CommandLine`, `AbsolutePath`, `TargetFile`);
+ * the other spellings cover older/newer CLI versions.
+ */
+const TOOL_TARGET_PARAM_KEYS: Record<ToolKind, readonly string[]> = {
+  run_command: ['CommandLine', 'Command', 'command', 'Cmd', 'cmd'],
+  view_file: ['AbsolutePath', 'absolute_path', ...FILE_PATH_PARAM_KEYS],
+  edit_file: ['AbsolutePath', 'absolute_path', ...FILE_PATH_PARAM_KEYS],
+  write_file: ['AbsolutePath', 'absolute_path', ...FILE_PATH_PARAM_KEYS],
+  search: [
+    'Query',
+    'query',
+    'Pattern',
+    'pattern',
+    'SearchPath',
+    'SearchDirectory',
+    'DirectoryPath',
+    'directory_path',
+  ],
+  browser: ['Url', 'URL', 'url', 'PageUrl'],
+  mcp: ['ToolName', 'tool_name', 'toolName'],
+  subagent: ['Role', 'role', 'Action'],
+  other: [],
+};
+
+/**
+ * Extracts the human-readable subject of a tool call (see `ToolCall.target`).
+ */
+export function extractToolTarget(kind: ToolKind, input: Record<string, unknown>): string | null {
+  for (const key of TOOL_TARGET_PARAM_KEYS[kind]) {
+    const val = input[key];
+    if (typeof val === 'string' && val.trim().length > 0) {
+      return val.trim();
+    }
+  }
+  return null;
+}
+
+/**
  * Converts raw token usage from agy stream into contract TokenUsage.
  */
 function toTokenUsage(raw?: RawUsage): TokenUsage | undefined {
@@ -382,6 +421,7 @@ export function adapt(line: unknown, ctx: AdaptContext): AdaptResult {
           const input = (step.tool_info?.parameters as Record<string, unknown> | undefined) ?? {};
           const output = typeof step.tool_info?.output === 'string' ? step.tool_info.output : null;
           const fileChanges = extractFileChanges(toolName, kind, input);
+          const target = extractToolTarget(kind, input);
 
           if (step.state === 'ACTIVE') {
             const tool: ToolCall = {
@@ -389,6 +429,7 @@ export function adapt(line: unknown, ctx: AdaptContext): AdaptResult {
               name: toolName,
               kind,
               input,
+              target,
               output: output ?? null,
               error: null,
               status: 'running',
@@ -403,6 +444,7 @@ export function adapt(line: unknown, ctx: AdaptContext): AdaptResult {
               name: toolName,
               kind,
               input,
+              target,
               output: output ?? null,
               error: null,
               status: 'succeeded',

@@ -116,6 +116,7 @@ const mockFileEditTool: ToolItem = {
       old_string: '// old dispatch logic',
       new_string: '// new robust dispatcher with fallback support',
     },
+    target: 'frontend/src/components/timeline/ToolCard.tsx',
     output: 'Successfully applied replacement in ToolCard.tsx',
     error: null,
     status: 'succeeded',
@@ -148,6 +149,7 @@ const mockFileEditFailed: ToolItem = {
     input: {
       path: 'frontend/src/config.ts',
     },
+    target: 'frontend/src/config.ts',
     output: null,
     error: 'ENOENT: File not found at target workspace path',
     status: 'failed',
@@ -173,6 +175,7 @@ const mockCommandTool: ToolItem = {
     input: {
       command: 'npm run test -w frontend',
     },
+    target: 'npm run test -w frontend',
     output: `> vitest run
  RUN  v3.2.7 G:/new/frontend
  ✓ src/components/timeline/timeline.test.tsx (14 tests) 15ms
@@ -205,6 +208,7 @@ const mockCommandFailed: ToolItem = {
     input: {
       command: 'git checkout non-existent-branch',
     },
+    target: 'git checkout non-existent-branch',
     output: 'error: pathspec \'non-existent-branch\' did not match any file(s) known to git',
     error: 'Exit code 1',
     status: 'failed',
@@ -231,6 +235,7 @@ const mockCommandLong: ToolItem = {
     input: {
       command: 'npm run build',
     },
+    target: 'npm run build',
     output: longOutputLines.join('\n'),
     error: null,
     status: 'succeeded',
@@ -257,6 +262,7 @@ const mockSearchTool: ToolItem = {
       query: 'TimelineItem',
       path: 'frontend/src/domain',
     },
+    target: 'TimelineItem',
     output: `frontend/src/domain/timeline.types.ts:25:export type TimelineItemKind =
 frontend/src/domain/timeline.types.ts:167:export type TimelineItem =
 frontend/src/domain/timelineReducer.ts:4:import type { TimelineItem }`,
@@ -286,6 +292,7 @@ const mockBrowserTool: ToolItem = {
       url: 'http://localhost:5173/playground',
       title: 'AGY Studio Playground',
     },
+    target: 'http://localhost:5173/playground',
     output: 'Navigation succeeded (HTTP 200 OK, DOM loaded in 120ms)',
     error: null,
     status: 'succeeded',
@@ -313,6 +320,7 @@ const mockMcpTool: ToolItem = {
       limit: 5,
       filter: { active: true },
     },
+    target: null,
     output: JSON.stringify(
       [
         { id: 1, name: 'Alice', active: true },
@@ -346,6 +354,7 @@ const mockGenericTool: ToolItem = {
       clusterId: 'prod-east-1',
       threshold: 0.95,
     },
+    target: null,
     output: 'All health probes passed successfully.',
     error: null,
     status: 'succeeded',
@@ -374,6 +383,7 @@ const mockToolGroup: ToolGroupItem = {
         name: 'view_file',
         kind: 'view_file',
         input: { path: 'frontend/src/theme.css' },
+        target: 'frontend/src/theme.css',
         output: '/* 64 lines */',
         error: null,
         status: 'succeeded',
@@ -396,6 +406,7 @@ const mockToolGroup: ToolGroupItem = {
         name: 'view_file',
         kind: 'view_file',
         input: { path: 'frontend/src/domain/timeline.types.ts' },
+        target: 'frontend/src/domain/timeline.types.ts',
         output: '/* 185 lines */',
         error: null,
         status: 'succeeded',
@@ -418,6 +429,7 @@ const mockToolGroup: ToolGroupItem = {
         name: 'search',
         kind: 'search',
         input: { query: 'StatusDot', path: 'frontend/src' },
+        target: 'StatusDot',
         output: 'Found 3 occurrences',
         error: null,
         status: 'succeeded',

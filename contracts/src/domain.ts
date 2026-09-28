@@ -110,7 +110,14 @@ export interface ToolCall {
   /** Raw agy tool name, e.g. `run_command`. */
   name: string;
   kind: ToolKind;
+  /** Raw agy parameters; key names vary by agy version, so the UI must not rely on them. */
   input: Record<string, unknown>;
+  /**
+   * What the call acts on, extracted from `input` by the backend: command line for
+   * `run_command`, file path for file tools, query for `search`, URL for `browser`.
+   * Null when the tool has no recognisable subject.
+   */
+  target: string | null;
   output: string | null;
   error: string | null;
   status: ToolStatus;

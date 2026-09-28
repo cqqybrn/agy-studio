@@ -26,12 +26,7 @@ export function CommandCard({
   const [isAllLinesExpanded, setIsAllLinesExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const input = tool.input || {};
-  const command =
-    (input.command as string) ||
-    (input.cmd as string) ||
-    (input.script as string) ||
-    tool.name;
+  const command = tool.target || tool.name;
 
   const rawOutput = tool.output || tool.error || '';
   const lines = rawOutput ? rawOutput.split(/\r?\n/) : [];

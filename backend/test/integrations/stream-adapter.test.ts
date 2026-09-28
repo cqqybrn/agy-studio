@@ -7,6 +7,7 @@ import {
   adapt,
   DEFAULT_TOOL_KIND_MAP,
   extractFileChanges,
+  extractToolTarget,
   resolveToolKind,
   type AdaptContext,
 } from '../../src/integrations/agy/stream-adapter.js';
@@ -226,6 +227,38 @@ describe('stream-adapter', () => {
       expect(
         extractFileChanges('run_command', 'run_command', { CommandLine: 'ls' })
       ).toEqual([]);
+    });
+  });
+
+  describe('tool target extraction', () => {
+    it('reads the parameter names recorded from real agy', () => {
+      expect(extractToolTarget('run_command', { CommandLine: 'git --version' })).toBe('git --version');
+      expect(extractToolTarget('view_file', { AbsolutePath: 'C:\\Windows\\win.ini' })).toBe(
+        'C:\\Windows\\win.ini'
+      );
+      expect(extractToolTarget('write_file', { TargetFile: 'docs/a.md' })).toBe('docs/a.md');
+    });
+
+    it('returns null when no known key holds a non-empty string', () => {
+      expect(extractToolTarget('run_command', { CommandLine: '   ' })).toBeNull();
+      expect(extractToolTarget('run_command', { CommandLine: 42 })).toBeNull();
+      expect(extractToolTarget('other', { Action: 'list' })).toBeNull();
+    });
+
+    it('fills ToolCall.target on tool.started and tool.finished from fixture stdout', () => {
+      const lines = fs
+        .readFileSync(path.join(FIXTURES_STREAM_DIR, 'command-exec', 'stdout.jsonl'), 'utf8')
+        .split(/\r?\n/)
+        .filter((line) => line.trim().length > 0);
+      const ctx = createTestContext();
+      const tools = lines
+        .flatMap((line) => adapt(line, ctx).events)
+        .flatMap((ev) => (ev.type === 'tool.started' || ev.type === 'tool.finished' ? [ev.tool] : []));
+
+      expect(tools.length).toBeGreaterThan(0);
+      for (const tool of tools.filter((t) => t.kind === 'run_command')) {
+        expect(tool.target).toBe(tool.input.CommandLine);
+      }
     });
   });
 

@@ -66,7 +66,8 @@ function makeTool(
     toolCallId,
     name: kind,
     kind,
-    input: { path: `src/${toolCallId}.ts` },
+    input: { AbsolutePath: `src/${toolCallId}.ts` },
+    target: `src/${toolCallId}.ts`,
     output: null,
     error: null,
     status: 'running',
@@ -1195,6 +1196,248 @@ describe('timelineReducer', () => {
       expect(divider.agyConversationId).toBe('native_conv_123');
       expect(state.activeRunId).toBeNull();
       expect(state.lastUsage?.totalTokens).toBe(690);
+    });
+  });
+
+  describe('run boundaries: stragglers, overlapping runs and interrupted steps', () => {
+    const usage = {
+      inputTokens: 10,
+      outputTokens: 5,
+      thinkingTokens: 0,
+      cacheReadTokens: 0,
+      totalTokens: 15,
+    };
+
+    function started(seq: number, runId: string) {
+      return makeEnvelope(
+        seq,
+        { type: 'run.started', runId, model: null, cwd: 'G:/new', checkpointId: null },
+        { runId }
+      );
+    }
+
+    function completed(
+      seq: number,
+      runId: string,
+      status: 'completed' | 'aborted' | 'failed' = 'completed'
+    ) {
+      return makeEnvelope(
+        seq,
+        {
+          type: 'run.completed',
+          status,
+          usage: null,
+          error: null,
+          durationMs: 1000,
+          agyConversationId: null,
+        },
+        { runId }
+      );
+    }
+
+    it('does not revive activeRunId when events for a finished run arrive after run.completed', () => {
+      const state = reduceAll([
+        started(1, 'run_a'),
+        completed(2, 'run_a'),
+        makeEnvelope(3, { type: 'usage', usage }, { runId: 'run_a' }),
+        makeEnvelope(
+          4,
+          { type: 'tool.finished', tool: makeTool('late_tool', 'run_command', { status: 'succeeded' }) },
+          { runId: 'run_a' }
+        ),
+        makeEnvelope(5, { type: 'raw', payload: {} }, { runId: 'run_a' }),
+      ]);
+
+      expect(state.activeRunId).toBeNull();
+      expect(state.lastSeq).toBe(5);
+    });
+
+    it('does not set activeRunId from ordinary events without a run.started', () => {
+      const state = reduce(
+        undefined,
+        makeEnvelope(1, { type: 'message.delta', messageId: 'm', text: 'x' }, { runId: 'run_x' })
+      );
+      expect(state.activeRunId).toBeNull();
+    });
+
+    it('keeps the new run active when a late run.completed for the previous run arrives', () => {
+      const state = reduceAll([started(1, 'run_a'), started(2, 'run_b'), completed(3, 'run_a')]);
+
+      expect(state.activeRunId).toBe('run_b');
+      const divider = state.items[state.items.length - 1] as RunDividerItem;
+      expect(divider.runId).toBe('run_a');
+    });
+
+    it('closes open items of the previous run when a new run.started arrives first', () => {
+      const state = reduceAll([
+        started(1, 'run_a'),
+        makeEnvelope(2, { type: 'message.delta', messageId: 'm_a', text: 'partial' }, { runId: 'run_a' }),
+        makeEnvelope(3, { type: 'tool.started', tool: makeTool('cmd_a', 'run_command') }, { runId: 'run_a' }),
+        started(4, 'run_b'),
+        makeEnvelope(5, { type: 'tool.started', tool: makeTool('cmd_b', 'run_command') }, { runId: 'run_b' }),
+      ]);
+
+      expect(state.activeRunId).toBe('run_b');
+      const msg = state.items[0] as AssistantMessageItem;
+      expect(msg.isComplete).toBe(true);
+      expect(findTool(state, 'cmd_a')?.tool.status).toBe('failed');
+      expect(findTool(state, 'cmd_a')?.tool.error).toMatch(/new run started/);
+      expect(findTool(state, 'cmd_b')?.tool.status).toBe('running');
+    });
+
+    it('settles running tools, grouped tools, streaming message, thinking and subagents on an aborted run', () => {
+      const state = reduceAll([
+        started(1, 'run_a'),
+        makeEnvelope(2, { type: 'thinking.delta', blockId: 'b1', source: 'stream', text: 'hmm' }, { runId: 'run_a' }),
+        makeEnvelope(3, { type: 'message.delta', messageId: 'm1', text: 'Running' }, { runId: 'run_a' }),
+        makeEnvelope(4, { type: 'tool.started', tool: makeTool('v1', 'view_file') }, { runId: 'run_a' }),
+        makeEnvelope(5, { type: 'tool.started', tool: makeTool('s1', 'search') }, { runId: 'run_a' }),
+        makeEnvelope(6, { type: 'tool.started', tool: makeTool('cmd', 'run_command') }, { runId: 'run_a' }),
+        makeEnvelope(
+          7,
+          {
+            type: 'subagent.spawned',
+            parentToolCallId: 'cmd',
+            subagent: {
+              conversationId: 'sub_1',
+              role: 'r',
+              typeName: 't',
+              initialPrompt: null,
+              status: 'running',
+            },
+          },
+          { runId: 'run_a' }
+        ),
+        completed(8, 'run_a', 'aborted'),
+      ]);
+
+      expect(state.activeRunId).toBeNull();
+
+      const thinking = state.items.find((it) => it.kind === 'thinking') as ThinkingItem;
+      expect(thinking.isComplete).toBe(true);
+
+      const msg = state.items.find((it) => it.kind === 'assistant_message') as AssistantMessageItem;
+      expect(msg.isComplete).toBe(true);
+
+      const group = state.items.find((it) => it.kind === 'tool_group') as ToolGroupItem;
+      expect(group.tools.map((t) => t.tool.status)).toEqual(['failed', 'failed']);
+
+      const cmd = findTool(state, 'cmd')!;
+      expect(cmd.tool.status).toBe('failed');
+      expect(cmd.tool.error).toMatch(/aborted/);
+      expect(cmd.tool.endedAt).not.toBeNull();
+      expect(cmd.subagents[0].status).toBe('failed');
+
+      expect(state.items[state.items.length - 1].kind).toBe('run_divider');
+    });
+
+    it('marks leftover running tools as succeeded when the run completed normally, and leaves finished tools untouched', () => {
+      const finished = makeTool('done', 'run_command', {
+        status: 'failed',
+        error: 'exit 1',
+        endedAt: '2026-09-28T10:00:02.000Z',
+      });
+      const state = reduceAll([
+        started(1, 'run_a'),
+        makeEnvelope(2, { type: 'tool.started', tool: makeTool('open', 'run_command') }, { runId: 'run_a' }),
+        makeEnvelope(3, { type: 'tool.finished', tool: finished }, { runId: 'run_a' }),
+        completed(4, 'run_a', 'completed'),
+      ]);
+
+      expect(findTool(state, 'open')?.tool.status).toBe('succeeded');
+      expect(findTool(state, 'open')?.tool.error).toBeNull();
+      expect(findTool(state, 'done')?.tool).toEqual(finished);
+    });
+
+    it('does not touch items of other runs when a run completes', () => {
+      const state = reduceAll([
+        started(1, 'run_a'),
+        started(2, 'run_b'),
+        makeEnvelope(3, { type: 'message.delta', messageId: 'm_b', text: 'live' }, { runId: 'run_b' }),
+        completed(4, 'run_a', 'failed'),
+      ]);
+
+      const msg = state.items.find((it) => it.kind === 'assistant_message') as AssistantMessageItem;
+      expect(msg.isComplete).toBe(false);
+      expect(state.activeRunId).toBe('run_b');
+    });
+
+    it('treats the doubled usage event emitted per result as idempotent', () => {
+      const state = reduceAll([
+        started(1, 'run_a'),
+        makeEnvelope(2, { type: 'usage', usage }, { runId: 'run_a' }),
+        makeEnvelope(3, { type: 'usage', usage }, { runId: 'run_a' }),
+      ]);
+      expect(state.items).toHaveLength(0);
+      expect(state.lastUsage).toEqual(usage);
+    });
+  });
+
+  describe('subagent de-duplication', () => {
+    const spawn = (seq: number, parentToolCallId: string | null, status: 'running' | 'completed' = 'running') =>
+      makeEnvelope(seq, {
+        type: 'subagent.spawned',
+        parentToolCallId,
+        subagent: {
+          conversationId: 'sub_dup',
+          role: 'Dependency Analyzer',
+          typeName: 'research',
+          initialPrompt: 'analyze',
+          status,
+        },
+      });
+
+    const step = (seq: number, stepIndex: number, content: string) =>
+      makeEnvelope(seq, {
+        type: 'subagent.step',
+        conversationId: 'sub_dup',
+        step: {
+          stepIndex,
+          type: 'message',
+          status: null,
+          createdAt: null,
+          content,
+          thinking: null,
+          toolCalls: [],
+          error: null,
+        },
+      });
+
+    it('merges repeated subagent.spawned for the same conversationId into one card', () => {
+      const state = reduceAll([
+        makeEnvelope(1, { type: 'tool.started', tool: makeTool('parent', 'subagent') }),
+        spawn(2, 'parent'),
+        spawn(3, 'parent'),
+      ]);
+
+      expect(findTool(state, 'parent')?.subagents).toHaveLength(1);
+    });
+
+    it('upserts steps by stepIndex and keeps them ordered', () => {
+      const state = reduceAll([
+        spawn(1, null),
+        step(2, 1, 'second'),
+        step(3, 0, 'first'),
+        step(4, 1, 'second (replayed)'),
+      ]);
+
+      const sub = findSubagent(state, 'sub_dup')!;
+      expect(sub.steps.map((s) => s.stepIndex)).toEqual([0, 1]);
+      expect(sub.steps[1].content).toBe('second (replayed)');
+    });
+
+    it('keeps a subagent.finished that arrives before subagent.spawned, and re-parents the placeholder', () => {
+      const state = reduceAll([
+        makeEnvelope(1, { type: 'tool.started', tool: makeTool('parent', 'subagent') }),
+        makeEnvelope(2, { type: 'subagent.finished', conversationId: 'sub_dup', status: 'completed' }),
+        spawn(3, 'parent', 'running'),
+      ]);
+
+      expect(state.items.filter((it) => it.kind === 'subagent')).toHaveLength(0);
+      const subs = findTool(state, 'parent')!.subagents;
+      expect(subs).toHaveLength(1);
+      expect(subs[0].status).toBe('completed');
+      expect(subs[0].role).toBe('Dependency Analyzer');
     });
   });
 });

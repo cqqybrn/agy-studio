@@ -109,7 +109,7 @@ WS   : 实时事件推送 + 发送消息 + 中止运行（单连接订阅多个�
 
 | 方向 | 帧 | 说明 |
 |---|---|---|
-| C→S | `session.subscribe {sessionIds, lastSeq}` | 服务端先补发 `seq > lastSeq` 的事件（每批 500 条），再切到实时推送 |
+| C→S | `session.subscribe {sessionIds, lastSeq}` | 服务端先补发 `seq > lastSeq` 的事件（每批 500 条），再切到实时推送。同一连接对已订阅的会话再次 subscribe 时（客户端发现跳号会这样做），服务端必须**替换**原订阅并按新的 `lastSeq` 重新补发，不能再挂一份，否则每条实时事件会被推送多次 |
 | C→S | `session.send {requestId, sessionId, text, attachmentIds, model?, effort?, mode?}` | 成功回 `ack {runId}`，失败回 `nack {error}` |
 | C→S | `run.abort {requestId, runId}` | 中止；之后仍会收到一条 `run.completed(status=aborted)` |
 | C→S | `ping` | 每 20 秒一次 |
@@ -516,8 +516,8 @@ git push -u origin main
 
 #### 1.8 EventBus 与 WS 网关 🔴
 - **交付物**：`services/event-bus.ts`（每会话串行队列、连续 seq、delta 在 50ms 窗口内合并、每 50ms 或 100 条批量写库、写库成功后再推送）；`routes/ws/gateway.ts`（鉴权、订阅时补发与实时的无缝衔接、ack/nack、心跳、慢客户端断开）
-- **潜在死穴**：补发查询期间的新事件被漏掉或重复（先挂订阅并缓冲实时事件 → 补发 → 丢弃已发送 seq → 冲刷缓冲）；写库失败但已推送；慢客户端拖慢整个会话
-- **完成标准**：覆盖运行中途订阅、断线重连、两个客户端同时订阅、合并后 seq 连续、写库失败不推送
+- **潜在死穴**：补发查询期间的新事件被漏掉或重复（先挂订阅并缓冲实时事件 → 补发 → 丢弃已发送 seq → 冲刷缓冲）；同一连接对同一会话重复 subscribe 时叠加订阅，导致实时事件被重复推送（必须替换旧订阅）；写库失败但已推送；慢客户端拖慢整个会话
+- **完成标准**：覆盖运行中途订阅、断线重连、两个客户端同时订阅、同一连接重复订阅同一会话后每条事件只推送一次、合并后 seq 连续、写库失败不推送
 
 #### 1.9 会话与工作区服务、REST 🟡
 - **交付物**：`services/session.ts`（创建时确定账号、发送、回填 conversation id、状态更新与 `session.upserted` 广播、删除与清理、从磁盘导入——`isolated_home` 模式下遍历每个账号的数据目录）；`services/workspace.ts`；对应路由
@@ -800,9 +800,9 @@ git push -u origin main
 任务：实现 backend/src/services/event-bus.ts 和 backend/src/routes/ws/gateway.ts。
 要点：
 - event-bus：publish(sessionId, runId, event)：每会话串行队列、连续 seq（从 events repo 的 latestSeq 继续）；同一 messageId 的 message.delta 或同一 blockId 的 thinking.delta 在 WS_LIMITS.deltaCoalesceMs 内合并；每 50ms 或 100 条调用 appendBatch，写库成功后才推送；subscribe / unsubscribe；publishGlobal(event)
-- gateway：config 有 token 时校验 ?token=；session.subscribe 流程：挂订阅并缓冲实时事件 → 按 replayBatchSize 分批补发 seq > lastSeq → 丢弃缓冲中 seq ≤ 已发最大值的事件 → 冲刷缓冲 → 直接推送 → 发送 subscribed{latestSeq, activeRunId}；session.send / run.abort 调用注入的 sessionService 并回 ack / nack；heartbeatIntervalMs 两个周期未收到 ping 则断开；单 socket 待发送超过 8MB 则断开
+- gateway：config 有 token 时校验 ?token=；session.subscribe 流程：挂订阅并缓冲实时事件 → 按 replayBatchSize 分批补发 seq > lastSeq → 丢弃缓冲中 seq ≤ 已发最大值的事件 → 冲刷缓冲 → 直接推送 → 发送 subscribed{latestSeq, activeRunId}；同一 socket 对已订阅的会话再次 subscribe 时，先撤掉旧订阅（包括未冲刷的缓冲）再按上述流程重来，任何时刻每个 socket 对每个会话最多一份订阅；session.send / run.abort 调用注入的 sessionService 并回 ack / nack；heartbeatIntervalMs 两个周期未收到 ping 则断开；单 socket 待发送超过 8MB 则断开
 约束：只改这两个文件和对应测试；sessionService 用最小接口注入；不要修改 contracts/。
-验收：覆盖运行中途订阅、断线重连、双客户端、合并后 seq 连续、写库失败不推送。
+验收：覆盖运行中途订阅、断线重连、双客户端、同一 socket 重复订阅同一会话后每条事件只收到一次、合并后 seq 连续、写库失败不推送。
 ⚠️ 高危模块：完成后先不要提交，告诉我"请呼叫 Opus 复审模块 1.8"，重点说明补发与实时衔接的实现。
 复审通过后执行：git add . && git commit -m "feat: 完成模块 1.8 EventBus 与 WS 网关"
 ```

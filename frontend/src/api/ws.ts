@@ -691,12 +691,13 @@ export class WsClient {
           break;
         }
 
+        // The server sends `subscribed` only after replay has finished, so
+        // latestSeq > lastSeq just means live events are still in flight;
+        // real gaps are caught by the seq check on incoming events.
         if (latestSeq < sub.lastSeq) {
           sub.lastSeq = 0;
           this.notifyReset(sub);
           this.requestResubscribe(sessionId, 0);
-        } else if (latestSeq > sub.lastSeq) {
-          this.requestResubscribe(sessionId, sub.lastSeq);
         }
         break;
       }

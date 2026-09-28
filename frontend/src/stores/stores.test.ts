@@ -364,7 +364,7 @@ describe('Frontend Stores', () => {
       });
     });
 
-    it('send: sends session.send via wsClient and records activeRunId', async () => {
+    it('send: sends session.send via wsClient and records pendingRunId until run.started', async () => {
       vi.mocked(endpoints.getSessionEvents).mockResolvedValueOnce({
         items: [],
         latestSeq: 0,
@@ -391,7 +391,32 @@ describe('Frontend Stores', () => {
         requestId: undefined,
       });
 
-      const slot = useSessionStore.getState().slots['sess-send'];
+      let slot = useSessionStore.getState().slots['sess-send'];
+      expect(slot.pendingRunId).toBe('run-mock-123');
+      expect(slot.activeRunId).toBeNull();
+
+      // A straggler from an older run must not touch either field
+      const subscription = mockWsSubscriptions.get('sess-send')!;
+      subscription.callbacks.onEvent({
+        sessionId: 'sess-send',
+        seq: 1,
+        runId: 'run-old',
+        ts: '2026-09-28T10:00:00.000Z',
+        event: { type: 'usage', usage: { inputTokens: 1, outputTokens: 1, thinkingTokens: 0, cacheReadTokens: 0, totalTokens: 2 } },
+      });
+      slot = useSessionStore.getState().slots['sess-send'];
+      expect(slot.pendingRunId).toBe('run-mock-123');
+      expect(slot.activeRunId).toBeNull();
+
+      subscription.callbacks.onEvent({
+        sessionId: 'sess-send',
+        seq: 2,
+        runId: 'run-mock-123',
+        ts: '2026-09-28T10:00:08.000Z',
+        event: { type: 'run.started', runId: 'run-mock-123', model: null, cwd: '/workspace', checkpointId: null },
+      });
+      slot = useSessionStore.getState().slots['sess-send'];
+      expect(slot.pendingRunId).toBeNull();
       expect(slot.activeRunId).toBe('run-mock-123');
     });
 
@@ -555,6 +580,86 @@ describe('Frontend Stores', () => {
         status: 'failed',
       });
       expect(useSessionStore.getState().list[0].status).toBe('error');
+
+      const expected: Array<[RunStatus, string]> = [
+        ['queued', 'running'],
+        ['starting', 'running'],
+        ['stalled', 'running'],
+        ['completed', 'idle'],
+        ['aborted', 'idle'],
+      ];
+      for (const [status, sessionStatus] of expected) {
+        useSessionStore.getState().handleRunStatus({ id: 'run-new', sessionId: 's-run', status });
+        expect(useSessionStore.getState().list[0].status).toBe(sessionStatus);
+      }
+    });
+
+    it('closeSession: unsubscribes and drops the slot, so re-activating reopens with a fresh subscription', async () => {
+      vi.mocked(endpoints.getSessionEvents).mockResolvedValue({
+        items: [],
+        latestSeq: 0,
+        hasMore: false,
+      });
+
+      await useSessionStore.getState().openSession('sess-close');
+      expect(mockWsSubscriptions.has('sess-close')).toBe(true);
+
+      useSessionStore.getState().closeSession('sess-close');
+      expect(mockWsSubscriptions.has('sess-close')).toBe(false);
+      expect(useSessionStore.getState().slots['sess-close']).toBeUndefined();
+
+      useSessionStore.getState().setActiveSessionId('sess-close');
+      await vi.waitFor(() => {
+        expect(mockWsSubscriptions.has('sess-close')).toBe(true);
+      });
+      expect(endpoints.getSessionEvents).toHaveBeenCalledTimes(2);
+    });
+
+    it('closeSession during an in-flight openSession prevents the late subscribe', async () => {
+      let resolveFetch!: (value: { items: SessionEventEnvelope[]; latestSeq: number; hasMore: boolean }) => void;
+      vi.mocked(endpoints.getSessionEvents).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFetch = resolve;
+          }),
+      );
+
+      const opening = useSessionStore.getState().openSession('sess-race');
+      useSessionStore.getState().closeSession('sess-race');
+      resolveFetch({ items: [], latestSeq: 0, hasMore: false });
+      await opening;
+
+      expect(wsClient.subscribe).not.toHaveBeenCalled();
+      expect(mockWsSubscriptions.has('sess-race')).toBe(false);
+      expect(useSessionStore.getState().slots['sess-race']).toBeUndefined();
+    });
+
+    it('setActiveSessionId retries a slot whose previous load failed', async () => {
+      vi.mocked(endpoints.getSessionEvents)
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockResolvedValueOnce({ items: [], latestSeq: 0, hasMore: false });
+
+      await useSessionStore.getState().openSession('sess-retry');
+      expect(useSessionStore.getState().slots['sess-retry'].error).toBe('offline');
+
+      useSessionStore.getState().setActiveSessionId('sess-retry');
+      await vi.waitFor(() => {
+        expect(useSessionStore.getState().slots['sess-retry'].error).toBeNull();
+      });
+      expect(mockWsSubscriptions.has('sess-retry')).toBe(true);
+    });
+
+    it('handleSessionDeleted drops the slot and its subscription', async () => {
+      vi.mocked(endpoints.getSessionEvents).mockResolvedValueOnce({
+        items: [],
+        latestSeq: 0,
+        hasMore: false,
+      });
+      await useSessionStore.getState().openSession('sess-del');
+
+      useSessionStore.getState().handleSessionDeleted('sess-del');
+      expect(useSessionStore.getState().slots['sess-del']).toBeUndefined();
+      expect(mockWsSubscriptions.has('sess-del')).toBe(false);
     });
   });
 

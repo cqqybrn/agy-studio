@@ -7,6 +7,21 @@ import { CheckIcon, CopyIcon } from './icons';
 export interface MessageMarkdownProps {
   content: string;
   className?: string;
+  /** 消息仍在流式输出时为 true：此时代码块不做高亮，避免每个 delta 都整块重算 */
+  streaming?: boolean;
+}
+
+// 超过任一阈值的代码块始终按纯文本渲染：Shiki 的 codeToHtml 是同步的，会阻塞主线程
+export const HIGHLIGHT_MAX_CHARS = 100_000;
+export const HIGHLIGHT_MAX_LINES = 2_000;
+
+export function shouldHighlightCode(code: string): boolean {
+  if (code.length > HIGHLIGHT_MAX_CHARS) return false;
+  let lines = 1;
+  for (let i = 0; i < code.length; i++) {
+    if (code.charCodeAt(i) === 10 && ++lines > HIGHLIGHT_MAX_LINES) return false;
+  }
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -83,8 +98,13 @@ export async function highlightCodeWithShiki(code: string, language: string): Pr
 function CodeBlock({ code, language }: { code: string; language: string }) {
   const [highlightedHtml, setHighlightedHtml] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const highlightEnabled = React.useContext(HighlightContext);
 
   useEffect(() => {
+    if (!highlightEnabled || !shouldHighlightCode(code)) {
+      setHighlightedHtml(null);
+      return;
+    }
     let isMounted = true;
     highlightCodeWithShiki(code, language).then((html) => {
       if (isMounted && html) {
@@ -94,7 +114,7 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
     return () => {
       isMounted = false;
     };
-  }, [code, language]);
+  }, [code, language, highlightEnabled]);
 
   const handleCopy = () => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -152,6 +172,7 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
 // 上下文：用于精准区分 <pre> 内的代码块与普通行内代码
 // ---------------------------------------------------------------------------
 const InPreContext = React.createContext(false);
+const HighlightContext = React.createContext(true);
 
 const markdownComponents: Components = {
   // 标题 Headings
@@ -348,7 +369,7 @@ const markdownComponents: Components = {
 // ---------------------------------------------------------------------------
 // 纯展示无状态 MessageMarkdown 组件
 // ---------------------------------------------------------------------------
-export function MessageMarkdown({ content, className = '' }: MessageMarkdownProps) {
+export function MessageMarkdown({ content, className = '', streaming = false }: MessageMarkdownProps) {
   if (!content) return null;
 
   return (
@@ -356,16 +377,18 @@ export function MessageMarkdown({ content, className = '' }: MessageMarkdownProp
       className={`message-markdown font-sans text-xs select-text ${className}`}
       data-testid="message-markdown"
     >
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={markdownComponents}
-        urlTransform={(url) => {
-          if (isSafeUrl(url)) return url;
-          return '';
-        }}
-      >
-        {content}
-      </ReactMarkdown>
+      <HighlightContext.Provider value={!streaming}>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={markdownComponents}
+          urlTransform={(url) => {
+            if (isSafeUrl(url)) return url;
+            return '';
+          }}
+        >
+          {content}
+        </ReactMarkdown>
+      </HighlightContext.Provider>
     </div>
   );
 }

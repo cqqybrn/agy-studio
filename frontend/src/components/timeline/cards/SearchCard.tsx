@@ -16,14 +16,7 @@ export function SearchCard({
 }: SearchCardProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
-  const input = tool.input || {};
-  const query =
-    (input.query as string) ||
-    (input.pattern as string) ||
-    (input.searchTerm as string) ||
-    (input.keyword as string) ||
-    '';
-  const path = (input.path as string) || (input.target_directory as string) || '';
+  const query = tool.target || '';
 
   // Calculate result statistics
   const rawOutput = tool.output || '';
@@ -68,14 +61,6 @@ export function SearchCard({
           <span className="font-mono text-text-primary truncate" title={query}>
             &quot;{query || 'all'}&quot;
           </span>
-          {path && (
-            <span
-              className="text-text-tertiary truncate font-mono text-[11px]"
-              title={path}
-            >
-              in {path}
-            </span>
-          )}
         </div>
 
         <div className="flex items-center gap-2 pl-2 shrink-0">

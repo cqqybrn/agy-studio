@@ -17,24 +17,13 @@ export function BrowserCard({
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   const input = tool.input || {};
-  const action =
-    (input.action as string) ||
-    tool.name.replace(/^browser_/, '') ||
-    'action';
+  const action = tool.name.replace(/^browser_/, '') || 'action';
+  const target = tool.target || '';
 
-  const target =
-    (input.url as string) ||
-    (input.selector as string) ||
-    (input.ref as string) ||
-    (input.text as string) ||
-    '';
-
-  // Screenshot detection in input or output
   const screenshot =
-    (input.screenshot as string) ||
-    (typeof tool.output === 'string' && tool.output.startsWith('data:image/')
+    typeof tool.output === 'string' && tool.output.startsWith('data:image/')
       ? tool.output
-      : null);
+      : null;
 
   return (
     <div

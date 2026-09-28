@@ -15,9 +15,12 @@ import {
   formatGroupSummary,
   formatRunDuration,
   formatThinkingDuration,
+  HIGHLIGHT_MAX_CHARS,
+  HIGHLIGHT_MAX_LINES,
   MessageMarkdown,
   renderInlineMarkdown,
   RunDivider,
+  shouldHighlightCode,
   StalledNotice,
   StatusDot,
   ThinkingBlock,
@@ -143,9 +146,10 @@ describe('Timeline Atomic Components', () => {
         name: 'edit_file',
         kind: 'edit_file',
         input: {
-          path: 'src/components/App.tsx',
+          TargetFile: 'src/components/App.tsx',
           patch: '@@ -1,3 +1,4 @@\n+import { New } from "./new";',
         },
+        target: 'src/components/App.tsx',
         output: 'Success',
         error: null,
         status: 'succeeded',
@@ -177,8 +181,9 @@ describe('Timeline Atomic Components', () => {
         name: 'run_command',
         kind: 'run_command',
         input: {
-          command: 'npm run test -w frontend',
+          CommandLine: 'npm run test -w frontend',
         },
+        target: 'npm run test -w frontend',
         output: 'PASS src/test.ts (2 tests)',
         error: null,
         status: 'succeeded',
@@ -194,14 +199,35 @@ describe('Timeline Atomic Components', () => {
       expect(html).toContain('title="Copy command"');
     });
 
+    it('shows the tool name, not raw input keys, when the backend found no target', () => {
+      const toolCall: ToolCall = {
+        toolCallId: 'tc-2-no-target',
+        name: 'run_command',
+        kind: 'run_command',
+        input: { command: 'should-not-be-read' },
+        target: null,
+        output: null,
+        error: null,
+        status: 'running',
+        fileChanges: [],
+        startedAt: '2026-09-28T10:00:00.000Z',
+        endedAt: null,
+      };
+
+      const html = renderToString(<ToolCard tool={toolCall} />);
+      expect(html).toContain('run_command');
+      expect(html).not.toContain('should-not-be-read');
+    });
+
     it('highlights command card with red border on failure', () => {
       const toolCall: ToolCall = {
         toolCallId: 'tc-2-fail',
         name: 'run_command',
         kind: 'run_command',
         input: {
-          command: 'npm run build-fail',
+          CommandLine: 'npm run build-fail',
         },
+        target: 'npm run build-fail',
         output: 'Error: build failed',
         error: 'Exit code 1',
         status: 'failed',
@@ -221,9 +247,10 @@ describe('Timeline Atomic Components', () => {
         name: 'search',
         kind: 'search',
         input: {
-          query: 'TimelineItem',
-          path: 'frontend/src',
+          Query: 'TimelineItem',
+          SearchPath: 'frontend/src',
         },
+        target: 'TimelineItem',
         output: 'match 1\nmatch 2\nmatch 3',
         error: null,
         status: 'succeeded',
@@ -244,9 +271,9 @@ describe('Timeline Atomic Components', () => {
         name: 'browser_navigate',
         kind: 'browser',
         input: {
-          action: 'navigate',
-          url: 'https://github.com',
+          Url: 'https://github.com',
         },
+        target: 'https://github.com',
         output: 'OK',
         error: null,
         status: 'succeeded',
@@ -267,6 +294,7 @@ describe('Timeline Atomic Components', () => {
         name: 'mcp__postgres__select_users',
         kind: 'mcp',
         input: { limit: 10 },
+        target: null,
         output: '[]',
         error: null,
         status: 'succeeded',
@@ -287,6 +315,7 @@ describe('Timeline Atomic Components', () => {
         name: 'unknown_custom_tool',
         kind: 'other',
         input: { customKey: 'val' },
+        target: null,
         output: 'done',
         error: null,
         status: 'succeeded',
@@ -316,7 +345,8 @@ describe('Timeline Atomic Components', () => {
             toolCallId: 'tc-g-1',
             name: 'view_file',
             kind: 'view_file',
-            input: { path: 'a.ts' },
+            input: { AbsolutePath: 'a.ts' },
+            target: 'a.ts',
             output: '',
             error: null,
             status: 'succeeded',
@@ -338,7 +368,8 @@ describe('Timeline Atomic Components', () => {
             toolCallId: 'tc-g-2',
             name: 'view_file',
             kind: 'view_file',
-            input: { path: 'b.ts' },
+            input: { AbsolutePath: 'b.ts' },
+            target: 'b.ts',
             output: '',
             error: null,
             status: 'succeeded',
@@ -360,7 +391,8 @@ describe('Timeline Atomic Components', () => {
             toolCallId: 'tc-g-3',
             name: 'search',
             kind: 'search',
-            input: { query: 'test' },
+            input: { Query: 'test' },
+            target: 'test',
             output: '',
             error: null,
             status: 'succeeded',
@@ -449,6 +481,19 @@ const greeting: string = "Hello World";
       expect(html).toContain('data-testid="copy-code-btn"');
       expect(html).toContain('Copy code');
       expect(html).toContain('Hello World');
+    });
+
+    it('still renders code blocks as plain text while streaming', () => {
+      const codeMarkdown = '```bash\necho streaming\n```';
+      const html = renderToString(<MessageMarkdown content={codeMarkdown} streaming />);
+      expect(html).toContain('data-testid="code-block"');
+      expect(html).toContain('echo streaming');
+    });
+
+    it('skips syntax highlighting for oversized code blocks', () => {
+      expect(shouldHighlightCode('const a = 1;\n'.repeat(10))).toBe(true);
+      expect(shouldHighlightCode('x\n'.repeat(HIGHLIGHT_MAX_LINES))).toBe(false);
+      expect(shouldHighlightCode('x'.repeat(HIGHLIGHT_MAX_CHARS + 1))).toBe(false);
     });
 
     it('renders task lists with checkboxes', () => {

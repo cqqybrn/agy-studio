@@ -9,6 +9,10 @@ export const WS_PATH = '/ws';
 
 export type ClientFrame =
   | {
+      /**
+       * Re-subscribing a session already subscribed on this socket (the client does so on a seq gap)
+       * replaces the existing subscription and replays from the new `lastSeq`; it never stacks a second one.
+       */
       type: 'session.subscribe';
       sessionIds: string[];
       /** Highest seq the client already holds per session; 0 = replay everything. */

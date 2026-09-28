@@ -994,7 +994,7 @@ describe('WsClient - Full Test Suite', () => {
       });
     });
 
-    it('does not advance local lastSeq when latestSeq > localLastSeq, and treats it as a gap by resubscribing from local lastSeq', () => {
+    it('does not advance local lastSeq or resubscribe when latestSeq > localLastSeq (live events still in flight)', () => {
       const { client, getWs } = createClient();
       const ws = getWs();
       ws.simulateOpen();
@@ -1014,17 +1014,11 @@ describe('WsClient - Full Test Suite', () => {
       // local lastSeq must NOT be advanced directly to 100
       expect(client.getLastSeq('s1')).toBe(0);
 
-      // Instead, triggers resubscription from local lastSeq 0
-      const subFrames = ws.getAllSent().filter((m) => m.type === 'session.subscribe');
-      expect(subFrames).toHaveLength(2);
-      expect(subFrames[1]).toEqual({
-        type: 'session.subscribe',
-        sessionIds: ['s1'],
-        lastSeq: { s1: 0 },
-      });
+      // subscribed arrives after replay, so no extra subscribe frame is sent
+      expect(ws.getAllSent().filter((m) => m.type === 'session.subscribe')).toHaveLength(1);
     });
 
-    it('treats gap in subscribed frame as jump and deduplicates subsequent gap events before next subscribed', () => {
+    it('leaves gap detection to event seq after subscribed, and sends only one resubscribe per gap', () => {
       const { client, getWs } = createClient();
       const ws = getWs();
       ws.simulateOpen();
@@ -1041,11 +1035,11 @@ describe('WsClient - Full Test Suite', () => {
         activeRunId: null,
       });
 
-      // Local lastSeq stays 10
+      // Local lastSeq stays 10 and no resubscribe yet
       expect(client.getLastSeq('s1')).toBe(10);
-      expect(ws.getAllSent().filter((m) => m.type === 'session.subscribe')).toHaveLength(2);
+      expect(ws.getAllSent().filter((m) => m.type === 'session.subscribe')).toHaveLength(1);
 
-      // In-flight gap events arriving before the next subscribed must not trigger more subscribe frames
+      // A real gap (seq 21 while holding 10) triggers exactly one resubscribe from 10
       ws.simulateMessage({
         type: 'event',
         envelope: {
@@ -1057,7 +1051,28 @@ describe('WsClient - Full Test Suite', () => {
         },
       });
 
+      const subFrames = ws.getAllSent().filter((m) => m.type === 'session.subscribe');
+      expect(subFrames).toHaveLength(2);
+      expect(subFrames[1]).toEqual({
+        type: 'session.subscribe',
+        sessionIds: ['s1'],
+        lastSeq: { s1: 10 },
+      });
+
+      // Further gap events before the next subscribed must not send more subscribe frames
+      ws.simulateMessage({
+        type: 'event',
+        envelope: {
+          seq: 22,
+          sessionId: 's1',
+          runId: 'r1',
+          ts: '2026-09-28T00:00:00Z',
+          event: { type: 'message.delta', messageId: 'm1', text: 'gap' },
+        },
+      });
+
       expect(ws.getAllSent().filter((m) => m.type === 'session.subscribe')).toHaveLength(2);
+      expect(client.getLastSeq('s1')).toBe(10);
     });
 
     it('ignores invalid latestSeq (NaN, negative, undefined, null) without corrupting local lastSeq', () => {
