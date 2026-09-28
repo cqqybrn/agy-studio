@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { ToolCall, TranscriptStep } from '@agy-studio/contracts';
+import type { Account, QuotaSnapshot, ToolCall, TranscriptStep, WhoAmI } from '@agy-studio/contracts';
 import {
   AttachmentChip,
   Composer,
@@ -19,6 +19,8 @@ import {
   ToolCard,
   ToolGroupCard,
 } from '../components/timeline';
+import { QuotaPanel, QuotaRing } from '../components/quota';
+import { AccountMenu } from '../components/account';
 import type {
   ErrorItem,
   RunDividerItem,
@@ -28,6 +30,8 @@ import type {
   ToolGroupItem,
   ToolItem,
 } from '../domain/timeline.types';
+
+export { AccountsView } from './AccountsView';
 
 export function ManagerView() {
   return (
@@ -44,19 +48,6 @@ export function ManagerView() {
           <span>•</span>
           <span>右侧 Artifacts</span>
         </div>
-      </div>
-    </div>
-  );
-}
-
-export function AccountsView() {
-  return (
-    <div className="flex h-full flex-col items-center justify-center p-8 text-center text-text-secondary">
-      <div className="max-w-md rounded-xl border border-border-default bg-bg-surface p-6 shadow-lg">
-        <h2 className="text-lg font-semibold text-text-primary">账号管理 (AccountsView)</h2>
-        <p className="mt-2 text-sm text-text-secondary">
-          展示隔离模式、账号列表、网页登录与凭据状态
-        </p>
       </div>
     </div>
   );
@@ -733,6 +724,181 @@ export function renderTimelineItem(item: TimelineItem) {
 `;
 
 // ============================================================================
+// Mock Data for Quota & Account Showcase
+// ============================================================================
+
+const mockQuotaSufficient: QuotaSnapshot = {
+  source: 'quota_api',
+  accountName: 'work-pro',
+  email: 'developer@antigravity.corp',
+  planTier: 'pro',
+  title: 'Claude 3.7 Sonnet 额度 (充足)',
+  description: '工作区主账号额度，包含常规会话与大上下文配额',
+  groups: [
+    {
+      displayName: '核心模型限额',
+      description: '基于时间滑动窗口计费',
+      buckets: [
+        {
+          bucketId: 'b-5h',
+          displayName: '5小时请求窗口',
+          window: '5h',
+          remainingFraction: 0.85,
+          resetTime: new Date(Date.now() + 8100 * 1000).toISOString(),
+          resetInSeconds: 8100, // 2 小时 15 分
+          description: '5小时内最多允许的请求配额',
+          disabled: false,
+        },
+        {
+          bucketId: 'b-weekly',
+          displayName: '每周请求额度',
+          window: 'weekly',
+          remainingFraction: 0.92,
+          resetTime: new Date(Date.now() + 345600 * 1000).toISOString(),
+          resetInSeconds: 345600, // 4 天
+          description: '每周自然周重置',
+          disabled: false,
+        },
+      ],
+    },
+    {
+      displayName: '实验性扩展功能',
+      description: '实验室功能',
+      buckets: [
+        {
+          bucketId: 'b-disabled',
+          displayName: '高精度代码解释器',
+          window: '5h',
+          remainingFraction: 0.0,
+          resetTime: null,
+          resetInSeconds: null,
+          description: '当前套餐未激活',
+          disabled: true,
+        },
+      ],
+    },
+  ],
+  credits: { available: true, balance: 3500 },
+  fetchedAt: new Date().toISOString(),
+  cached: true,
+  stale: false,
+};
+
+const mockQuotaTight: QuotaSnapshot = {
+  source: 'quota_api',
+  accountName: 'personal-std',
+  email: 'user@example.com',
+  planTier: 'standard',
+  title: '标准套餐额度 (紧张状态)',
+  description: '剩余额度在 20%~50% 之间，指示条显示黄色',
+  groups: [
+    {
+      displayName: '标准请求限额',
+      description: null,
+      buckets: [
+        {
+          bucketId: 'b-5h-tight',
+          displayName: '5小时请求窗口',
+          window: '5h',
+          remainingFraction: 0.35,
+          resetTime: new Date(Date.now() + 2700 * 1000).toISOString(),
+          resetInSeconds: 2700, // 45 分钟
+          description: null,
+          disabled: false,
+        },
+      ],
+    },
+  ],
+  credits: { available: false, balance: null },
+  fetchedAt: new Date(Date.now() - 30000).toISOString(),
+  cached: true,
+  stale: false,
+};
+
+const mockQuotaCritical: QuotaSnapshot = {
+  source: 'quota_api',
+  accountName: 'free-tier',
+  email: 'tester@preview.com',
+  planTier: 'free',
+  title: '免费套餐额度 (告警临界)',
+  description: '剩余额度低于 20%，指示条显示醒目红色',
+  groups: [
+    {
+      displayName: '免费额度',
+      description: null,
+      buckets: [
+        {
+          bucketId: 'b-free-crit',
+          displayName: '会话令牌池',
+          window: '5h',
+          remainingFraction: 0.12,
+          resetTime: new Date(Date.now() + 600 * 1000).toISOString(),
+          resetInSeconds: 600, // 10 分钟
+          description: null,
+          disabled: false,
+        },
+      ],
+    },
+  ],
+  credits: { available: false, balance: 0 },
+  fetchedAt: new Date(Date.now() - 60000).toISOString(),
+  cached: false,
+  stale: false,
+};
+
+const mockQuotaStale: QuotaSnapshot = {
+  ...mockQuotaSufficient,
+  title: '缓存额度 (数据过期展示)',
+  stale: true,
+  fetchedAt: new Date(Date.now() - 3600000).toISOString(),
+};
+
+const mockQuotaUnavailable: QuotaSnapshot = {
+  source: 'unavailable',
+  accountName: null,
+  email: null,
+  planTier: null,
+  title: '额度服务暂不可用',
+  description: null,
+  groups: [],
+  credits: { available: false, balance: null },
+  fetchedAt: new Date().toISOString(),
+  cached: false,
+  stale: false,
+};
+
+const mockAccountsSnapshot: Account[] = [
+  {
+    name: 'work-prod',
+    type: 'oauth',
+    isolation: 'credential_snapshot',
+    email: 'developer@antigravity.corp',
+    note: '工作区主力开发账号',
+    savedAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+    active: true,
+    activeRuns: 2,
+  },
+  {
+    name: 'personal-beta',
+    type: 'apikey',
+    isolation: 'credential_snapshot',
+    email: 'alex@personal.me',
+    note: '个人实验 API Key',
+    savedAt: new Date(Date.now() - 86400000 * 12).toISOString(),
+    active: false,
+    activeRuns: 0,
+  },
+];
+
+const mockWhoamiSnapshot: WhoAmI = {
+  activeProfile: 'work-prod',
+  email: 'developer@antigravity.corp',
+  accountType: 'oauth',
+  isolation: 'credential_snapshot',
+  credentialPresent: true,
+};
+
+// ============================================================================
 // PlaygroundView Component
 // ============================================================================
 
@@ -1088,6 +1254,156 @@ export function PlaygroundView() {
                   alert(`[Demo onSend 触发]\n内容: ${content}\n附件数: ${options?.attachmentIds?.length ?? 0}\n模型: ${options?.model ?? '默认'}`);
                 }}
               />
+            </div>
+          </div>
+        </section>
+
+        {/* 8. Quota & Account Showcase (模块 2.11) */}
+        <section className="space-y-6" data-testid="quota-account-showcase">
+          <div className="border-b border-border-default pb-2">
+            <h2 className="text-sm font-semibold tracking-wide text-text-secondary uppercase">
+              8. 额度与账号组件 Showcase (模块 2.11)
+            </h2>
+            <p className="text-xs text-text-tertiary mt-1">
+              展示 QuotaRing 环形指示器、QuotaPanel 5 种状态（充足、紧张、告警、过期、不可用）以及 AccountMenu 隔离模式与切换逻辑。
+            </p>
+          </div>
+
+          {/* 8.1 QuotaRing 环形状态演示 */}
+          <div className="space-y-3">
+            <h3 className="text-xs font-semibold text-text-secondary">
+              8.1 QuotaRing 顶栏环形指示器（点击可展开面板）：
+            </h3>
+            <div className="flex flex-wrap items-center gap-6 rounded-lg border border-border-default bg-bg-surface/40 p-4">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-text-tertiary">充足 (&gt;50% 绿):</span>
+                <QuotaRing snapshot={mockQuotaSufficient} />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-text-tertiary">紧张 (20-50% 黄):</span>
+                <QuotaRing snapshot={mockQuotaTight} />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-text-tertiary">告警 (&lt;20% 红):</span>
+                <QuotaRing snapshot={mockQuotaCritical} />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-text-tertiary">不可用 (灰色问号):</span>
+                <QuotaRing snapshot={mockQuotaUnavailable} />
+              </div>
+
+              <div className="flex items-center gap-2 border-l border-border-subtle pl-4">
+                <span className="text-xs text-text-tertiary">无数据:</span>
+                <QuotaRing snapshot={null} />
+              </div>
+            </div>
+          </div>
+
+          {/* 8.2 AccountMenu 账号菜单演示 */}
+          <div className="space-y-3">
+            <h3 className="text-xs font-semibold text-text-secondary">
+              8.2 AccountMenu 账号下拉菜单（支持单凭据切换与独立主目录两种模式）：
+            </h3>
+            <div className="flex flex-wrap items-center gap-8 rounded-lg border border-border-default bg-bg-surface/40 p-4">
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-text-tertiary">凭据快照模式 (credential_snapshot):</span>
+                <AccountMenu
+                  accounts={mockAccountsSnapshot}
+                  whoami={mockWhoamiSnapshot}
+                />
+              </div>
+
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-text-tertiary">独立主目录模式 (isolated_home):</span>
+                <AccountMenu
+                  accounts={mockAccountsSnapshot.map((a) => ({
+                    ...a,
+                    isolation: 'isolated_home' as const,
+                  }))}
+                  whoami={{
+                    ...mockWhoamiSnapshot,
+                    isolation: 'isolated_home',
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 8.3 QuotaPanel 各种状态视觉效果 */}
+          <div className="space-y-3">
+            <h3 className="text-xs font-semibold text-text-secondary">
+              8.3 QuotaPanel 额度面板五大状态视觉呈现：
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* 状态 1: 充足状态 */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs font-semibold text-status-success">
+                  <span className="h-2 w-2 rounded-full bg-status-success" />
+                  <span>状态 1: 充足状态 (&gt;50% 绿色)</span>
+                </div>
+                <QuotaPanel
+                  snapshot={mockQuotaSufficient}
+                  className="w-full shadow-md"
+                  onClose={() => alert('关闭充足状态面板')}
+                  onRefresh={async () => alert('触发刷新')}
+                />
+              </div>
+
+              {/* 状态 2: 紧张状态 */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs font-semibold text-status-warning">
+                  <span className="h-2 w-2 rounded-full bg-status-warning" />
+                  <span>状态 2: 紧张状态 (20% - 50% 黄色)</span>
+                </div>
+                <QuotaPanel
+                  snapshot={mockQuotaTight}
+                  className="w-full shadow-md"
+                  onClose={() => alert('关闭紧张状态面板')}
+                />
+              </div>
+
+              {/* 状态 3: 告警临界 */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs font-semibold text-status-error">
+                  <span className="h-2 w-2 rounded-full bg-status-error" />
+                  <span>状态 3: 告警状态 (&lt;20% 红色)</span>
+                </div>
+                <QuotaPanel
+                  snapshot={mockQuotaCritical}
+                  className="w-full shadow-md"
+                  onClose={() => alert('关闭告警状态面板')}
+                />
+              </div>
+
+              {/* 状态 4: 过期状态 */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs font-semibold text-color-warning">
+                  <span className="h-2 w-2 rounded-full bg-color-warning" />
+                  <span>状态 4: 过期状态 (stale: true 告警提示)</span>
+                </div>
+                <QuotaPanel
+                  snapshot={mockQuotaStale}
+                  className="w-full shadow-md"
+                  onClose={() => alert('关闭过期状态面板')}
+                />
+              </div>
+
+              {/* 状态 5: 不可用状态 */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs font-semibold text-text-tertiary">
+                  <span className="h-2 w-2 rounded-full bg-text-tertiary" />
+                  <span>状态 5: 不可用状态 (source: 'unavailable')</span>
+                </div>
+                <QuotaPanel
+                  snapshot={mockQuotaUnavailable}
+                  className="w-full shadow-md"
+                  onClose={() => alert('关闭不可用面板')}
+                />
+              </div>
             </div>
           </div>
         </section>

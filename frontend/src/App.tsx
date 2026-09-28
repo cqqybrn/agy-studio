@@ -10,6 +10,8 @@ import {
   WorkspaceSwitcher,
 } from './components/inbox';
 import { ArtifactTabs } from './components/artifacts';
+import { QuotaRing } from './components/quota';
+import { AccountMenu } from './components/account';
 
 export type CurrentSession = Session | null;
 
@@ -116,41 +118,11 @@ function TopBar() {
 
       {/* 右侧：额度环、账号、连接状态 */}
       <div className="flex items-center gap-3">
-        {/* 额度 */}
-        <div
-          className="flex items-center gap-1.5 rounded border border-border-default bg-bg-surface px-2 py-1 text-text-secondary"
-          data-testid="quota-badge"
-        >
-          <div className="relative flex h-3.5 w-3.5 items-center justify-center">
-            <svg className="h-full w-full -rotate-90 transform" viewBox="0 0 36 36">
-              <path
-                className="text-border-default stroke-current"
-                strokeWidth="4"
-                fill="none"
-                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-              />
-              <path
-                className="text-status-success stroke-current"
-                strokeDasharray="78, 100"
-                strokeWidth="4"
-                strokeLinecap="round"
-                fill="none"
-                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-              />
-            </svg>
-          </div>
-          <span className="font-mono text-[11px] text-text-primary">78%</span>
-        </div>
+        {/* 额度指示器与弹出面板 */}
+        <QuotaRing />
 
-        {/* 账号 */}
-        <div
-          className="flex items-center gap-1.5 rounded border border-border-default bg-bg-surface px-2.5 py-1 text-text-secondary"
-          data-testid="account-dropdown"
-        >
-          <span className="h-2 w-2 rounded-full bg-status-success" />
-          <span className="font-mono text-text-primary">default</span>
-          <span className="text-[10px] text-text-tertiary">▾</span>
-        </div>
+        {/* 账号下拉菜单 */}
+        <AccountMenu />
 
         {/* 连接状态 */}
         <div

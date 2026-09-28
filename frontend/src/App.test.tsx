@@ -16,11 +16,11 @@ describe('App & Layout Component', () => {
     const html = renderToString(<App />);
     expect(html).toBeDefined();
 
-    // 验证顶栏占位（工作区、模型、额度、账号、连接状态）
+    // 验证顶栏组件（工作区、模型、额度环、账号菜单、连接状态）
     expect(html).toContain('AGY Studio');
     expect(html).toContain('默认工作区');
     expect(html).toContain('claude-3-7-sonnet');
-    expect(html).toContain('78%');
+    expect(html).toContain('data-testid="quota-badge"');
     expect(html).toContain('default');
     expect(html).toContain('已连接');
 
