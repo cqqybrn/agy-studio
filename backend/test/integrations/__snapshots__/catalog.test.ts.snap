@@ -1,0 +1,90 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`AgyCatalog & CLI parser integration > models 解析快照测试 (fixtures/agy/catalog/models.txt) 1`] = `
+[
+  {
+    "group": "gemini",
+    "id": "gemini-3.8-flash-high",
+    "isDefault": false,
+    "label": "Gemini 3.8 Flash (High)",
+  },
+  {
+    "group": "gemini",
+    "id": "gemini-3.8-flash-medium",
+    "isDefault": false,
+    "label": "Gemini 3.8 Flash (Medium)",
+  },
+  {
+    "group": "gemini",
+    "id": "gemini-3.8-flash-low",
+    "isDefault": false,
+    "label": "Gemini 3.8 Flash (Low)",
+  },
+  {
+    "group": "gemini",
+    "id": "gemini-3.7-flash-high",
+    "isDefault": false,
+    "label": "Gemini 3.7 Flash (High)",
+  },
+  {
+    "group": "gemini",
+    "id": "gemini-3.7-flash-medium",
+    "isDefault": false,
+    "label": "Gemini 3.7 Flash (Medium)",
+  },
+  {
+    "group": "gemini",
+    "id": "gemini-3.7-flash-low",
+    "isDefault": false,
+    "label": "Gemini 3.7 Flash (Low)",
+  },
+  {
+    "group": "gemini",
+    "id": "gemini-3.6-flash-high",
+    "isDefault": false,
+    "label": "Gemini 3.6 Flash (High)",
+  },
+  {
+    "group": "gemini",
+    "id": "gemini-3.6-flash-medium",
+    "isDefault": false,
+    "label": "Gemini 3.6 Flash (Medium)",
+  },
+  {
+    "group": "gemini",
+    "id": "gemini-3.6-flash-low",
+    "isDefault": false,
+    "label": "Gemini 3.6 Flash (Low)",
+  },
+  {
+    "group": "gemini",
+    "id": "gemini-3.1-pro-high",
+    "isDefault": false,
+    "label": "Gemini 3.1 Pro (High)",
+  },
+  {
+    "group": "gemini",
+    "id": "gemini-3.1-pro-low",
+    "isDefault": false,
+    "label": "Gemini 3.1 Pro (Low)",
+  },
+  {
+    "group": "third_party",
+    "id": "claude-sonnet-4-6",
+    "isDefault": false,
+    "label": "Claude Sonnet 4.6 (Thinking)",
+  },
+  {
+    "group": "third_party",
+    "id": "claude-opus-4-6-thinking",
+    "isDefault": false,
+    "label": "Claude Opus 4.6 (Thinking)",
+  },
+  {
+    "group": "third_party",
+    "id": "gpt-oss-120b-medium",
+    "isDefault": false,
+    "label": "GPT-OSS 120B (Medium)",
+  },
+]
+`;
