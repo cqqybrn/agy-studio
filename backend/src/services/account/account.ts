@@ -1,5 +1,6 @@
 import type {
   Account,
+  AccountLoginSession,
   AccountType,
   ISODateString,
   SaveAccountBody,
@@ -9,7 +10,9 @@ import type { AccountsRepository, StoredAccount } from '../../repositories/accou
 import type { CredentialStore } from '../../integrations/agy/credential-store.js';
 import { extractClaimsFromSnapshot } from '../../integrations/agy/credential-store.js';
 import type { CredentialSnapshot } from '../ports/credential.port.js';
+import type { LoginPort, LoginHandle } from '../ports/login.port.js';
 import { AccountLeaseLock } from './lease-lock.js';
+import type { Lease } from '../../utils/rw-lock.js';
 import type { EventBus } from '../event-bus.js';
 import { AppError } from '../../utils/errors.js';
 import type { Logger } from 'pino';
@@ -28,27 +31,95 @@ export interface RunSupervisorLike {
 export interface AccountServiceOptions {
   accountsRepo: AccountsRepository;
   credentialStore: CredentialStore;
+  loginPort?: LoginPort;
   leaseLock?: AccountLeaseLock;
   eventBus?: EventBus;
   runSupervisor?: RunSupervisorLike;
   logger?: Logger;
+  loginPollIntervalMs?: number;
+  loginSettleDelayMs?: number;
+  loginTimeoutMs?: number;
+}
+
+interface ActiveLoginCoordinator {
+  session: AccountLoginSession;
+  saveAs: string;
+  handle: LoginHandle;
+  liveBackup: CredentialSnapshot | null;
+  writeLease: Lease;
+  abortController: AbortController;
+  completionPromise: Promise<AccountLoginSession>;
+  resolveCompletion: (sess: AccountLoginSession) => void;
+  abort: (reason: 'cancelled' | 'failed' | 'timeout') => Promise<void>;
+}
+
+function interruptibleSleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve();
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+function snapshotsMatch(s1: CredentialSnapshot, s2: CredentialSnapshot): boolean {
+  const t1 = Object.keys(s1.targets).sort();
+  const t2 = Object.keys(s2.targets).sort();
+  const f1 = Object.keys(s1.files).sort();
+  const f2 = Object.keys(s2.files).sort();
+
+  if (t1.length === 0 && f1.length === 0) {
+    return false;
+  }
+  if (t1.length !== t2.length || f1.length !== f2.length) {
+    return false;
+  }
+  for (let i = 0; i < t1.length; i++) {
+    const k = t1[i];
+    if (k !== t2[i] || s1.targets[k] !== s2.targets[k]) return false;
+  }
+  for (let i = 0; i < f1.length; i++) {
+    const k = f1[i];
+    if (k !== f2[i] || s1.files[k] !== s2.files[k]) return false;
+  }
+  return true;
 }
 
 export class AccountService {
   private readonly accountsRepo: AccountsRepository;
   private readonly credentialStore: CredentialStore;
+  private readonly loginPort?: LoginPort;
   private readonly leaseLock: AccountLeaseLock;
   private readonly eventBus?: EventBus;
   private readonly runSupervisor?: RunSupervisorLike;
   private readonly logger: Logger;
+  private readonly loginPollIntervalMs: number;
+  private readonly loginSettleDelayMs: number;
+  private readonly loginTimeoutMs: number;
+
+  private activeLogin: ActiveLoginCoordinator | null = null;
+  private readonly loginSessions = new Map<string, AccountLoginSession>();
 
   constructor(options: AccountServiceOptions) {
     this.accountsRepo = options.accountsRepo;
     this.credentialStore = options.credentialStore;
+    this.loginPort = options.loginPort;
     this.leaseLock = options.leaseLock ?? new AccountLeaseLock();
     this.eventBus = options.eventBus;
     this.runSupervisor = options.runSupervisor;
     this.logger = options.logger ?? defaultLogger;
+    this.loginPollIntervalMs = options.loginPollIntervalMs ?? 2000;
+    this.loginSettleDelayMs = options.loginSettleDelayMs ?? 2000;
+    this.loginTimeoutMs = options.loginTimeoutMs ?? 10 * 60 * 1000;
   }
 
   getLock(): AccountLeaseLock {
@@ -262,14 +333,6 @@ export class AccountService {
 
   /**
    * Switches the active account in credential_snapshot mode.
-   * Steps:
-   * 1. Acquire write lease (immediate failure if readers or writer exist).
-   * 2. Backup current live credentials to temporary in-memory snapshot.
-   * 3. Read and decrypt target snapshot from disk.
-   * 4. Restore target credentials to live slot.
-   * 5. Verify restored credentials (isPresent && id_token.sub matches).
-   * 6. Discard temporary backup, update active flag in DB, broadcast account.changed.
-   * 7. On any failure: rollback immediately using temporary backup and throw error.
    */
   async switchAccount(name: string): Promise<{ whoami: WhoAmI }> {
     const writeLease = this.leaseLock.acquireWriteLease();
@@ -340,7 +403,6 @@ export class AccountService {
 
       return { whoami };
     } catch (err) {
-      // 任一步失败，立即使用临时备份 restore 恢复原凭据
       if (liveBackup) {
         try {
           await this.credentialStore.restore(liveBackup);
@@ -356,5 +418,312 @@ export class AccountService {
     } finally {
       writeLease.release();
     }
+  }
+
+  /**
+   * Starts a new account login orchestration.
+   * State machine: pending -> awaiting_browser -> completed / failed / cancelled.
+   */
+  async startLogin(input: { saveAs: string }): Promise<AccountLoginSession> {
+    const saveAs = input?.saveAs?.trim();
+    if (!saveAs) {
+      throw new AppError('BAD_REQUEST', 'saveAs is required');
+    }
+
+    if (
+      this.activeLogin &&
+      (this.activeLogin.session.status === 'pending' ||
+        this.activeLogin.session.status === 'awaiting_browser')
+    ) {
+      throw new AppError(
+        'ACCOUNT_SWITCH_IN_PROGRESS',
+        'A login flow is already in progress',
+      );
+    }
+
+    // Acquire write lease (throws ACCOUNT_SWITCH_IN_PROGRESS / ACCOUNT_BUSY if busy)
+    const writeLease = this.leaseLock.acquireWriteLease();
+
+    let liveBackup: CredentialSnapshot | null = null;
+    let handle: LoginHandle;
+    let initialSession: AccountLoginSession;
+
+    try {
+      if (await this.credentialStore.isPresent()) {
+        liveBackup = await this.credentialStore.takeLiveSnapshot();
+      }
+      await this.credentialStore.clear();
+
+      if (!this.loginPort) {
+        throw new AppError('INTERNAL', 'LoginPort is not configured');
+      }
+
+      handle = await this.loginPort.startLogin({
+        accountName: saveAs,
+      });
+
+      initialSession = {
+        loginId: handle.loginId,
+        status: 'awaiting_browser',
+        authUrl: null,
+        email: null,
+        error: null,
+      };
+      this.loginSessions.set(initialSession.loginId, { ...initialSession });
+    } catch (err) {
+      if (liveBackup) {
+        try {
+          await this.credentialStore.restore(liveBackup);
+        } catch {}
+      }
+      writeLease.release();
+      throw AppError.from(err);
+    }
+
+    const abortController = new AbortController();
+    let resolveCompletion!: (sess: AccountLoginSession) => void;
+    const completionPromise = new Promise<AccountLoginSession>((resolve) => {
+      resolveCompletion = resolve;
+    });
+
+    const coordinator: ActiveLoginCoordinator = {
+      session: initialSession,
+      saveAs,
+      handle,
+      liveBackup,
+      writeLease,
+      abortController,
+      completionPromise,
+      resolveCompletion,
+      abort: async (reason: 'cancelled' | 'failed' | 'timeout') => {
+        if (
+          initialSession.status === 'awaiting_browser' ||
+          initialSession.status === 'pending'
+        ) {
+          initialSession.status = reason === 'timeout' ? 'cancelled' : reason;
+          if (reason === 'timeout') {
+            initialSession.error = 'Login timed out';
+          }
+        }
+        abortController.abort();
+        await completionPromise;
+      },
+    };
+
+    this.activeLogin = coordinator;
+
+    void this.runLoginOrchestration(coordinator);
+
+    return { ...initialSession };
+  }
+
+  private async runLoginOrchestration(coord: ActiveLoginCoordinator): Promise<void> {
+    const {
+      session,
+      saveAs,
+      handle,
+      liveBackup,
+      writeLease,
+      abortController,
+      resolveCompletion,
+    } = coord;
+    const signal = abortController.signal;
+
+    const pollIntervalMs = this.loginPollIntervalMs;
+    const settleDelayMs = this.loginSettleDelayMs;
+    const timeoutMs = this.loginTimeoutMs;
+    const deadline = Date.now() + timeoutMs;
+
+    let timeoutTimer: NodeJS.Timeout | null = null;
+    timeoutTimer = setTimeout(() => {
+      if (
+        !signal.aborted &&
+        (session.status === 'awaiting_browser' || session.status === 'pending')
+      ) {
+        session.status = 'cancelled';
+        session.error = 'Login timed out';
+        abortController.abort();
+      }
+    }, timeoutMs);
+
+    try {
+      while (!signal.aborted && Date.now() < deadline) {
+        let isPresent = false;
+        try {
+          isPresent = await this.credentialStore.isPresent();
+        } catch (err) {
+          this.logger.warn({ err }, 'Error checking credentialStore.isPresent()');
+        }
+
+        if (isPresent) {
+          // Credentials appeared! Wait settleDelayMs
+          await interruptibleSleep(settleDelayMs, signal);
+          if (signal.aborted) break;
+
+          // Take snapshot 1
+          const snap1 = await this.credentialStore.takeLiveSnapshot();
+
+          // Wait short settle interval
+          await interruptibleSleep(Math.min(500, settleDelayMs), signal);
+          if (signal.aborted) break;
+
+          // Take snapshot 2
+          const snap2 = await this.credentialStore.takeLiveSnapshot();
+
+          if (snapshotsMatch(snap1, snap2)) {
+            // Credentials verified stable! Snapshot as saveAs
+            await this.credentialStore.snapshot(saveAs);
+
+            const claims = await this.credentialStore.readLiveClaims();
+            const email = claims?.email ?? null;
+
+            const existing = this.accountsRepo.findByName(saveAs);
+            const stored: StoredAccount = {
+              name: saveAs,
+              type: 'oauth',
+              isolation: 'credential_snapshot',
+              email: email ?? existing?.email ?? null,
+              note: existing?.note ?? null,
+              savedAt: new Date().toISOString(),
+              active: true,
+            };
+            this.accountsRepo.save(stored);
+            this.accountsRepo.setDefault(saveAs);
+
+            session.status = 'completed';
+            session.email = stored.email;
+            session.error = null;
+
+            if (this.eventBus) {
+              this.eventBus.publishGlobal({
+                type: 'account.changed',
+                whoami: {
+                  activeProfile: saveAs,
+                  email: stored.email,
+                  accountType: 'oauth',
+                  isolation: 'credential_snapshot',
+                  credentialPresent: true,
+                },
+              });
+            }
+
+            this.logger.info(
+              { accountName: saveAs, email: stored.email },
+              'Login flow completed successfully',
+            );
+            break;
+          }
+        }
+
+        await interruptibleSleep(pollIntervalMs, signal);
+      }
+
+      if (!signal.aborted && Date.now() >= deadline && session.status === 'awaiting_browser') {
+        session.status = 'cancelled';
+        session.error = 'Login timed out';
+      }
+    } catch (err) {
+      this.logger.error({ err }, 'Unexpected error in login loop');
+      session.status = 'failed';
+      session.error = (err as Error).message ?? String(err);
+    } finally {
+      if (timeoutTimer) {
+        clearTimeout(timeoutTimer);
+        timeoutTimer = null;
+      }
+
+      try {
+        if (session.status !== 'completed') {
+          // Restore original live credentials
+          if (liveBackup) {
+            try {
+              await this.credentialStore.restore(liveBackup);
+              this.logger.info('Restored original live credentials after uncompleted login');
+            } catch (restoreErr) {
+              this.logger.error(
+                { restoreErr },
+                'Failed to restore original credentials after uncompleted login',
+              );
+            }
+          } else {
+            try {
+              await this.credentialStore.clear();
+            } catch {}
+          }
+        }
+      } finally {
+        try {
+          await handle.cancel();
+        } catch (cancelErr) {
+          this.logger.warn({ cancelErr }, 'Failed to cancel login terminal handle');
+        }
+
+        if (this.activeLogin?.session.loginId === session.loginId) {
+          this.activeLogin = null;
+        }
+
+        writeLease.release();
+        this.loginSessions.set(session.loginId, { ...session });
+        resolveCompletion({ ...session });
+      }
+    }
+  }
+
+  /**
+   * Returns current login session state.
+   */
+  getLoginSession(loginId: string): AccountLoginSession {
+    const session = this.loginSessions.get(loginId);
+    if (!session) {
+      throw new AppError('NOT_FOUND', `Login session "${loginId}" not found`);
+    }
+    return { ...session };
+  }
+
+  /**
+   * Cancels an ongoing login process.
+   */
+  async cancelLogin(loginId: string): Promise<AccountLoginSession> {
+    const session = this.loginSessions.get(loginId);
+    if (!session) {
+      throw new AppError('NOT_FOUND', `Login session "${loginId}" not found`);
+    }
+
+    if (this.activeLogin && this.activeLogin.session.loginId === loginId) {
+      await this.activeLogin.abort('cancelled');
+      return this.loginSessions.get(loginId)!;
+    }
+
+    return { ...session };
+  }
+
+  /**
+   * Waits for login completion (useful in tests and internal orchestration).
+   */
+  async waitForLoginCompletion(loginId: string): Promise<AccountLoginSession> {
+    const session = this.loginSessions.get(loginId);
+    if (!session) {
+      throw new AppError('NOT_FOUND', `Login session "${loginId}" not found`);
+    }
+    if (this.activeLogin && this.activeLogin.session.loginId === loginId) {
+      return this.activeLogin.completionPromise;
+    }
+    return { ...session };
+  }
+
+  /**
+   * Cancels active login if one is in progress (e.g. during graceful shutdown).
+   */
+  async cancelActiveLogin(): Promise<void> {
+    if (this.activeLogin) {
+      await this.activeLogin.abort('cancelled');
+    }
+  }
+
+  /**
+   * Graceful cleanup of account service.
+   */
+  async close(): Promise<void> {
+    await this.cancelActiveLogin();
   }
 }

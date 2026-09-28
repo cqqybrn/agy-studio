@@ -18,6 +18,10 @@ const SwitchAccountSchema = z.object({
   name: z.string().min(1, 'Account name is required'),
 });
 
+const StartLoginSchema = z.object({
+  saveAs: z.string().min(1, 'saveAs is required'),
+});
+
 export const accountsRoutes: FastifyPluginAsync<AccountsRoutesOptions> = async (
   app,
   options,
@@ -37,6 +41,66 @@ export const accountsRoutes: FastifyPluginAsync<AccountsRoutesOptions> = async (
     ]);
     return { accounts, whoami };
   });
+
+  // POST /api/accounts/login
+  app.post('/api/accounts/login', async (request, reply) => {
+    const parsed = StartLoginSchema.safeParse(request.body);
+    if (!parsed.success) {
+      const err = new AppError(
+        'BAD_REQUEST',
+        parsed.error.issues[0]?.message ?? 'Invalid request body',
+      );
+      return reply.status(err.status).send(err.toApiErrorResponse());
+    }
+
+    try {
+      const session = await accountService.startLogin({ saveAs: parsed.data.saveAs });
+      return reply.status(200).send(session);
+    } catch (err) {
+      const appError = AppError.from(err);
+      return reply.status(appError.status).send(appError.toApiErrorResponse());
+    }
+  });
+
+  // GET /api/accounts/login/:loginId
+  app.get<{ Params: { loginId: string } }>(
+    '/api/accounts/login/:loginId',
+    async (request, reply) => {
+      const { loginId } = request.params;
+      if (!loginId) {
+        const err = new AppError('BAD_REQUEST', 'loginId is required');
+        return reply.status(err.status).send(err.toApiErrorResponse());
+      }
+
+      try {
+        const session = accountService.getLoginSession(loginId);
+        return reply.status(200).send(session);
+      } catch (err) {
+        const appError = AppError.from(err);
+        return reply.status(appError.status).send(appError.toApiErrorResponse());
+      }
+    },
+  );
+
+  // DELETE /api/accounts/login/:loginId
+  app.delete<{ Params: { loginId: string } }>(
+    '/api/accounts/login/:loginId',
+    async (request, reply) => {
+      const { loginId } = request.params;
+      if (!loginId) {
+        const err = new AppError('BAD_REQUEST', 'loginId is required');
+        return reply.status(err.status).send(err.toApiErrorResponse());
+      }
+
+      try {
+        const session = await accountService.cancelLogin(loginId);
+        return reply.status(200).send(session);
+      } catch (err) {
+        const appError = AppError.from(err);
+        return reply.status(appError.status).send(appError.toApiErrorResponse());
+      }
+    },
+  );
 
   // POST /api/accounts/save
   app.post('/api/accounts/save', async (request, reply) => {
