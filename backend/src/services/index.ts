@@ -1,3 +1,1 @@
-export interface ServicePlaceholder {
-  name: string;
-}
+export * from './ports/index.js';

@@ -13,7 +13,8 @@
   "dependencies": {
     "@agy-studio/contracts": "*",
     "better-sqlite3": "^13.0.3",
-    "fastify": "^5.2.1"
+    "fastify": "^5.2.1",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",
