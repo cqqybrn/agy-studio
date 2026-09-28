@@ -6,4 +6,6 @@ export * from './MessageMarkdown';
 export * from './RunDivider';
 export * from './ErrorNotice';
 export * from './StalledNotice';
+export * from './SubagentCard';
+export * from './SubagentCardContainer';
 export * from './icons';

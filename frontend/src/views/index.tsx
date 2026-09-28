@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import type { ToolCall } from '@agy-studio/contracts';
+import type { ToolCall, TranscriptStep } from '@agy-studio/contracts';
 import {
   ErrorNotice,
   MessageMarkdown,
   RunDivider,
   StalledNotice,
   StatusDot,
+  SubagentCard,
+  SubagentCardContainer,
   ThinkingBlock,
   ToolCard,
   ToolGroupCard,
@@ -14,6 +16,7 @@ import type {
   ErrorItem,
   RunDividerItem,
   StalledNoticeItem,
+  SubagentItem,
   ThinkingItem,
   ToolGroupItem,
   ToolItem,
@@ -546,6 +549,146 @@ const mockStalledNotice: StalledNoticeItem = {
   timestamp: new Date().toISOString(),
 };
 
+// ----------------------------------------------------------------------------
+// Mock Data for SubagentCard & SubagentCardContainer
+// ----------------------------------------------------------------------------
+
+const mockSubagentRunning: SubagentItem = {
+  id: 'sub-running-1',
+  kind: 'subagent',
+  type: 'subagent',
+  conversationId: 'conv-sub-running-1',
+  role: 'Architect',
+  typeName: 'generalPurpose',
+  initialPrompt: 'Investigate system architecture and optimize bundle size across frontend and backend modules.',
+  status: 'running',
+  parentToolCallId: null,
+  runId: 'run-1',
+  createdAt: new Date(Date.now() - 30000).toISOString(),
+  updatedAt: new Date().toISOString(),
+  steps: [
+    {
+      stepIndex: 0,
+      type: 'thought',
+      status: 'ok',
+      createdAt: new Date(Date.now() - 25000).toISOString(),
+      content: null,
+      thinking: 'Analyzing workspace configuration and dependency trees...',
+      toolCalls: [],
+      error: null,
+    },
+    {
+      stepIndex: 1,
+      type: 'tool',
+      status: 'running',
+      createdAt: new Date(Date.now() - 15000).toISOString(),
+      content: null,
+      thinking: null,
+      toolCalls: [
+        {
+          name: 'search',
+          args: { query: 'export interface SubagentItem', path: 'frontend/src' },
+        },
+      ],
+      error: null,
+    },
+  ],
+};
+
+const mockSubagentCompletedWithSteps: SubagentItem = {
+  id: 'sub-comp-1',
+  kind: 'subagent',
+  type: 'subagent',
+  conversationId: 'conv-sub-comp-1',
+  role: 'Investigator',
+  typeName: 'explore',
+  initialPrompt: 'Locate all exported components under frontend/src/components and generate a summary list.',
+  status: 'completed',
+  parentToolCallId: null,
+  runId: 'run-1',
+  createdAt: new Date(Date.now() - 120000).toISOString(),
+  updatedAt: new Date(Date.now() - 90000).toISOString(),
+  steps: [
+    {
+      stepIndex: 0,
+      type: 'thought',
+      status: 'ok',
+      createdAt: new Date(Date.now() - 118000).toISOString(),
+      content: null,
+      thinking: 'Searching for index.ts re-exports in frontend/src/components...',
+      toolCalls: [],
+      error: null,
+    },
+    {
+      stepIndex: 1,
+      type: 'tool',
+      status: 'ok',
+      createdAt: new Date(Date.now() - 110000).toISOString(),
+      content: null,
+      thinking: null,
+      toolCalls: [
+        {
+          name: 'view_file',
+          args: { path: 'frontend/src/components/timeline/index.ts' },
+        },
+      ],
+      error: null,
+    },
+    {
+      stepIndex: 2,
+      type: 'message',
+      status: 'ok',
+      createdAt: new Date(Date.now() - 95000).toISOString(),
+      content: 'Found 9 core components exported: `StatusDot`, `ThinkingBlock`, `ToolCard`, `ToolGroupCard`, `SubagentCard`, `SubagentCardContainer`, `RunDivider`, `ErrorNotice`, `StalledNotice`.',
+      thinking: null,
+      toolCalls: [],
+      error: null,
+    },
+  ],
+};
+
+// 超过 200 步的子 Agent (205 steps)，演示截断渲染与“显示更早步骤”交互
+const mockSubagentOverflowSteps: SubagentItem = {
+  id: 'sub-overflow-1',
+  kind: 'subagent',
+  type: 'subagent',
+  conversationId: 'conv-sub-overflow-1',
+  role: 'Batch Refactor',
+  typeName: 'coder',
+  initialPrompt: 'Batch execute AST transformations across 205 legacy files and format imports.',
+  status: 'completed',
+  parentToolCallId: null,
+  runId: 'run-1',
+  createdAt: new Date(Date.now() - 300000).toISOString(),
+  updatedAt: new Date(Date.now() - 100000).toISOString(),
+  steps: Array.from({ length: 205 }, (_, i) => ({
+    stepIndex: i,
+    type: i % 2 === 0 ? 'thought' : 'tool',
+    status: 'ok',
+    createdAt: new Date(Date.now() - (205 - i) * 1000).toISOString(),
+    content: i === 204 ? 'Completed all 205 AST transformations successfully.' : null,
+    thinking: i % 2 === 0 ? `Step ${i + 1}: Validating AST syntax tree nodes for batch file #${i + 1}` : null,
+    toolCalls: i % 2 === 1 ? [{ name: 'edit_file', args: { path: `src/utils/file_${i}.ts` } }] : [],
+    error: null,
+  })),
+};
+
+const mockSubagentLazyLoad: SubagentItem = {
+  id: 'sub-lazy-1',
+  kind: 'subagent',
+  type: 'subagent',
+  conversationId: 'conv-sub-lazy-1',
+  role: 'Security Reviewer',
+  typeName: 'security-review',
+  initialPrompt: 'Perform full OWASP dependency check, scan AST for unsafe evals, and audit permissions.',
+  status: 'completed',
+  parentToolCallId: null,
+  runId: 'run-1',
+  createdAt: new Date(Date.now() - 600000).toISOString(),
+  updatedAt: new Date(Date.now() - 580000).toISOString(),
+  steps: [], // 本地无完整 steps，首次展开懒加载
+};
+
 const sampleMarkdown = `# 🎯 Timeline Components Showcase
 
 Antigravity 风格现代 Agent IDE 无状态时间线组件已就绪。所有组件均符合规范：**低对比面板**、*细微边框*、~~过时的重样式~~ 以及科技蓝强调色。
@@ -554,7 +697,7 @@ Antigravity 风格现代 Agent IDE 无状态时间线组件已就绪。所有组
 - [x] ThinkingBlock 思考块与运行计时
 - [x] ToolCard 智能分发到各类专用卡片
 - [x] ToolGroupCard 连续操作折叠汇总
-- [ ] 模块 2.7 子 Agent 卡片集成
+- [x] 模块 2.7 子 Agent 卡片集成 (SubagentCard & Container)
 
 ### GFM Table Support
 | Feature | Kind | Status | Description |
@@ -814,6 +957,58 @@ export function PlaygroundView() {
           </h2>
           <div className="space-y-2">
             <StalledNotice item={mockStalledNotice} />
+          </div>
+        </section>
+
+        {/* 9. SubagentCard & Container */}
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold tracking-wide text-text-secondary uppercase">
+            9. SubagentCard & SubagentCardContainer (子 Agent 卡片)
+          </h2>
+          <div className="space-y-4">
+            <div>
+              <div className="text-[11px] text-text-tertiary mb-1">
+                运行中 (实时追加步骤，StatusDot 动态闪烁，直接使用已有 steps):
+              </div>
+              <SubagentCardContainer item={mockSubagentRunning} defaultExpanded={true} />
+            </div>
+
+            <div>
+              <div className="text-[11px] text-text-tertiary mb-1">
+                已完成且已有完整步骤 (展开展示思考、文件查看与 Markdown 输出):
+              </div>
+              <SubagentCardContainer item={mockSubagentCompletedWithSteps} defaultExpanded={true} />
+            </div>
+
+            <div>
+              <div className="text-[11px] text-text-tertiary mb-1">
+                步骤超过 200 步截断展示 (共 205 步，默认渲染最后 200 步，顶部提供 Load earlier steps 展开按钮):
+              </div>
+              <SubagentCard item={mockSubagentOverflowSteps} defaultExpanded={true} />
+            </div>
+
+            <div>
+              <div className="text-[11px] text-text-tertiary mb-1">
+                已结束且无本地步骤 (首次展开懒加载 transcript，模块级内存缓存，折叠/展开只请求一次):
+              </div>
+              <SubagentCardContainer item={mockSubagentLazyLoad} />
+            </div>
+
+            <div>
+              <div className="text-[11px] text-text-tertiary mb-1">
+                懒加载失败与重试交互示例 (SubagentCard 错误状态与重试按钮):
+              </div>
+              <SubagentCard
+                item={{
+                  ...mockSubagentLazyLoad,
+                  conversationId: 'conv-err-demo',
+                  role: 'Security Scanner (Error State)',
+                }}
+                isExpanded={true}
+                error="网络请求超时 (504 Gateway Timeout)，未能获取步骤"
+                onRetry={() => {}}
+              />
+            </div>
           </div>
         </section>
       </div>

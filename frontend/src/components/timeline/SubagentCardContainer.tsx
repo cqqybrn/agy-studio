@@ -1,0 +1,156 @@
+import React, { useCallback, useEffect, useState } from 'react';
+import type { TranscriptStep } from '@agy-studio/contracts';
+import { getSubagentTranscript } from '../../api/endpoints';
+import type { SubagentItem } from '../../domain/timeline.types';
+import { useSessionStore } from '../../stores/session.store';
+import { SubagentCard } from './SubagentCard';
+
+export interface SubagentCardContainerProps {
+  item: SubagentItem;
+  /** 会话 ID，未提供时自动从 useSessionStore 中获取 activeSessionId */
+  sessionId?: string;
+  /** 初始展开状态 */
+  defaultExpanded?: boolean;
+  /** 自定义外层样式 */
+  className?: string;
+}
+
+/**
+ * 模块级内存缓存，缓存在组件外。
+ * 键为 `${sessionId}:${conversationId}`，反复折叠/展开只请求一次。
+ */
+export const subagentTranscriptCache = new Map<string, TranscriptStep[]>();
+
+/**
+ * 正在进行中的请求 Promise，防止同一 conversationId 在并发状态下重复发请求。
+ */
+export const subagentInflightRequests = new Map<
+  string,
+  Promise<{ steps: TranscriptStep[]; total: number }>
+>();
+
+/** 清空模块级缓存（测试与重置使用） */
+export function clearSubagentTranscriptCache(): void {
+  subagentTranscriptCache.clear();
+  subagentInflightRequests.clear();
+}
+
+/** 读取模块级缓存中的步骤 */
+export function getSubagentTranscriptFromCache(key: string): TranscriptStep[] | undefined {
+  return subagentTranscriptCache.get(key);
+}
+
+/** 手动设置模块级缓存（测试或预热使用） */
+export function setSubagentTranscriptInCache(key: string, steps: TranscriptStep[]): void {
+  subagentTranscriptCache.set(key, steps);
+}
+
+export function SubagentCardContainer({
+  item,
+  sessionId: explicitSessionId,
+  defaultExpanded = false,
+  className = '',
+}: SubagentCardContainerProps) {
+  // 会话 ID 处理
+  const storeSessionId = useSessionStore((s) => s.activeSessionId);
+  const targetSessionId = explicitSessionId || storeSessionId || 'default';
+  const cacheKey = `${targetSessionId}:${item.conversationId}`;
+
+  const isRunning = item.status === 'running';
+  const hasItemSteps = Boolean(item.steps && item.steps.length > 0);
+
+  // 展开状态
+  const [isExpanded, setIsExpanded] = useState<boolean>(defaultExpanded);
+
+  // 本地异步加载状态
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loadedSteps, setLoadedSteps] = useState<TranscriptStep[] | null>(() => {
+    return subagentTranscriptCache.get(cacheKey) || null;
+  });
+
+  // 是否需要懒加载：只有在已结束且本地没有完整步骤且外部缓存未命中时才需要
+  const cachedSteps = subagentTranscriptCache.get(cacheKey);
+  const shouldLazyLoad = !isRunning && !hasItemSteps && !cachedSteps;
+
+  const fetchTranscript = useCallback(async () => {
+    if (isRunning || hasItemSteps) {
+      return;
+    }
+
+    if (subagentTranscriptCache.has(cacheKey)) {
+      setLoadedSteps(subagentTranscriptCache.get(cacheKey)!);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      let inflight = subagentInflightRequests.get(cacheKey);
+      if (!inflight) {
+        inflight = getSubagentTranscript(targetSessionId, item.conversationId);
+        subagentInflightRequests.set(cacheKey, inflight);
+      }
+
+      const res = await inflight;
+      subagentTranscriptCache.set(cacheKey, res.steps);
+      setLoadedSteps(res.steps);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === 'object' && err !== null && 'message' in err
+            ? String((err as { message: unknown }).message)
+            : '获取子 Agent 执行步骤失败';
+      setError(message);
+    } finally {
+      subagentInflightRequests.delete(cacheKey);
+      setIsLoading(false);
+    }
+  }, [cacheKey, hasItemSteps, isRunning, item.conversationId, targetSessionId]);
+
+  // 展开时按需懒加载
+  useEffect(() => {
+    if (isExpanded && shouldLazyLoad && !isLoading && !error) {
+      void fetchTranscript();
+    }
+  }, [isExpanded, shouldLazyLoad, isLoading, error, fetchTranscript]);
+
+  const handleToggleExpand = () => {
+    const nextState = !isExpanded;
+    setIsExpanded(nextState);
+    if (nextState && shouldLazyLoad && !isLoading) {
+      void fetchTranscript();
+    }
+  };
+
+  const handleRetry = () => {
+    subagentInflightRequests.delete(cacheKey);
+    void fetchTranscript();
+  };
+
+  // 步骤优先级：
+  // 1. 运行中或 item 中已有 steps：直接使用传入的 steps
+  // 2. 缓存中已有 steps：使用缓存
+  // 3. 本地已加载 steps：使用 loadedSteps
+  // 4. 兜底空数组
+  const effectiveSteps: TranscriptStep[] =
+    isRunning || hasItemSteps
+      ? item.steps
+      : cachedSteps ?? loadedSteps ?? [];
+
+  return (
+    <SubagentCard
+      item={item}
+      steps={effectiveSteps}
+      isExpanded={isExpanded}
+      onToggleExpand={handleToggleExpand}
+      isLoading={isLoading}
+      error={error}
+      onRetry={handleRetry}
+      className={className}
+      defaultExpanded={defaultExpanded}
+    />
+  );
+}
