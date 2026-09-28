@@ -1,0 +1,94 @@
+{
+  "name": "quota-summary",
+  "description": "retrieveUserQuotaSummary，请求体带 loadCodeAssist 返回的 project",
+  "startedAt": "2026-09-28T18:50:41.565Z",
+  "durationMs": 487,
+  "request": {
+    "method": "POST",
+    "url": "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
+    "headers": {
+      "Authorization": "Bearer <redacted:access_token>",
+      "Content-Type": "application/json",
+      "User-Agent": "antigravity/1.2.12 win32/x64"
+    },
+    "body": {
+      "project": "<redacted:project>"
+    }
+  },
+  "response": {
+    "status": 200,
+    "statusText": "OK",
+    "headerNames": [
+      "alt-svc",
+      "content-encoding",
+      "content-type",
+      "date",
+      "server",
+      "server-timing",
+      "transfer-encoding",
+      "vary",
+      "x-cloudaicompanion-trace-id",
+      "x-content-type-options",
+      "x-frame-options",
+      "x-xss-protection"
+    ],
+    "headers": {
+      "content-type": "application/json; charset=UTF-8",
+      "date": "Mon, 28 Sep 2026 18:50:42 GMT",
+      "server": "ESF",
+      "vary": "Origin, X-Origin, Referer",
+      "x-content-type-options": "nosniff"
+    },
+    "bodyIsJson": true,
+    "body": {
+      "groups": [
+        {
+          "buckets": [
+            {
+              "bucketId": "gemini-weekly",
+              "displayName": "Weekly Limit Remaining",
+              "window": "weekly",
+              "resetTime": "2026-10-05T14:07:13Z",
+              "description": "You have used some of your weekly limit, it will fully refresh in 6 days, 19 hours.",
+              "remainingFraction": 0.9838571
+            },
+            {
+              "bucketId": "gemini-5h",
+              "displayName": "Five Hour Limit Remaining",
+              "window": "5h",
+              "resetTime": "2026-09-28T20:17:43Z",
+              "description": "You have used some of your 5-hour limit, it will fully refresh in 1 hour, 27 minutes.",
+              "remainingFraction": 0.9031425
+            }
+          ],
+          "displayName": "Gemini Models",
+          "description": "Models within this group: Gemini Flash, Gemini Pro"
+        },
+        {
+          "buckets": [
+            {
+              "bucketId": "3p-weekly",
+              "displayName": "Weekly Limit Remaining",
+              "window": "weekly",
+              "resetTime": "2026-10-04T09:57:19Z",
+              "description": "You have used some of your weekly limit, it will fully refresh in 5 days, 15 hours.",
+              "remainingFraction": 0.1893564
+            },
+            {
+              "bucketId": "3p-5h",
+              "displayName": "Five Hour Limit Remaining",
+              "window": "5h",
+              "resetTime": "2026-09-28T19:45:35Z",
+              "description": "You have used some of your 5-hour limit, it will fully refresh in 54 minutes.",
+              "remainingFraction": 0.2974208
+            }
+          ],
+          "displayName": "Claude and GPT models",
+          "description": "Models within this group: Claude Opus, Claude Sonnet, GPT-OSS"
+        }
+      ],
+      "description": "Within each group, models share a weekly limit and a 5-hour limit. Quota is consumed proportionally to the cost of the tokens. Thus, limits will last longer with shorter tasks or using more cost-effective models. The 5-hour limit smooths out aggregate demand to fairly distribute global capacity across all users, while your weekly limit is tied directly to your individual tier."
+    }
+  },
+  "networkError": null
+}

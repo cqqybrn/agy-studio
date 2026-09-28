@@ -1,0 +1,188 @@
+{
+  "probedAt": "2026-09-28T18:50:42.780Z",
+  "tool": "tools/discover/quota-probe.ts",
+  "agyVersion": "1.2.12",
+  "agyBinary": "%USERPROFILE%\\AppData\\Local\\agy\\bin\\agy.exe",
+  "nodeVersion": "v24.21.0",
+  "viaEnvProxy": true,
+  "userAgentSent": "antigravity/1.2.12 win32/x64",
+  "userAgentNote": "User-Agent 格式照 agy-auto（antigravity/<版本> <platform>/<arch>），版本号取本机 agy --version",
+  "credential": {
+    "source": "Windows 凭据管理器 gemini:antigravity（Win32 CredReadW，只读；不使用 @napi-rs/keyring，因其 Entry.withTarget() 会覆盖条目）",
+    "schemaKeys": [
+      "auth_method",
+      "id_token",
+      "token"
+    ],
+    "tokenKeys": [
+      "access_token",
+      "expiry",
+      "refresh_token",
+      "token_type"
+    ],
+    "storedAccessTokenValidForMoreThan60s": true,
+    "idTokenClaimKeys": [
+      "at_hash",
+      "aud",
+      "azp",
+      "email",
+      "email_verified",
+      "exp",
+      "given_name",
+      "iat",
+      "iss",
+      "name",
+      "picture",
+      "sub"
+    ]
+  },
+  "oauthClient": {
+    "source": "agy 程序二进制内的字符串（latin1 扫描 *.apps.googleusercontent.com 与 GOCSPX-*；client_id 取与 live id_token.aud 相同者，secret 按首次出现顺序逐个尝试）",
+    "clientIdCandidates": 2,
+    "clientSecretCandidates": 2,
+    "clientIdSelection": "id_token-aud",
+    "secretAttempts": 2,
+    "acceptedSecretIndex": 1,
+    "cachedToDisk": false
+  },
+  "endpoints": {
+    "token": "https://oauth2.googleapis.com/token",
+    "loadCodeAssist": "https://daily-cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
+    "quotaSummary": "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary"
+  },
+  "loadCodeAssistReturnedProject": true,
+  "calls": [
+    {
+      "name": "token-refresh-wrong-client-secret",
+      "file": "token-refresh-wrong-client-secret.json",
+      "status": 401,
+      "durationMs": 813,
+      "networkError": null
+    },
+    {
+      "name": "token-refresh",
+      "file": "token-refresh.json",
+      "status": 200,
+      "durationMs": 227,
+      "networkError": null
+    },
+    {
+      "name": "load-code-assist",
+      "file": "load-code-assist.json",
+      "status": 200,
+      "durationMs": 1379,
+      "networkError": null
+    },
+    {
+      "name": "quota-summary",
+      "file": "quota-summary.json",
+      "status": 200,
+      "durationMs": 487,
+      "networkError": null
+    },
+    {
+      "name": "quota-summary-empty-body",
+      "file": "quota-summary-empty-body.json",
+      "status": 200,
+      "durationMs": 284,
+      "networkError": null
+    },
+    {
+      "name": "quota-unauthorized",
+      "file": "quota-unauthorized.json",
+      "status": 401,
+      "durationMs": 235,
+      "networkError": null
+    },
+    {
+      "name": "token-refresh-invalid-grant",
+      "file": "token-refresh-invalid-grant.json",
+      "status": 400,
+      "durationMs": 208,
+      "networkError": null
+    }
+  ],
+  "shapes": {
+    "tokenRefreshResponse": {
+      "access_token": "<redacted:access_token>",
+      "expires_in": "number",
+      "scope": "string",
+      "token_type": "string",
+      "id_token": "<redacted:id_token>"
+    },
+    "loadCodeAssistResponse": {
+      "currentTier": {
+        "id": "string",
+        "name": "string",
+        "description": "string",
+        "privacyNotice": {
+          "showNotice": "boolean",
+          "noticeText": "string"
+        },
+        "upgradeSubscriptionUri": "string",
+        "upgradeSubscriptionText": "string",
+        "upgradeSubscriptionType": "string"
+      },
+      "allowedTiers": [
+        {
+          "id": "string",
+          "name": "string",
+          "description": "string",
+          "privacyNotice": {
+            "showNotice": "boolean",
+            "noticeText": "string"
+          },
+          "isDefault": "boolean"
+        }
+      ],
+      "cloudaicompanionProject": "<redacted:project>",
+      "gcpManaged": "boolean",
+      "upgradeSubscriptionUri": "string",
+      "paidTier": {
+        "id": "string",
+        "name": "string",
+        "description": "string",
+        "upgradeSubscriptionUri": "string",
+        "upgradeSubscriptionText": "string"
+      }
+    },
+    "quotaSummaryResponse": {
+      "groups": [
+        {
+          "buckets": [
+            {
+              "bucketId": "string",
+              "displayName": "string",
+              "window": "string",
+              "resetTime": "string",
+              "description": "string",
+              "remainingFraction": "number"
+            }
+          ],
+          "displayName": "string",
+          "description": "string"
+        }
+      ],
+      "description": "string"
+    },
+    "unauthorizedResponse": {
+      "error": {
+        "code": "number",
+        "message": "string",
+        "status": "string"
+      }
+    },
+    "invalidGrantResponse": {
+      "error": "string",
+      "error_description": "string"
+    }
+  },
+  "redaction": {
+    "rules": [
+      "按字段名替换：access_token / refresh_token / id_token / client_id / client_secret / *project* / *email* / sub 等",
+      "按已知值替换：本次读取的 token、client 标识、邮箱（保留域名）与邮箱用户名、账号 sub、姓名、project、用户目录与用户名",
+      "按正则替换：ya29.*、1//*、GOCSPX-*、*.apps.googleusercontent.com、JWT、邮箱、15 位以上纯数字"
+    ],
+    "leakCheck": "passed"
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "name": "token-refresh-invalid-grant",
+  "description": "用明显无效的 refresh_token 换取 access_token（模拟 refresh token 被吊销）",
+  "startedAt": "2026-09-28T18:50:42.571Z",
+  "durationMs": 208,
+  "request": {
+    "method": "POST",
+    "url": "https://oauth2.googleapis.com/token",
+    "headers": {
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "body": {
+      "encoding": "application/x-www-form-urlencoded",
+      "fields": {
+        "client_id": "<redacted:client_id>",
+        "client_secret": "<redacted:client_secret>",
+        "refresh_token": "<redacted:refresh_token>",
+        "grant_type": "refresh_token"
+      }
+    }
+  },
+  "response": {
+    "status": 400,
+    "statusText": "Bad Request",
+    "headerNames": [
+      "alt-svc",
+      "cache-control",
+      "content-encoding",
+      "content-type",
+      "date",
+      "expires",
+      "pragma",
+      "server",
+      "transfer-encoding",
+      "vary",
+      "x-content-type-options",
+      "x-frame-options",
+      "x-xss-protection"
+    ],
+    "headers": {
+      "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Mon, 28 Sep 2026 18:50:42 GMT",
+      "server": "scaffolding on HTTPServer2",
+      "vary": "Origin, X-Origin, Referer",
+      "x-content-type-options": "nosniff"
+    },
+    "bodyIsJson": true,
+    "body": {
+      "error": "invalid_grant",
+      "error_description": "Bad Request"
+    }
+  },
+  "networkError": null
+}

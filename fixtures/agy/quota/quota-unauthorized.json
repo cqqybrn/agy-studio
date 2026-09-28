@@ -1,0 +1,53 @@
+{
+  "name": "quota-unauthorized",
+  "description": "retrieveUserQuotaSummary，使用明显无效的 access token（模拟 token 失效）",
+  "startedAt": "2026-09-28T18:50:42.336Z",
+  "durationMs": 235,
+  "request": {
+    "method": "POST",
+    "url": "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
+    "headers": {
+      "Authorization": "Bearer invalid-access-token-for-quota-probe",
+      "Content-Type": "application/json",
+      "User-Agent": "antigravity/1.2.12 win32/x64"
+    },
+    "body": {
+      "project": "<redacted:project>"
+    }
+  },
+  "response": {
+    "status": 401,
+    "statusText": "Unauthorized",
+    "headerNames": [
+      "alt-svc",
+      "content-encoding",
+      "content-type",
+      "date",
+      "server",
+      "server-timing",
+      "transfer-encoding",
+      "vary",
+      "www-authenticate",
+      "x-content-type-options",
+      "x-frame-options",
+      "x-xss-protection"
+    ],
+    "headers": {
+      "content-type": "application/json; charset=UTF-8",
+      "date": "Mon, 28 Sep 2026 18:50:42 GMT",
+      "server": "ESF",
+      "vary": "Origin, X-Origin, Referer",
+      "www-authenticate": "Bearer realm=\"https://accounts.google.com/\", error=\"invalid_token\"",
+      "x-content-type-options": "nosniff"
+    },
+    "bodyIsJson": true,
+    "body": {
+      "error": {
+        "code": 401,
+        "message": "Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.",
+        "status": "UNAUTHENTICATED"
+      }
+    }
+  },
+  "networkError": null
+}

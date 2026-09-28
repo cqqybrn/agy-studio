@@ -1,0 +1,91 @@
+{
+  "name": "load-code-assist",
+  "description": "loadCodeAssist：获取套餐/tier 与 cloudaicompanionProject（agy-auto 用其结果作为额度请求的 project）",
+  "startedAt": "2026-09-28T18:50:40.186Z",
+  "durationMs": 1379,
+  "request": {
+    "method": "POST",
+    "url": "https://daily-cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
+    "headers": {
+      "Authorization": "Bearer <redacted:access_token>",
+      "Content-Type": "application/json",
+      "User-Agent": "antigravity/1.2.12 win32/x64"
+    },
+    "body": {
+      "metadata": {
+        "ideType": "ANTIGRAVITY"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "statusText": "OK",
+    "headerNames": [
+      "alt-svc",
+      "content-encoding",
+      "content-type",
+      "date",
+      "server",
+      "server-timing",
+      "transfer-encoding",
+      "vary",
+      "x-cloudaicompanion-trace-id",
+      "x-content-type-options",
+      "x-frame-options",
+      "x-xss-protection"
+    ],
+    "headers": {
+      "content-type": "application/json; charset=UTF-8",
+      "date": "Mon, 28 Sep 2026 18:50:41 GMT",
+      "server": "ESF",
+      "vary": "Origin, X-Origin, Referer",
+      "x-content-type-options": "nosniff"
+    },
+    "bodyIsJson": true,
+    "body": {
+      "currentTier": {
+        "id": "free-tier",
+        "name": "Antigravity",
+        "description": "Gemini-powered code suggestions and chat in multiple IDEs",
+        "privacyNotice": {
+          "showNotice": true,
+          "noticeText": "This notice and our Privacy Policy - https://policies.google.com/privacy - describe how Gemini Code Assist for individuals handles your data. Please read them carefully.\n\nWhen you use Gemini Code Assist for individuals, Google collects your prompts, related code, generated output, code edits, related feature usage information, and your feedback to provide, improve, and develop Google products and services and machine learning technologies.\n\nTo help with quality and improve our products (such as generative machine-learning models), human reviewers may read, annotate, and process the data collected above. We take steps to protect your privacy as part of this process. This includes disconnecting the data from your Google Account before reviewers see or annotate it, and storing those disconnected copies for up to 18 months. Please don't submit confidential information or any data you wouldn't want a reviewer to see or Google to use to improve our products, services, and machine-learning technologies.\n\nIf you don't want this data used to improve Google's machine learning models, you can opt out below."
+        },
+        "upgradeSubscriptionUri": "https://accounts.google.com/AccountChooser?Email=<redacted:email-user>%40gmail.com&continue=https%3A%2F%2Fone.google.com%2Fai",
+        "upgradeSubscriptionText": "Upgrade to get 1,500 model requests per day with Gemini CLI and Gemini Code Assist's agent mode with Google AI Pro.",
+        "upgradeSubscriptionType": "GOOGLE_ONE"
+      },
+      "allowedTiers": [
+        {
+          "id": "free-tier",
+          "name": "Antigravity",
+          "description": "Gemini-powered code suggestions and chat in multiple IDEs",
+          "privacyNotice": {
+            "showNotice": true,
+            "noticeText": "This notice and our Privacy Policy - https://policies.google.com/privacy - describe how Gemini Code Assist for individuals handles your data. Please read them carefully.\n\nWhen you use Gemini Code Assist for individuals, Google collects your prompts, related code, generated output, code edits, related feature usage information, and your feedback to provide, improve, and develop Google products and services and machine learning technologies.\n\nTo help with quality and improve our products (such as generative machine-learning models), human reviewers may read, annotate, and process the data collected above. We take steps to protect your privacy as part of this process. This includes disconnecting the data from your Google Account before reviewers see or annotate it, and storing those disconnected copies for up to 18 months. Please don't submit confidential information or any data you wouldn't want a reviewer to see or Google to use to improve our products, services, and machine-learning technologies.\n\nIf you don't want this data used to improve Google's machine learning models, you can opt out below."
+          },
+          "isDefault": true
+        },
+        {
+          "id": "standard-tier",
+          "name": "Antigravity",
+          "description": "Unlimited coding assistant with the most powerful Gemini models",
+          "userDefinedCloudaicompanionProject": true,
+          "privacyNotice": {},
+          "usesGcpTos": true
+        }
+      ],
+      "cloudaicompanionProject": "<redacted:project>",
+      "gcpManaged": false,
+      "upgradeSubscriptionUri": "https://codeassist.google.com/upgrade",
+      "paidTier": {
+        "id": "g1-pro-tier",
+        "name": "Google AI Pro",
+        "description": "Google AI Pro",
+        "upgradeSubscriptionUri": "https://antigravity.google/g1-upgrade",
+        "upgradeSubscriptionText": "You can upgrade to a Google AI Ultra plan to receive higher rate limits."
+      }
+    }
+  },
+  "networkError": null
+}

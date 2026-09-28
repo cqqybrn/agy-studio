@@ -1,0 +1,58 @@
+{
+  "name": "token-refresh",
+  "description": "用 live 凭据中的 refresh_token 换取 access_token",
+  "startedAt": "2026-09-28T18:50:39.959Z",
+  "durationMs": 227,
+  "request": {
+    "method": "POST",
+    "url": "https://oauth2.googleapis.com/token",
+    "headers": {
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "body": {
+      "encoding": "application/x-www-form-urlencoded",
+      "fields": {
+        "client_id": "<redacted:client_id>",
+        "client_secret": "<redacted:client_secret>",
+        "refresh_token": "<redacted:refresh_token>",
+        "grant_type": "refresh_token"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "statusText": "OK",
+    "headerNames": [
+      "alt-svc",
+      "cache-control",
+      "content-encoding",
+      "content-type",
+      "date",
+      "expires",
+      "pragma",
+      "server",
+      "transfer-encoding",
+      "vary",
+      "x-content-type-options",
+      "x-frame-options",
+      "x-xss-protection"
+    ],
+    "headers": {
+      "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Mon, 28 Sep 2026 18:50:40 GMT",
+      "server": "scaffolding on HTTPServer2",
+      "vary": "Origin, X-Origin, Referer",
+      "x-content-type-options": "nosniff"
+    },
+    "bodyIsJson": true,
+    "body": {
+      "access_token": "<redacted:access_token>",
+      "expires_in": 3599,
+      "scope": "https://www.googleapis.com/auth/aicode https://www.googleapis.com/auth/cclog https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.profile openid https://www.googleapis.com/auth/experimentsandconfigs https://www.googleapis.com/auth/userinfo.email",
+      "token_type": "Bearer",
+      "id_token": "<redacted:id_token>"
+    }
+  },
+  "networkError": null
+}
