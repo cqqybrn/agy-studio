@@ -122,6 +122,15 @@ export function Composer({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const isComposingRef = useRef<boolean>(false);
+  const uploadAbortControllersRef = useRef<Map<string, AbortController>>(new Map());
+
+  // 组件卸载时终止所有正在进行的上传请求
+  useEffect(() => {
+    return () => {
+      uploadAbortControllersRef.current.forEach((ctrl) => ctrl.abort());
+      uploadAbortControllersRef.current.clear();
+    };
+  }, []);
 
   // Auto-resize textarea
   const adjustTextareaHeight = useCallback(() => {
@@ -193,6 +202,10 @@ export function Composer({
         ),
       );
 
+      // 为该文件创建并登记 AbortController
+      const abortController = new AbortController();
+      uploadAbortControllersRef.current.set(item.id, abortController);
+
       try {
         const res = await uploadAttachments(
           [fileToUpload],
@@ -203,7 +216,10 @@ export function Composer({
               prev.map((a) => (a.id === item.id ? { ...a, progress: Math.max(20, percent) } : a)),
             );
           },
+          { signal: abortController.signal },
         );
+
+        uploadAbortControllersRef.current.delete(item.id);
 
         const uploaded = res.attachments?.[0];
         setAttachments((prev) =>
@@ -219,6 +235,7 @@ export function Composer({
           ),
         );
       } catch (err: unknown) {
+        uploadAbortControllersRef.current.delete(item.id);
         const errorMsg = err instanceof Error ? err.message : '上传失败';
         setAttachments((prev) =>
           prev.map((a) => (a.id === item.id ? { ...a, status: 'error', error: errorMsg } : a)),
@@ -244,7 +261,8 @@ export function Composer({
       }
 
       // 2. Total size limit calculation
-      const currentTotalSize = attachments.reduce((sum, a) => sum + a.size, 0);
+      // ★ B-5：使用原始文件大小计算总量
+      const currentTotalSize = attachments.reduce((sum, a) => sum + ((a as any).originalSize ?? a.size), 0);
       const incomingTotalSize = fileArray.reduce((sum, f) => sum + f.size, 0);
       if (currentTotalSize + incomingTotalSize > COMPOSER_LIMITS.maxTotalSize) {
         setValidationError(
@@ -274,6 +292,7 @@ export function Composer({
           file,
           originalName: file.name,
           size: file.size,
+          originalSize: file.size,
           mimeType: file.type || 'application/octet-stream',
           status: 'pending',
           progress: 0,
@@ -293,6 +312,12 @@ export function Composer({
 
   // Remove attachment
   const handleDeleteAttachment = useCallback((id: string) => {
+    // 若在上传中被删除，主动终止网络请求
+    const ctrl = uploadAbortControllersRef.current.get(id);
+    if (ctrl) {
+      ctrl.abort();
+      uploadAbortControllersRef.current.delete(id);
+    }
     setAttachments((prev) => prev.filter((a) => a.id !== id));
   }, []);
 
@@ -514,7 +539,12 @@ export function Composer({
             isComposingRef.current = true;
           }}
           onCompositionEnd={() => {
-            isComposingRef.current = false;
+            // ★ 修复 A-5：延迟 50ms 清除标记
+            // 部分浏览器 compositionEnd 在 keyDown 之前触发，
+            // 不延迟的话紧随其后的回车 keyDown 会击穿防御
+            setTimeout(() => {
+              isComposingRef.current = false;
+            }, 50);
           }}
           className="w-full resize-none bg-transparent text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none leading-relaxed min-h-[40px] max-h-[240px]"
         />

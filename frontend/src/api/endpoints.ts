@@ -246,6 +246,7 @@ export function uploadAttachments(
   workspaceId: string,
   sessionId?: string,
   onProgress?: (percent: number) => void,
+  options?: { signal?: AbortSignal },
 ): Promise<{ attachments: Attachment[] }> {
   return new Promise((resolve, reject) => {
     const formData = new FormData();
@@ -259,6 +260,32 @@ export function uploadAttachments(
 
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/attachments');
+
+    // ★ 修复 A-7：绑定 AbortSignal
+    if (options?.signal) {
+      if (options.signal.aborted) {
+        reject(new ApiError('INTERNAL', 'Request aborted', { status: 0, retryable: false }));
+        return;
+      }
+      const abortHandler = () => xhr.abort();
+      options.signal.addEventListener('abort', abortHandler, { once: true });
+      const cleanup = () => options.signal?.removeEventListener('abort', abortHandler);
+      const origOnload = xhr.onload;
+      xhr.onload = function (e) {
+        cleanup();
+        origOnload?.call(this, e);
+      };
+      xhr.onerror = ((orig) =>
+        function (this: XMLHttpRequest, e: ProgressEvent) {
+          cleanup();
+          orig?.call(this, e);
+        })(xhr.onerror);
+      xhr.onabort = ((orig) =>
+        function (this: XMLHttpRequest, e: ProgressEvent) {
+          cleanup();
+          orig?.call(this, e);
+        })(xhr.onabort);
+    }
 
     const token = getAuthToken();
     if (token) {

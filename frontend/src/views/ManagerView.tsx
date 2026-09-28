@@ -275,6 +275,7 @@ export function ManagerView({
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editingTitleText, setEditingTitleText] = useState('');
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const isCancellingTitleRef = useRef(false);
 
   useEffect(() => {
     if (isEditingTitle) {
@@ -290,6 +291,12 @@ export function ManagerView({
 
   const handleSaveTitle = async () => {
     if (!isEditingTitle) return;
+    // ★ B-9：检查是否取消
+    if (isCancellingTitleRef.current) {
+      isCancellingTitleRef.current = false;
+      setIsEditingTitle(false);
+      return;
+    }
     setIsEditingTitle(false);
     const trimmed = editingTitleText.trim();
     if (!trimmed || !activeSessionId || trimmed === currentSession?.title) return;
@@ -308,7 +315,8 @@ export function ManagerView({
   };
 
   const handleCancelTitle = () => {
-    setIsEditingTitle(false);
+    isCancellingTitleRef.current = true;
+    // blur 会触发 handleSaveTitle，通过 ref 标记跳过保存
   };
 
   // 虚拟滚动容器与自动跟随
@@ -387,9 +395,12 @@ export function ManagerView({
     const isNewItemAdded = items.length > prevLength;
 
     if (isAutoFollowRef.current) {
-      // 开启跟随模式：平滑滚动到底部
       requestAnimationFrame(() => {
-        el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+        // ★ B-8：新消息用 smooth，同一条消息的流式增长用 auto 避免动画打断
+        el.scrollTo({
+          top: el.scrollHeight,
+          behavior: isNewItemAdded ? 'smooth' : 'auto',
+        });
       });
     } else if (isNewItemAdded) {
       // 用户上滑中：累加新消息未读指示
@@ -422,7 +433,8 @@ export function ManagerView({
       {/* 1. 顶部状态警告条 ---------------------------------------------------- */}
 
       {/* 1.1 连接断开/重连中黄色醒目提示条 */}
-      {connectionStatus !== 'open' && (
+      {/* ★ B-11：排除 connecting 初始状态，只在明确的断线/重连时显示 */}
+      {(connectionStatus === 'reconnecting' || connectionStatus === 'closed') && (
         <div
           className="flex shrink-0 items-center justify-between border-b border-amber-500/30 bg-amber-500/15 px-4 py-2 text-xs text-amber-300"
           data-testid="reconnecting-banner"
@@ -482,8 +494,11 @@ export function ManagerView({
                 onChange={(e) => setEditingTitleText(e.target.value)}
                 onBlur={handleSaveTitle}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSaveTitle();
-                  if (e.key === 'Escape') handleCancelTitle();
+                  if (e.key === 'Enter' || e.key === 'Escape') {
+                    if (e.key === 'Escape') handleCancelTitle();
+                    // ★ B-9：统一通过 blur 触发保存/取消
+                    e.currentTarget.blur();
+                  }
                 }}
                 className="rounded border border-accent bg-bg-surface px-2 py-0.5 text-xs font-semibold text-text-primary outline-none ring-1 ring-accent"
                 data-testid="session-title-input"

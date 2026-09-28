@@ -481,8 +481,9 @@ export function reduce(
       const updated: ThinkingItem = {
         ...existing,
         text: existing.text + event.text,
-        endedAt: ts,
-        durationMs: durationMs ?? existing.durationMs,
+        // ★ 修复 A-4：已完成时保护权威的 endedAt 和 durationMs，防止迟到 delta 覆盖
+        endedAt: existing.isComplete ? existing.endedAt : ts,
+        durationMs: existing.isComplete ? existing.durationMs : (durationMs ?? existing.durationMs),
       };
       return {
         ...state,
@@ -638,21 +639,32 @@ export function reduce(
         };
       }
 
+      // ★ 修复 A-3：回收可能先到达的流浪子代理
+      const strandedSubagents = state.items.filter(
+        (it): it is SubagentItem =>
+          it.kind === 'subagent' && it.parentToolCallId === event.tool.toolCallId
+      );
       const newToolItem: ToolItem = {
         id: `tool-${event.tool.toolCallId}`,
         kind: 'tool',
         type: 'tool',
         toolCallId: event.tool.toolCallId,
         tool: { ...event.tool },
-        subagents: [],
+        subagents: strandedSubagents,
         runId: runId ?? state.activeRunId,
         createdAt: ts,
         updatedAt: ts,
       };
 
+      const remainingItems = strandedSubagents.length > 0
+        ? state.items.filter(
+            (it) => !(it.kind === 'subagent' && it.parentToolCallId === event.tool.toolCallId)
+          )
+        : state.items;
+
       return {
         ...state,
-        items: insertToolItem(state.items, newToolItem),
+        items: insertToolItem(remainingItems, newToolItem),
         lastSeq,
         activeRunId,
       };
@@ -700,21 +712,32 @@ export function reduce(
         ...event.patch,
       };
 
+      // ★ 修复 A-3：回收可能先到达的流浪子代理
+      const strandedSubagents = state.items.filter(
+        (it): it is SubagentItem =>
+          it.kind === 'subagent' && it.parentToolCallId === event.toolCallId
+      );
       const newToolItem: ToolItem = {
         id: `tool-${event.toolCallId}`,
         kind: 'tool',
         type: 'tool',
         toolCallId: event.toolCallId,
         tool: fallbackTool,
-        subagents: [],
+        subagents: strandedSubagents,
         runId: runId ?? state.activeRunId,
         createdAt: ts,
         updatedAt: ts,
       };
 
+      const remainingItems = strandedSubagents.length > 0
+        ? state.items.filter(
+            (it) => !(it.kind === 'subagent' && it.parentToolCallId === event.toolCallId)
+          )
+        : state.items;
+
       return {
         ...state,
-        items: insertToolItem(state.items, newToolItem),
+        items: insertToolItem(remainingItems, newToolItem),
         lastSeq,
         activeRunId,
       };
@@ -740,21 +763,32 @@ export function reduce(
         };
       }
 
+      // ★ 修复 A-3：回收可能先到达的流浪子代理
+      const strandedSubagents = state.items.filter(
+        (it): it is SubagentItem =>
+          it.kind === 'subagent' && it.parentToolCallId === event.tool.toolCallId
+      );
       const newToolItem: ToolItem = {
         id: `tool-${event.tool.toolCallId}`,
         kind: 'tool',
         type: 'tool',
         toolCallId: event.tool.toolCallId,
         tool: { ...event.tool },
-        subagents: [],
+        subagents: strandedSubagents,
         runId: runId ?? state.activeRunId,
         createdAt: ts,
         updatedAt: ts,
       };
 
+      const remainingItems = strandedSubagents.length > 0
+        ? state.items.filter(
+            (it) => !(it.kind === 'subagent' && it.parentToolCallId === event.tool.toolCallId)
+          )
+        : state.items;
+
       return {
         ...state,
-        items: insertToolItem(state.items, newToolItem),
+        items: insertToolItem(remainingItems, newToolItem),
         lastSeq,
         activeRunId,
       };

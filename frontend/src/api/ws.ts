@@ -697,7 +697,9 @@ export class WsClient {
         if (latestSeq < sub.lastSeq) {
           sub.lastSeq = 0;
           this.notifyReset(sub);
-          this.requestResubscribe(sessionId, 0);
+          // ★ 修复 A-2：移除 WS 侧的重订阅，
+          // 重载控制权完全交给上层 session.store 的 handleSlotReset → openSession
+          // openSession 会重新 subscribe 并通过 initialLastSeq 让服务端补发
         }
         break;
       }

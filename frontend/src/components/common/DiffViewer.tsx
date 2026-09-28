@@ -62,7 +62,8 @@ export function parseUnifiedDiff(
     }
 
     if (inHunk) {
-      if (line.startsWith('+') && !line.startsWith('+++')) {
+      // ★ B-3：Hunk 内部不需要过滤 +++ / ---，文件头只出现在 inHunk=false 的阶段
+      if (line.startsWith('+')) {
         additions++;
         lines.push({
           type: 'add',
@@ -70,7 +71,7 @@ export function parseUnifiedDiff(
           newLineNumber: newLine++,
           content: line,
         });
-      } else if (line.startsWith('-') && !line.startsWith('---')) {
+      } else if (line.startsWith('-')) {
         deletions++;
         lines.push({
           type: 'del',

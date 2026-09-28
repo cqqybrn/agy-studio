@@ -99,7 +99,9 @@ export async function compressImageIfNeeded(
 
       try {
         ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
-        const mimeType = file.type || 'image/jpeg';
+        // ★ B-4：canvas.toBlob 仅支持 jpeg/png/webp，不支持的降级为 jpeg
+        const CANVAS_SUPPORTED = ['image/jpeg', 'image/png', 'image/webp'];
+        const mimeType = CANVAS_SUPPORTED.includes(file.type) ? file.type : 'image/jpeg';
         canvas.toBlob(
           (blob) => {
             if (!blob) {

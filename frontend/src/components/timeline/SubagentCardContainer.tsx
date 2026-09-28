@@ -117,6 +117,14 @@ export function SubagentCardContainer({
     }
   }, [isExpanded, shouldLazyLoad, isLoading, error, fetchTranscript]);
 
+  // ★ 修复 A-8：运行期间同步 steps 到缓存，保证 Store 释放内存时能无缝 fallback
+  useEffect(() => {
+    if (isRunning && item.steps && item.steps.length > 0) {
+      subagentTranscriptCache.set(cacheKey, item.steps);
+      setLoadedSteps(item.steps);
+    }
+  }, [isRunning, item.steps, cacheKey]);
+
   const handleToggleExpand = () => {
     const nextState = !isExpanded;
     setIsExpanded(nextState);

@@ -955,7 +955,7 @@ describe('WsClient - Full Test Suite', () => {
   // 8) subscribed 帧 latestSeq 比较、onReset 与异常值保护
   // -------------------------------------------------------------
   describe('8) Subscribed Frame Handling & onReset', () => {
-    it('triggers onReset, resets lastSeq to 0, and resubscribes from 0 when latestSeq < localLastSeq', async () => {
+    it('triggers onReset and resets lastSeq to 0 without client-side resubscribe when latestSeq < localLastSeq', async () => {
       const { client, getWs } = createClient();
       const ws = getWs();
       ws.simulateOpen();
@@ -985,13 +985,9 @@ describe('WsClient - Full Test Suite', () => {
       await flushMicrotasks();
       expect(onReset).toHaveBeenCalledTimes(1);
 
-      // Sent subscribe frame from 0
-      const lastSent = ws.getLastSent();
-      expect(lastSent).toEqual({
-        type: 'session.subscribe',
-        sessionIds: ['s1'],
-        lastSeq: { s1: 0 },
-      });
+      // ★ A-2: WS 自身不发起 session.subscribe，重载完全交给上层 session.store
+      const subscribeFrames = ws.getAllSent().filter((m) => m.type === 'session.subscribe');
+      expect(subscribeFrames).toHaveLength(1); // 仅有初始订阅的 1 次
     });
 
     it('does not advance local lastSeq or resubscribe when latestSeq > localLastSeq (live events still in flight)', () => {

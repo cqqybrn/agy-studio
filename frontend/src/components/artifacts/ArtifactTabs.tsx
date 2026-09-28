@@ -247,10 +247,12 @@ export function ArtifactTabs({
     for (const envelope of newEnvelopes) {
       if (envelope.event.type === 'artifact.updated') {
         const updatedArtifact = envelope.event.artifact;
-        // 重新拉取 artifacts 列表
         void fetchArtifactsList(sessionId);
-        // 若为文本型产物，重新加载其 raw 内容并触发 1.5s 渐变高亮
-        void fetchRawText(sessionId, updatedArtifact, true);
+        // ★ 修复 A-6：只对文本类产物拉取 raw 内容，避免二进制 Blob 被强制文本化
+        const TEXT_ARTIFACT_KINDS = ['task', 'implementation_plan', 'walkthrough', 'markdown'];
+        if (TEXT_ARTIFACT_KINDS.includes(updatedArtifact.kind)) {
+          void fetchRawText(sessionId, updatedArtifact, true);
+        }
       } else if (
         envelope.event.type === 'run.started' ||
         envelope.event.type === 'run.completed'
@@ -266,6 +268,17 @@ export function ArtifactTabs({
     () => getTabContentMap(artifacts, hasChanges),
     [artifacts, hasChanges],
   );
+
+  // ★ B-7：当前激活标签失去内容时自动跳转到首个可用标签
+  useEffect(() => {
+    if (artifacts.length > 0 && !tabContentMap[activeTab]) {
+      const TABS: ArtifactTabKey[] = ['Task', 'Plan', 'Walkthrough', 'Media', 'Changes'];
+      const firstAvailable = TABS.find((t) => tabContentMap[t]);
+      if (firstAvailable) {
+        setActiveTab(firstAvailable);
+      }
+    }
+  }, [tabContentMap, activeTab, artifacts.length, setActiveTab]);
 
   const taskArtifact = useMemo(() => findTaskArtifact(artifacts), [artifacts]);
   const planArtifact = useMemo(() => findPlanArtifact(artifacts), [artifacts]);

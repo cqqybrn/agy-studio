@@ -207,11 +207,12 @@ describe('http.ts - request() function', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
+    // ★ B-1: 502/503/504 等非 JSON 响应默认标记为 retryable: true
     await expect(request('GET /api/health')).rejects.toMatchObject({
       name: 'ApiError',
       code: 'INTERNAL',
       message: 'HTTP Error 502: Bad Gateway',
-      retryable: false,
+      retryable: true,
       status: 502,
     });
   });

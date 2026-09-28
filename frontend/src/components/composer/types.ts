@@ -9,6 +9,7 @@ export interface ComposerAttachment {
   file: File;
   originalName: string;
   size: number;
+  originalSize?: number;
   mimeType: string;
   status: AttachmentStatus;
   progress: number; // 0 - 100

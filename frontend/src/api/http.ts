@@ -157,7 +157,8 @@ export async function request<K extends EndpointKey>(
   if (!response.ok) {
     let errorCode: ErrorCode = 'INTERNAL';
     let errorMessage = `HTTP Error ${response.status}: ${response.statusText}`;
-    let retryable = false;
+    // ★ B-1：对常见的可重试 HTTP 状态码默认设为 retryable
+    let retryable = [408, 429, 502, 503, 504].includes(response.status);
     let details: Record<string, unknown> | undefined;
 
     try {

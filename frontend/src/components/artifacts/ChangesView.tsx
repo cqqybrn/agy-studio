@@ -191,6 +191,12 @@ export function ChangesView({
   const handleConfirmRollback = async () => {
     if (!rollbackTarget) return;
 
+    // ★ B-2：二次校验运行状态
+    if (isRunning) {
+      setRollbackErrorMsg('当前会话正在运行中，无法回滚。请等待运行结束后再试。');
+      return;
+    }
+
     try {
       setRollingBack(true);
       setRollbackErrorMsg(null);
@@ -514,7 +520,7 @@ export function ChangesView({
               </button>
               <button
                 type="button"
-                disabled={rollingBack}
+                disabled={rollingBack || isRunning}
                 onClick={handleConfirmRollback}
                 data-testid="confirm-rollback-btn"
                 className="flex items-center gap-1.5 rounded-md bg-amber-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-amber-500 transition-colors shadow-sm disabled:opacity-50"

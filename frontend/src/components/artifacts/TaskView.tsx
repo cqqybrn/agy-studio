@@ -55,7 +55,9 @@ export function parseTaskList(markdown: string): ParsedTasks {
 
     const taskMatch = line.match(taskRegex);
     if (taskMatch) {
-      const indent = taskMatch[1].length;
+      // ★ B-6：标准化 Tab 为 2 个空格后再计算层级
+      const indentStr = taskMatch[1].replace(/\t/g, '  ');
+      const indent = indentStr.length;
       const level = Math.floor(indent / 2);
       const isCompleted = taskMatch[2].toLowerCase() === 'x';
       const text = taskMatch[3].trim();

@@ -29,8 +29,8 @@ export interface SubagentCardProps {
   isExpanded?: boolean;
   /** 切换展开状态回调 */
   onToggleExpand?: () => void;
-  /** 是否显示全部步骤（受控，用于测试或外部展开超过 200 步的情况） */
-  showEarlierSteps?: boolean;
+  /** 是否显示更早步骤或当前显示步数上限（受控，可传 boolean 或 number） */
+  showEarlierSteps?: boolean | number;
   /** 切换显示更早步骤回调 */
   onToggleShowEarlierSteps?: () => void;
   /** 是否正在懒加载步骤 */
@@ -134,15 +134,20 @@ export function SubagentCard({
   defaultExpanded = false,
 }: SubagentCardProps) {
   const [internalExpanded, setInternalExpanded] = useState(defaultExpanded);
-  const [internalShowEarlier, setInternalShowEarlier] = useState(false);
+  const [visibleLimit, setVisibleLimit] = useState(MAX_VISIBLE_SUBAGENT_STEPS);
 
   const isControlled = controlledExpanded !== undefined;
   const expanded = isControlled ? controlledExpanded : internalExpanded;
 
   const isEarlierControlled = controlledShowEarlierSteps !== undefined;
-  const showEarlier = isEarlierControlled
-    ? controlledShowEarlierSteps
-    : internalShowEarlier;
+  const steps = explicitSteps ?? item.steps ?? [];
+  const effectiveLimit = isEarlierControlled
+    ? typeof controlledShowEarlierSteps === 'number'
+      ? controlledShowEarlierSteps
+      : controlledShowEarlierSteps
+      ? steps.length
+      : MAX_VISIBLE_SUBAGENT_STEPS
+    : visibleLimit;
 
   const handleToggle = () => {
     if (isControlled) {
@@ -156,18 +161,17 @@ export function SubagentCard({
     if (isEarlierControlled) {
       onToggleShowEarlierSteps?.();
     } else {
-      setInternalShowEarlier(true);
+      // ★ B-10：分页扩容而非全量加载
+      setVisibleLimit((prev) => prev + MAX_VISIBLE_SUBAGENT_STEPS);
     }
   };
 
-  const steps = explicitSteps ?? item.steps ?? [];
   const promptSummary = formatPromptSummary(item.initialPrompt);
 
-  const hasOverflow = steps.length > MAX_VISIBLE_SUBAGENT_STEPS;
-  const displayedSteps =
-    hasOverflow && !showEarlier
-      ? steps.slice(-MAX_VISIBLE_SUBAGENT_STEPS)
-      : steps;
+  const hasOverflow = steps.length > effectiveLimit;
+  const displayedSteps = hasOverflow
+    ? steps.slice(-effectiveLimit)
+    : steps;
 
   return (
     <div
@@ -282,7 +286,7 @@ export function SubagentCard({
               ) : (
                 <div className="space-y-2">
                   {/* 超过 200 步的顶部按钮 */}
-                  {hasOverflow && !showEarlier && (
+                  {hasOverflow && (
                     <div className="pt-1 pb-1 text-center border-b border-border-subtle mb-2">
                       <button
                         type="button"
@@ -290,7 +294,7 @@ export function SubagentCard({
                         data-testid="load-earlier-steps-btn"
                         className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs text-accent hover:text-accent-hover hover:bg-accent/10 rounded border border-accent/20 transition-colors"
                       >
-                        显示更早的步骤 (Load earlier steps) ({steps.length - MAX_VISIBLE_SUBAGENT_STEPS} 步隐藏)
+                        显示更早的步骤 (Load earlier steps) ({steps.length - effectiveLimit} 步隐藏)
                       </button>
                     </div>
                   )}

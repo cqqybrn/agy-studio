@@ -169,6 +169,9 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     const generation = nextGeneration(sessionId);
     const isCurrent = () => openGenerations.get(sessionId) === generation;
 
+    // ★ 修复 A-1：在 HTTP 拉取前立即断开旧订阅，阻止脏事件干扰
+    releaseSubscription(sessionId);
+
     // Initialize or mark slot as loading
     set((state) => {
       const existing = state.slots[sessionId];
@@ -225,9 +228,8 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
         };
       });
 
-      releaseSubscription(sessionId);
-
-      // Subscribe to real-time events via wsClient
+      // ★ 旧的 releaseSubscription 已移到顶部，这里直接建新订阅
+      // 服务端会从 lastSeq 之后补发 HTTP 期间产生的新事件
       const unsub = wsClient.subscribe(
         sessionId,
         {
