@@ -27,7 +27,7 @@ import type {
   WhoAmI,
   Workspace,
 } from '@agy-studio/contracts';
-import { ApiError, getAuthToken, request, type RequestOptions } from './http';
+import { ApiError, buildUrl, getAuthToken, request, type RequestOptions } from './http';
 
 // ---------- Health & Capabilities ----------
 
@@ -178,6 +178,10 @@ export function getArtifactRaw(
     ...options,
     params: { sessionId, artifactId },
   });
+}
+
+export function getArtifactRawUrl(sessionId: string, artifactId: string): string {
+  return buildUrl('/api/sessions/:sessionId/artifacts/:artifactId/raw', { sessionId, artifactId });
 }
 
 // ---------- Checkpoints ----------

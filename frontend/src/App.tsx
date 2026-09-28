@@ -9,6 +9,7 @@ import {
   NewSessionButton,
   WorkspaceSwitcher,
 } from './components/inbox';
+import { ArtifactTabs } from './components/artifacts';
 
 export type CurrentSession = Session | null;
 
@@ -290,30 +291,7 @@ function MainLayout() {
               className="flex h-full shrink-0 flex-col border-l border-border-default bg-bg-panel transition-all duration-75"
               data-testid="right-panel"
             >
-              <div className="flex h-10 items-center justify-between border-b border-border-default px-3 text-xs font-medium text-text-secondary">
-                <div className="flex items-center gap-2">
-                  <span className="text-text-primary">Artifacts</span>
-                  <span className="rounded bg-bg-surface px-1.5 py-0.5 text-[10px] font-mono text-text-tertiary">
-                    Task / Plan / Media
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={toggleRightPanel}
-                  className="rounded p-1 text-text-tertiary hover:bg-bg-surface hover:text-text-primary transition-colors"
-                  title="折叠面板"
-                  data-testid="collapse-right-btn"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-4 text-xs text-text-tertiary">
-                <div className="rounded-lg border border-dashed border-border-default p-4 text-center">
-                  <p className="text-text-secondary">Artifacts 占位面板</p>
-                  <p className="mt-1 text-[11px]">任务清单、实施计划、完成总结及截图产物</p>
-                </div>
-              </div>
+              <ArtifactTabs onClose={toggleRightPanel} />
             </aside>
           </>
         )}
