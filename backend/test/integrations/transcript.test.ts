@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  extractSubagentConversationIds,
   parseLine,
   resolveTranscriptPath,
   tail,
@@ -184,6 +185,43 @@ describe('Integrations: transcript.ts', () => {
       const step = parseLine(line);
       expect(step?.status).toBe('DONE');
       expect(step?.error).toBe('Command failed with exit code 1');
+    });
+  });
+
+  describe('extractSubagentConversationIds', () => {
+    it('reads subagent_info.subagents[].conversation_id from the real subagent stream, ignoring text/log_uri mentions', () => {
+      const text = fs.readFileSync(
+        path.resolve(__dirname, '../../../fixtures/agy/stream/subagent/stdout.jsonl'),
+        'utf-8',
+      );
+      expect(extractSubagentConversationIds(text)).toEqual(['e33a7c24-f1e3-4792-ac80-d602ef34dabb']);
+    });
+
+    it('returns nothing for the real brain-sample transcript and for UUIDs mentioned in content', () => {
+      const mentioned = JSON.stringify({
+        step_index: 9,
+        type: 'USER_INPUT',
+        content: 'see conversation d4d4d4d4-4444-4444-8444-444444444444',
+      });
+      const text = `${fs.readFileSync(REAL_TRANSCRIPT, 'utf-8')}\n${mentioned}\n`;
+      expect(extractSubagentConversationIds(text)).toEqual([]);
+    });
+
+    it('reads invoke_subagent args Subagents[].conversation_id (agy-auto field names)', () => {
+      const line = JSON.stringify({
+        step_type: 'tool',
+        tool_name: 'invoke_subagent',
+        tool_info: {
+          name: 'invoke_subagent',
+          args: {
+            Subagents: JSON.stringify([
+              { TypeName: 'research', conversation_id: 'b2b2b2b2-2222-4222-8222-222222222222' },
+              { TypeName: 'research', conversation_id: 'not-a-uuid' },
+            ]),
+          },
+        },
+      });
+      expect(extractSubagentConversationIds(line)).toEqual(['b2b2b2b2-2222-4222-8222-222222222222']);
     });
   });
 

@@ -4,4 +4,5 @@ export * from './AttachmentChip';
 export * from './ModelPicker';
 export * from './EffortPicker';
 export * from './ModePicker';
+export * from './AgentPicker';
 export * from './Composer';

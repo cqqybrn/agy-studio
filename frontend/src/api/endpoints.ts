@@ -1,6 +1,7 @@
 import type {
   Account,
   AccountLoginSession,
+  AgentInfo,
   ApiEndpoints,
   Artifact,
   Attachment,
@@ -385,6 +386,13 @@ export function getModels(
   options?: Omit<RequestOptions<'GET /api/models'>, 'query'>,
 ): Promise<Model[]> {
   return request('GET /api/models', { ...options, query } as any);
+}
+
+export function getAgents(
+  query?: ApiEndpoints['GET /api/agents']['query'],
+  options?: Omit<RequestOptions<'GET /api/agents'>, 'query'>,
+): Promise<AgentInfo[]> {
+  return request('GET /api/agents', { ...options, query } as any);
 }
 
 export function getPrefs(options?: RequestOptions<'GET /api/prefs'>): Promise<Prefs> {

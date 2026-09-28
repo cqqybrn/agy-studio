@@ -2,6 +2,7 @@ import type {
   Account,
   AccountLoginSession,
   AccountType,
+  AgentInfo,
   AgentMode,
   Artifact,
   Attachment,
@@ -129,10 +130,12 @@ export interface ApiEndpoints {
   'GET /api/attachments/:attachmentId/raw': { response: Blob };
 
   'GET /api/models': { query: { refresh?: boolean }; response: Model[] };
+  /** Built-in default agent first, then workspace (`workspaceId`'s `.agents/agents`) and global agents. */
+  'GET /api/agents': { query: { workspaceId?: string }; response: AgentInfo[] };
   'GET /api/prefs': { response: Prefs };
   'PUT /api/prefs': { body: UpdatePrefsBody; response: Prefs };
 
-  /** `refresh=true` triggers a `/usage` CLI probe (rate-limited server-side to once per 2 minutes per account). */
+  /** `refresh=true` bypasses the cache and queries the quota endpoint (rate-limited server-side to once per minute per account). */
   'GET /api/quota': { query: { account?: string; refresh?: boolean }; response: QuotaSnapshot };
 
   'GET /api/accounts': { response: { accounts: Account[]; whoami: WhoAmI } };

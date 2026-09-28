@@ -7,3 +7,4 @@ export * from './login.port.js';
 export * from './quota-probe.port.js';
 export * from './statusline-parser.port.js';
 export * from './model-catalog.port.js';
+export * from './agent-catalog.port.js';

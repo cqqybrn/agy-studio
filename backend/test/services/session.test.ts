@@ -339,6 +339,33 @@ describe('SessionService', () => {
       await completionPromise;
     });
 
+    it('forwards a chosen agent to supervisor.start and drops the built-in default', async () => {
+      const session = await sessionService.createSession({ workspaceId, title: 'Agent chat' });
+      mockSupervisor.start.mockResolvedValue({ runId: 'run-agent', completion: new Promise(() => {}) });
+
+      await sessionService.send({
+        sessionId: session.id,
+        text: 'review',
+        attachmentIds: [],
+        agent: 'code-reviewer',
+      });
+      expect(mockSupervisor.start.mock.calls[0][1].agent).toBe('code-reviewer');
+
+      mockSupervisor.start.mockClear();
+      await sessionService.send({ sessionId: session.id, text: 'hi', attachmentIds: [], agent: 'default' });
+      expect(mockSupervisor.start.mock.calls[0][1]).not.toHaveProperty('agent');
+    });
+
+    it('rejects agent names with path or flag characters that are not listed', async () => {
+      const session = await sessionService.createSession({ workspaceId, title: 'Agent chat' });
+      for (const agent of ['../evil', '--model', 'a b', 'x\\y']) {
+        await expect(
+          sessionService.send({ sessionId: session.id, text: 'hi', attachmentIds: [], agent }),
+        ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+      }
+      expect(mockSupervisor.start).not.toHaveBeenCalled();
+    });
+
     it('implements getActiveRunId and abortRun for gateway.ts SessionServicePort', async () => {
       mockSupervisor.getActiveRunBySessionId.mockReturnValue({ id: 'run-active-1' });
       expect(sessionService.getActiveRunId('sess-1')).toBe('run-active-1');

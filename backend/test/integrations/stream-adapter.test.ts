@@ -152,6 +152,70 @@ describe('stream-adapter', () => {
     });
   });
 
+  describe('error_message steps', () => {
+    /** Outer shape copied from a real step_update line (fixtures/agy/stream/subagent/stdout.jsonl step 4). */
+    function errorStepLine(inner: Record<string, unknown>): string {
+      return JSON.stringify({
+        event: 'step_update',
+        step_update: {
+          conversation_id: 'e6e5854f-2f57-4feb-8685-f41225052012',
+          step_index: 4,
+          state: 'DONE',
+          step_type: 'error_message',
+          duration_seconds: 0.0041543,
+          ...inner,
+        },
+      });
+    }
+
+    it('emits a non-terminal run.error using text_delta, and is no longer a raw event', () => {
+      const ctx = createTestContext();
+      const result = adapt(
+        errorStepLine({ text_delta: 'Claude weekly quota exhausted, resets in 3 days' }),
+        ctx,
+      );
+      expect(result.events).toEqual([
+        {
+          type: 'run.error',
+          error: {
+            code: 'QUOTA_EXHAUSTED',
+            message: 'Claude weekly quota exhausted, resets in 3 days',
+            retryable: false,
+          },
+        },
+      ]);
+      expect(result.terminal).toBeUndefined();
+      expect(result.conversationId).toBe('e6e5854f-2f57-4feb-8685-f41225052012');
+    });
+
+    it('falls back to content, then error, then a placeholder for the message', () => {
+      const ctx = createTestContext();
+      const msg = (inner: Record<string, unknown>) => {
+        const [ev] = adapt(errorStepLine(inner), ctx).events;
+        expect(ev.type).toBe('run.error');
+        return ev.type === 'run.error' ? ev.error.message : null;
+      };
+      expect(msg({ content: 'model overloaded', error: 'ignored' })).toBe('model overloaded');
+      expect(msg({ text_delta: '', error: 'upstream 500' })).toBe('upstream 500');
+      expect(msg({ error: { code: 7 } })).toBe('error_message');
+      expect(msg({})).toBe('error_message');
+    });
+
+    it('still derives the run terminal status only from result', () => {
+      const ctx = createTestContext();
+      const errorRes = adapt(errorStepLine({ text_delta: 'boom' }), ctx);
+      expect(errorRes.terminal).toBeUndefined();
+      const resultRes = adapt(
+        JSON.stringify({
+          event: 'result',
+          result: { conversation_id: 'e6e5854f-2f57-4feb-8685-f41225052012', status: 'SUCCESS' },
+        }),
+        ctx,
+      );
+      expect(resultRes.terminal).toEqual({ status: 'completed' });
+    });
+  });
+
   describe('tool name to ToolKind resolution', () => {
     it('maps known tools accurately', () => {
       expect(DEFAULT_TOOL_KIND_MAP.view_file).toBe('view_file');

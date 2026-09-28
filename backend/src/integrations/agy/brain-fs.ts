@@ -18,13 +18,14 @@ import {
   conversationsParentRel,
   expandPathTokens,
   getDefaultPaths,
+  resolveConversationDbPaths,
   resolveConversationDir as resolveConversationDirFromProfile,
   resolveDataRoots,
   resolveTranscriptPath,
   type PathResolveOptions,
 } from './paths.js';
 import type { AgyProfile, PathsConfig } from './profile/schema.js';
-import { parseLine, tail } from './transcript.js';
+import { extractSubagentConversationIds, parseLine, tail } from './transcript.js';
 
 export { getDefaultPaths, resolveDataRoots } from './paths.js';
 
@@ -162,7 +163,8 @@ function guessMimeType(filePath: string): string {
 }
 
 /**
- * Safely purge a conversation directory.
+ * Safely purge a conversation and its subagent conversations: brain\<id>\ and
+ * conversations\<id>.db / .db-shm / .db-wal under every data root (or only the given one).
  * Enforces strict UUID format, directory boundary inside dataRoot, and rejects symlinks.
  * Supports both purgeConversation(conversationId, dataRoot) and purgeConversation(dataRoot, id).
  */
@@ -204,53 +206,104 @@ export async function purgeConversation(
   }
 
   const paths = pathsConfig || getDefaultPaths();
-  const targetDir = resolveConversationDir(conversationId, { dataRoot }, paths);
+  const roots = dataRoot ? [dataRoot] : resolveDataRoots(paths);
 
-  // 2. Existence check
+  // 2. Collect the conversation plus its subagent conversations (recursively, cycle-safe)
+  const ids = await collectConversationTree(conversationId, roots, paths);
+
+  // 3. Delete brain\<id>\ and conversations\<id>.db* under every data root
+  for (const id of ids) {
+    for (const root of roots) {
+      const targetDir = resolveConversationDir(id, { dataRoot: root }, paths);
+      await removeInsideRoot(targetDir, root, id, 'dir');
+      for (const dbFile of resolveConversationDbPaths(id, root)) {
+        await removeInsideRoot(dbFile, root, id, 'file');
+      }
+    }
+  }
+}
+
+async function collectConversationTree(
+  rootId: string,
+  roots: string[],
+  paths: PathsConfig,
+): Promise<string[]> {
+  const seen = new Set<string>([rootId.toLowerCase()]);
+  const ordered = [rootId];
+  const queue = [rootId];
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    for (const root of roots) {
+      const transcriptFile = resolveTranscriptPath(id, { dataRoot: root }, paths);
+      let text: string;
+      try {
+        const st = await fs.promises.lstat(resolveConversationDir(id, { dataRoot: root }, paths));
+        if (st.isSymbolicLink()) continue;
+        text = await fs.promises.readFile(transcriptFile, 'utf-8');
+      } catch {
+        continue;
+      }
+      for (const subId of extractSubagentConversationIds(text)) {
+        const key = subId.toLowerCase();
+        if (!isUuid(subId) || seen.has(key)) continue;
+        seen.add(key);
+        ordered.push(subId);
+        queue.push(subId);
+      }
+    }
+  }
+  return ordered;
+}
+
+/**
+ * Removes a conversation directory or db file, rejecting symlinks and anything resolving
+ * outside the data root. Missing targets are ignored.
+ */
+async function removeInsideRoot(
+  target: string,
+  dataRoot: string,
+  conversationId: string,
+  kind: 'dir' | 'file',
+): Promise<void> {
   let targetLstat: fs.Stats;
   try {
-    targetLstat = await fs.promises.lstat(targetDir);
+    targetLstat = await fs.promises.lstat(target);
   } catch (err: any) {
     if (err.code === 'ENOENT') {
-      return; // Safe idempotent return when directory does not exist
+      return;
     }
     throw err;
   }
 
-  // 3. Reject symbolic link target
   if (targetLstat.isSymbolicLink()) {
     throw new AppError(
       'PATH_OUTSIDE_WORKSPACE',
-      `Refusing to delete conversation directory: target is a symbolic link "${targetDir}".`,
-      { details: { conversationId, targetDir } },
+      `Refusing to delete conversation data: target is a symbolic link "${target}".`,
+      { details: { conversationId, target } },
     );
   }
-
-  // 4. Realpath boundary check
-  let boundaryRoot = dataRoot;
-  if (!boundaryRoot) {
-    boundaryRoot = expandPathTokens(paths.dataRoots[0]);
+  if (kind === 'dir' ? !targetLstat.isDirectory() : !targetLstat.isFile()) {
+    return;
   }
 
-  const realTarget = await fs.promises.realpath(targetDir);
+  const realTarget = await fs.promises.realpath(target);
   let realRoot: string;
   try {
-    realRoot = await fs.promises.realpath(boundaryRoot);
+    realRoot = await fs.promises.realpath(dataRoot);
   } catch {
-    realRoot = path.resolve(boundaryRoot);
+    realRoot = path.resolve(dataRoot);
   }
 
   const relative = path.relative(realRoot, realTarget);
   if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) {
     throw new AppError(
       'PATH_OUTSIDE_WORKSPACE',
-      `Target directory "${realTarget}" is not contained within data root "${realRoot}".`,
-      { details: { conversationId, targetDir: realTarget, dataRoot: realRoot } },
+      `Target "${realTarget}" is not contained within data root "${realRoot}".`,
+      { details: { conversationId, target: realTarget, dataRoot: realRoot } },
     );
   }
 
-  // 5. Safe deletion
-  await fs.promises.rm(targetDir, { recursive: true, force: true });
+  await fs.promises.rm(target, { recursive: kind === 'dir', force: true });
 }
 
 export class BrainFs implements BrainPort {
@@ -276,7 +329,8 @@ export class BrainFs implements BrainPort {
   }
 
   /**
-   * List conversations recorded on disk under data root(s).
+   * List conversations recorded on disk under data root(s): brain\<uuid> of every profile data root
+   * (agy CLI, then the IDE), or only the given dataRoot. The same id is reported once.
    * In isolated_home mode, dataRoot may be specific to an account's home.
    */
   async listConversations(dataRoot?: string): Promise<DiskConversationSummary[]> {
@@ -296,6 +350,8 @@ export class BrainFs implements BrainPort {
         if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
         const convId = entry.name;
         if (!isUuid(convId)) continue;
+        // Roots are scanned in profile order (agy CLI first); the first occurrence of an id wins
+        if (summaryMap.has(convId)) continue;
 
         const convFullPath = this.resolveConversationDir(convId, { dataRoot: root });
         const transcriptFile = resolveTranscriptPath(convId, { dataRoot: root }, this.paths);
@@ -347,15 +403,12 @@ export class BrainFs implements BrainPort {
           updatedAt = dirStat.mtime.toISOString();
         }
 
-        const existing = summaryMap.get(convId);
-        if (!existing || new Date(updatedAt).getTime() > new Date(existing.updatedAt).getTime()) {
-          summaryMap.set(convId, {
-            id: convId,
-            title,
-            createdAt,
-            updatedAt,
-          });
-        }
+        summaryMap.set(convId, {
+          id: convId,
+          title,
+          createdAt,
+          updatedAt,
+        });
       }
     }
 
@@ -518,7 +571,7 @@ export class BrainFs implements BrainPort {
   }
 
   /**
-   * Purge conversation directory from disk.
+   * Purge a conversation (brain dir, conversations\<id>.db*, subagent conversations) from disk.
    * Enforces strict UUID and directory boundary checks.
    */
   async purgeConversation(conversationId: string, dataRoot?: string): Promise<void> {

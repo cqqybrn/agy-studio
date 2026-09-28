@@ -41,6 +41,8 @@ export interface SendMessageOptions {
   model?: string;
   effort?: Effort;
   mode?: AgentMode;
+  /** Omit for agy's built-in default agent. */
+  agent?: string;
   requestId?: string;
 }
 
@@ -280,6 +282,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       model: options?.model,
       effort: options?.effort,
       mode: options?.mode,
+      ...(options?.agent ? { agent: options.agent } : {}),
       requestId: options?.requestId,
     });
 

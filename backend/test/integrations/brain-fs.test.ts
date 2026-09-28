@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   BrainFs,
   globToRegExp,
@@ -14,6 +14,7 @@ import type { PathsConfig } from '../../src/integrations/agy/profile/schema.js';
 import { AppError } from '../../src/utils/errors.js';
 
 const BRAIN_SAMPLE_DIR = path.resolve(__dirname, '../../../fixtures/agy/fs/brain-sample');
+const SUBAGENT_STREAM = path.resolve(__dirname, '../../../fixtures/agy/stream/subagent/stdout.jsonl');
 const PROFILE_PATHS: PathsConfig = loadProfile(path.resolve(__dirname, '../../agy-profile.json')).paths;
 
 /** Copies the recorded brain-sample into <dataRoot>/brain/<conversationId>, the real on-disk layout. */
@@ -311,6 +312,212 @@ describe('Integrations: brain-fs.ts', () => {
       await expect(
         purgeConversation(dataRoot, nonExistentUuid, PROFILE_PATHS),
       ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('purgeConversation removes all conversation data', () => {
+    const mainId = 'a1a1a1a1-1111-4111-8111-111111111111';
+    const subId = 'b2b2b2b2-2222-4222-8222-222222222222';
+    const grandSubId = 'c3c3c3c3-3333-4333-8333-333333333333';
+    const mentionedId = 'd4d4d4d4-4444-4444-8444-444444444444';
+    const otherId = 'e5e5e5e5-5555-4555-8555-555555555555';
+
+    /** Real subagent step_update line from fixtures/agy/stream/subagent/stdout.jsonl, re-pointed to `childId`. */
+    function subagentStepLine(parentId: string, childId: string): string {
+      const lines = fs
+        .readFileSync(SUBAGENT_STREAM, 'utf-8')
+        .split(/\r?\n/)
+        .filter((l) => l.includes('"conversation_id":"e33a7c24-f1e3-4792-ac80-d602ef34dabb"'));
+      const row = JSON.parse(lines[0]);
+      row.step_update.conversation_id = parentId;
+      for (const sa of row.step_update.subagent_info.subagents) {
+        sa.conversation_id = childId;
+        sa.log_uri = sa.log_uri.replace('e33a7c24-f1e3-4792-ac80-d602ef34dabb', childId);
+      }
+      return JSON.stringify(row);
+    }
+
+    async function appendTranscript(convDir: string, line: string): Promise<void> {
+      const file = path.join(convDir, '.system_generated', 'logs', 'transcript.jsonl');
+      await fs.promises.mkdir(path.dirname(file), { recursive: true });
+      await fs.promises.appendFile(file, `\n${line}\n`, 'utf-8');
+    }
+
+    async function writeDbFiles(id: string): Promise<string[]> {
+      const dir = path.join(dataRoot, 'conversations');
+      await fs.promises.mkdir(dir, { recursive: true });
+      const files = ['.db', '.db-shm', '.db-wal'].map((s) => path.join(dir, `${id}${s}`));
+      for (const f of files) await fs.promises.writeFile(f, 'sqlite', 'utf-8');
+      return files;
+    }
+
+    it('deletes brain dir, conversations\\<id>.db/.db-shm/.db-wal and subagent conversations recursively', async () => {
+      const mainDir = await installBrainSample(dataRoot, mainId);
+      const subDir = await installBrainSample(dataRoot, subId);
+      const grandSubDir = await installBrainSample(dataRoot, grandSubId);
+      await appendTranscript(mainDir, subagentStepLine(mainId, subId));
+      await appendTranscript(subDir, subagentStepLine(subId, grandSubId));
+      // 环：孙代理又指回主会话，不应死循环
+      await appendTranscript(grandSubDir, subagentStepLine(grandSubId, mainId));
+      const dbFiles = [
+        ...(await writeDbFiles(mainId)),
+        ...(await writeDbFiles(subId)),
+        ...(await writeDbFiles(grandSubId)),
+      ];
+
+      await purgeConversation(mainId, dataRoot, PROFILE_PATHS);
+
+      for (const p of [mainDir, subDir, grandSubDir, ...dbFiles]) {
+        expect(fs.existsSync(p), p).toBe(false);
+      }
+    });
+
+    it('keeps conversations whose UUID only appears in transcript text, and other conversations\' .db files', async () => {
+      const mainDir = await installBrainSample(dataRoot, mainId);
+      const mentionedDir = await installBrainSample(dataRoot, mentionedId);
+      const otherDir = await installBrainSample(dataRoot, otherId);
+      await appendTranscript(
+        mainDir,
+        JSON.stringify({
+          step_index: 5,
+          source: 'USER_EXPLICIT',
+          type: 'USER_INPUT',
+          status: 'DONE',
+          created_at: '2026-09-28T10:30:00Z',
+          content: `<USER_REQUEST>\nCompare with conversation ${mentionedId}\n</USER_REQUEST>`,
+        }),
+      );
+      const mainDb = await writeDbFiles(mainId);
+      const mentionedDb = await writeDbFiles(mentionedId);
+      const otherDb = await writeDbFiles(otherId);
+
+      await purgeConversation(mainId, dataRoot, PROFILE_PATHS);
+
+      expect(fs.existsSync(mainDir)).toBe(false);
+      for (const f of mainDb) expect(fs.existsSync(f)).toBe(false);
+      expect(fs.existsSync(mentionedDir)).toBe(true);
+      expect(fs.existsSync(otherDir)).toBe(true);
+      for (const f of [...mentionedDb, ...otherDb]) expect(fs.existsSync(f), f).toBe(true);
+    });
+
+    it('deletes .db files even when the brain directory is already gone', async () => {
+      const dbFiles = await writeDbFiles(mainId);
+      await purgeConversation(mainId, dataRoot, PROFILE_PATHS);
+      for (const f of dbFiles) expect(fs.existsSync(f)).toBe(false);
+    });
+
+    it('ignores non-UUID subagent ids', async () => {
+      const mainDir = await installBrainSample(dataRoot, mainId);
+      await appendTranscript(mainDir, subagentStepLine(mainId, '..'));
+      const outsideMarker = path.join(dataRoot, 'brain', 'keep.txt');
+      await fs.promises.writeFile(outsideMarker, 'keep', 'utf-8');
+
+      await purgeConversation(mainId, dataRoot, PROFILE_PATHS);
+
+      expect(fs.existsSync(mainDir)).toBe(false);
+      expect(fs.existsSync(outsideMarker)).toBe(true);
+    });
+  });
+
+  describe('agy CLI + IDE data roots (profile dataRoots)', () => {
+    let cliRoot: string;
+    let ideRoot: string;
+
+    beforeEach(async () => {
+      vi.stubEnv('USERPROFILE', tmpHome);
+      vi.stubEnv('HOME', tmpHome);
+      cliRoot = path.join(tmpHome, '.gemini', 'antigravity-cli');
+      ideRoot = path.join(tmpHome, '.gemini', 'antigravity');
+      await fs.promises.mkdir(ideRoot, { recursive: true });
+    });
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    async function setFirstUserRequest(convDir: string, text: string): Promise<void> {
+      const file = path.join(convDir, '.system_generated', 'logs', 'transcript.jsonl');
+      const raw = await fs.promises.readFile(file, 'utf-8');
+      await fs.promises.writeFile(
+        file,
+        raw.replace('Remember the secret word: PINEAPPLE. Reply only OK.', text),
+        'utf-8',
+      );
+    }
+
+    it('profile lists the CLI root first and the IDE root second', () => {
+      expect(resolveDataRoots(PROFILE_PATHS)).toEqual([cliRoot, ideRoot]);
+    });
+
+    it('lists conversations from both roots', async () => {
+      const cliId = 'a1111111-1111-4111-8111-111111111111';
+      const ideId = 'b2222222-2222-4222-8222-222222222222';
+      await installBrainSample(cliRoot, cliId);
+      await installBrainSample(ideRoot, ideId);
+
+      const brain = new BrainFs(PROFILE_PATHS);
+      const ids = (await brain.listConversations()).map((s) => s.id).sort();
+      expect(ids).toEqual([cliId, ideId]);
+    });
+
+    it('reports an id present in both roots once, taking the CLI copy', async () => {
+      const id = 'c3333333-3333-4333-8333-333333333333';
+      await setFirstUserRequest(await installBrainSample(cliRoot, id), 'from cli');
+      const ideDir = await installBrainSample(ideRoot, id);
+      await setFirstUserRequest(ideDir, 'from ide');
+      // IDE 副本更新更晚，也不应覆盖 CLI 的那条
+      const future = new Date(Date.now() + 60_000);
+      await fs.promises.utimes(path.join(ideDir, '.system_generated', 'logs', 'transcript.jsonl'), future, future);
+
+      const summaries = await new BrainFs(PROFILE_PATHS).listConversations();
+      expect(summaries).toHaveLength(1);
+      expect(summaries[0].title).toBe('from cli');
+    });
+
+    it('resolves transcript and artifacts of a conversation that only exists under the IDE root', async () => {
+      const id = 'd4444444-4444-4444-8444-444444444444';
+      const ideDir = await installBrainSample(ideRoot, id);
+      const brain = new BrainFs(PROFILE_PATHS);
+
+      expect(brain.resolveConversationDir(id)).toBe(ideDir);
+
+      const handle = await brain.tailTranscript(id, {});
+      const types: string[] = [];
+      for await (const step of handle.steps) {
+        types.push(step.type);
+        if (step.stepIndex === 4) {
+          handle.stop();
+          break;
+        }
+      }
+      expect(types[0]).toBe('USER_INPUT');
+      expect(types).toHaveLength(5);
+
+      const artifacts = await brain.listArtifacts(id, 'session-ide');
+      expect(artifacts.map((a) => a.relativePath)).toEqual(['implementation_plan.md', 'walkthrough.md']);
+    });
+
+    it('resolves conversations that exist nowhere yet to the CLI root (where agy writes)', () => {
+      const id = 'e5555555-5555-4555-8555-555555555555';
+      expect(new BrainFs(PROFILE_PATHS).resolveConversationDir(id)).toBe(path.join(cliRoot, 'brain', id));
+    });
+
+    it('purge removes brain dirs and .db files under both roots', async () => {
+      const id = 'f6666666-6666-4666-8666-666666666666';
+      const dirs = [await installBrainSample(cliRoot, id), await installBrainSample(ideRoot, id)];
+      const dbs: string[] = [];
+      for (const root of [cliRoot, ideRoot]) {
+        await fs.promises.mkdir(path.join(root, 'conversations'), { recursive: true });
+        for (const s of ['.db', '.db-shm', '.db-wal']) {
+          const f = path.join(root, 'conversations', `${id}${s}`);
+          await fs.promises.writeFile(f, 'x', 'utf-8');
+          dbs.push(f);
+        }
+      }
+
+      await new BrainFs(PROFILE_PATHS).purgeConversation(id);
+
+      for (const p of [...dirs, ...dbs]) expect(fs.existsSync(p), p).toBe(false);
     });
   });
 

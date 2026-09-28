@@ -481,6 +481,15 @@ export function adapt(line: unknown, ctx: AdaptContext): AdaptResult {
           break;
         }
 
+        case 'error_message': {
+          // Model/quota error step (e.g. weekly quota exhausted); the run's final status still comes from `result`
+          const pick = (v: unknown) => (typeof v === 'string' && v.length > 0 ? v : undefined);
+          const message =
+            pick(step.text_delta) ?? pick(step.content) ?? pick(step.error) ?? 'error_message';
+          events.push({ type: 'run.error', error: parseErrorToApiError(message) });
+          break;
+        }
+
         default: {
           return { events: [{ type: 'raw', payload: rawObj }], permissionRequest };
         }

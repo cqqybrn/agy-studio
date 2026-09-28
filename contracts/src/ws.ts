@@ -28,6 +28,8 @@ export type ClientFrame =
       model?: string;
       effort?: Effort;
       mode?: AgentMode;
+      /** `AgentInfo.id` passed to `agy --agent`; omitted or `default` runs agy's built-in agent. */
+      agent?: string;
     }
   | { type: 'run.abort'; requestId: string; runId: string }
   | { type: 'ping'; ts: number };

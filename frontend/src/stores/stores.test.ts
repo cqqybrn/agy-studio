@@ -367,6 +367,21 @@ describe('Frontend Stores', () => {
       });
     });
 
+    it('send: includes the selected agent in the session.send frame', async () => {
+      vi.mocked(endpoints.getSessionEvents).mockResolvedValueOnce({
+        items: [],
+        latestSeq: 0,
+        hasMore: false,
+      });
+      await useSessionStore.getState().openSession('sess-agent');
+
+      await useSessionStore.getState().send('sess-agent', 'Review this', { agent: 'code-reviewer' });
+
+      expect(wsClient.send).toHaveBeenLastCalledWith(
+        expect.objectContaining({ type: 'session.send', sessionId: 'sess-agent', agent: 'code-reviewer' }),
+      );
+    });
+
     it('send: sends session.send via wsClient and records pendingRunId until run.started', async () => {
       vi.mocked(endpoints.getSessionEvents).mockResolvedValueOnce({
         items: [],

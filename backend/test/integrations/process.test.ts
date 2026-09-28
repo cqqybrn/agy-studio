@@ -72,6 +72,26 @@ describe('ProcessRunner Integration Tests', () => {
       expect(argv).not.toContain('--resume');
     });
 
+    it('passes --agent <name> next to --model/--mode when an agent is given', () => {
+      const argv = buildArgv(profile, {
+        cwd: tempDir,
+        model: 'gemini-2.5-pro',
+        mode: 'plan',
+        agent: 'code-reviewer',
+      });
+      const idx = argv.indexOf('--agent');
+      expect(idx).toBeGreaterThanOrEqual(0);
+      expect(argv[idx + 1]).toBe('code-reviewer');
+      expect(argv.filter((a) => a === '--agent')).toHaveLength(1);
+    });
+
+    it('omits --agent when agent is empty, null or default', () => {
+      for (const agent of [undefined, null, '', '  ', 'default', 'Default']) {
+        const argv = buildArgv(profile, { cwd: tempDir, agent });
+        expect(argv, String(agent)).not.toContain('--agent');
+      }
+    });
+
     it('omits --conversation when there is no resumeConversationId', () => {
       const argv = buildArgv(profile, { cwd: tempDir, resumeConversationId: null });
       expect(argv).not.toContain('--conversation');

@@ -23,6 +23,7 @@ export interface SessionServicePort {
     model?: string;
     effort?: Effort;
     mode?: AgentMode;
+    agent?: string;
   }): Promise<{ runId?: string } | string | void>;
   abortRun(params: { runId: string }): Promise<void>;
   getActiveRunId(sessionId: string): Promise<string | null> | string | null;
@@ -383,6 +384,7 @@ export async function registerWsGateway(
             model: frame.model,
             effort: frame.effort,
             mode: frame.mode,
+            ...(frame.agent !== undefined ? { agent: frame.agent } : {}),
           });
           const runId = typeof res === 'string' ? res : res?.runId;
           safeSend({

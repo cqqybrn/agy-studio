@@ -1,4 +1,4 @@
-import type { AgentMode, Attachment, Effort, Model } from '@agy-studio/contracts';
+import type { AgentInfo, AgentMode, Attachment, Effort, Model } from '@agy-studio/contracts';
 import { UPLOAD_LIMITS } from '@agy-studio/contracts';
 import type { SendMessageOptions } from '../../stores/session.store';
 
@@ -49,6 +49,14 @@ export interface ModePickerProps {
   className?: string;
 }
 
+export interface AgentPickerProps {
+  value?: string | null;
+  onChange?: (agent: string) => void;
+  agents?: AgentInfo[];
+  disabled?: boolean;
+  className?: string;
+}
+
 export interface AttachmentChipProps {
   attachment: ComposerAttachment;
   onDelete: (id: string) => void;
@@ -65,9 +73,11 @@ export interface ComposerProps {
   model?: string;
   effort?: Effort;
   mode?: AgentMode;
+  agent?: string;
   onModelChange?: (model: string) => void;
   onEffortChange?: (effort: Effort) => void;
   onModeChange?: (mode: AgentMode) => void;
+  onAgentChange?: (agent: string) => void;
   onSend?: (text: string, options?: SendMessageOptions) => Promise<void>;
   onAbort?: (runId: string) => Promise<void>;
   className?: string;

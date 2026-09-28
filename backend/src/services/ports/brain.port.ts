@@ -52,7 +52,7 @@ export interface BrainPort {
   ): Promise<ArtifactWatchHandle>;
 
   /**
-   * Purge conversation directory from disk.
+   * Purge a conversation from disk: brain dir, conversations\<id>.db* and subagent conversations.
    * Enforces strict UUID and directory boundary checks.
    */
   purgeConversation(conversationId: string, dataRoot?: string): Promise<void>;

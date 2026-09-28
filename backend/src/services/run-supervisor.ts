@@ -78,6 +78,8 @@ export interface StartRunInput {
   model?: string | null;
   effort?: Effort | null;
   mode?: AgentMode | null;
+  /** Custom agent for `agy --agent`; omitted/null runs the built-in agent. */
+  agent?: string | null;
   cwd?: string;
   accountName?: string | null;
   checkpointId?: string | null;
@@ -417,6 +419,7 @@ export class RunSupervisor {
         model?: string | null;
         effort?: Effort | null;
         mode?: AgentMode | null;
+        agent?: string | null;
         resumeConversationId?: string | null;
       } = {
         bin: undefined,
@@ -431,6 +434,7 @@ export class RunSupervisor {
         model,
         effort,
         mode,
+        agent: input.agent ?? null,
         resumeConversationId: continuationId,
         onConversationId: (conversationId) => {
           if (completed || savedConversationId === conversationId) return;

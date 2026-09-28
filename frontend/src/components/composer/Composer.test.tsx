@@ -1,9 +1,11 @@
 import React from 'react';
 import { renderToString } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Attachment } from '@agy-studio/contracts';
+import type { AgentInfo, Attachment } from '@agy-studio/contracts';
 import {
+  AgentPicker,
   AttachmentChip,
+  buildSendOptions,
   clearDraft,
   COMPOSER_DRAFT_PREFIX,
   COMPOSER_LIMITS,
@@ -156,6 +158,28 @@ describe('Composer & Pickers Component Suite', () => {
       expect(html).toContain('Mode: Code');
     });
 
+    it('renders AgentPicker with the built-in default selected when no agents are loaded', () => {
+      const html = renderToString(<AgentPicker onChange={() => {}} />);
+      expect(html).toContain('data-testid="agent-picker-select"');
+      expect(html).toContain('aria-label="选择智能体"');
+      expect(html).toContain('Agent: Default agent');
+      expect(html).toMatch(/<option[^>]*value="default"[^>]*selected/);
+    });
+
+    it('renders AgentPicker with workspace/global agents and the chosen one selected', () => {
+      const agents: AgentInfo[] = [
+        { id: 'default', name: 'Default agent', description: null, scope: 'builtin' },
+        { id: 'code-reviewer', name: 'code-reviewer', description: 'Reviews diffs', scope: 'workspace' },
+        { id: 'planner', name: 'planner', description: null, scope: 'global' },
+      ];
+      const html = renderToString(
+        <AgentPicker value="code-reviewer" agents={agents} onChange={() => {}} />,
+      );
+      expect(html).toContain('Agent: code-reviewer');
+      expect(html).toContain('Agent: planner');
+      expect(html).toMatch(/<option[^>]*value="code-reviewer"[^>]*selected/);
+    });
+
     it('renders AttachmentChip with uploading progress and delete button', () => {
       const mockAttachment = {
         id: 'att-1',
@@ -220,8 +244,20 @@ describe('Composer & Pickers Component Suite', () => {
       expect(html).toContain('data-testid="model-picker-select"');
       expect(html).toContain('data-testid="effort-picker-select"');
       expect(html).toContain('data-testid="mode-picker-select"');
+      expect(html).toContain('data-testid="agent-picker-select"');
       expect(html).toContain('data-testid="composer-send-button"');
       expect(html).not.toContain('data-testid="composer-stop-button"');
+    });
+
+    it('carries the agent chosen in the composer into the send options, and drops the default agent', () => {
+      const html = renderToString(<Composer sessionId="session-123" agent="code-reviewer" />);
+      expect(html).toMatch(/<option[^>]*value="code-reviewer"[^>]*selected/);
+
+      expect(
+        buildSendOptions({ attachmentIds: [], model: 'm1', mode: 'plan', agent: 'code-reviewer' }),
+      ).toEqual({ attachmentIds: undefined, model: 'm1', effort: undefined, mode: 'plan', agent: 'code-reviewer' });
+      expect(buildSendOptions({ attachmentIds: ['a1'], agent: 'default' }).agent).toBeUndefined();
+      expect(buildSendOptions({ attachmentIds: [] }).agent).toBeUndefined();
     });
 
     it('renders stop button instead of send button when session is running', () => {

@@ -25,6 +25,7 @@ import { createId } from '../utils/ids.js';
 import type { SessionServicePort } from '../routes/ws/gateway.js';
 import { PromptInjector } from './attachment/prompt-inject.js';
 import type { AgyProfile } from '../integrations/agy/profile/schema.js';
+import { isBuiltinAgent, isSafeAgentName, type AgentService } from './agent.js';
 
 export interface SendMessageInput {
   sessionId: string;
@@ -33,6 +34,7 @@ export interface SendMessageInput {
   model?: string;
   effort?: Effort;
   mode?: AgentMode;
+  agent?: string;
 }
 
 export interface SessionServiceOptions {
@@ -49,6 +51,7 @@ export interface SessionServiceOptions {
   isolationMode?: 'isolated_home' | 'credential_snapshot';
   promptInjector?: PromptInjector;
   profile?: AgyProfile;
+  agentService?: AgentService;
 }
 
 export class SessionService implements SessionServicePort {
@@ -65,6 +68,7 @@ export class SessionService implements SessionServicePort {
   private readonly isolationMode: 'isolated_home' | 'credential_snapshot';
   private readonly promptInjector: PromptInjector;
   private readonly profile?: AgyProfile;
+  private readonly agentService?: AgentService;
 
   constructor(options: SessionServiceOptions) {
     this.sessionsRepo = options.sessionsRepo;
@@ -80,6 +84,7 @@ export class SessionService implements SessionServicePort {
     this.isolationMode = options.isolationMode ?? 'isolated_home';
     this.promptInjector = options.promptInjector ?? new PromptInjector();
     this.profile = options.profile;
+    this.agentService = options.agentService;
   }
 
   /**
@@ -247,6 +252,8 @@ export class SessionService implements SessionServicePort {
       throw new AppError('NOT_FOUND', `Workspace ${session.workspaceId} not found`);
     }
 
+    const agent = await this.resolveAgent(params.agent, workspace.path);
+
     // 标题处理：如果会话标题为默认（或首条消息），取首条消息前 50 字符更新标题
     const isDefaultTitle = session.title === 'New Session' || session.title === 'Untitled' || !session.title;
     if (isDefaultTitle) {
@@ -278,7 +285,7 @@ export class SessionService implements SessionServicePort {
       effectivePrompt = injected.prompt;
     }
 
-    // 启动运行：调用 supervisor.start(sessionId, { prompt: effectivePrompt, cwd: workspace.path, accountName: session.accountName, model, effort, mode })
+    // 启动运行：调用 supervisor.start(sessionId, { prompt: effectivePrompt, cwd: workspace.path, accountName: session.accountName, model, effort, mode, agent })
     const runResult = await this.supervisor.start(sessionId, {
       prompt: effectivePrompt,
       cwd: workspace.path,
@@ -286,6 +293,7 @@ export class SessionService implements SessionServicePort {
       model: model ?? session.model,
       effort: effort ?? session.effort,
       mode: mode ?? session.mode,
+      ...(agent ? { agent } : {}),
     });
 
     const runId = runResult.runId;
@@ -336,6 +344,21 @@ export class SessionService implements SessionServicePort {
     });
 
     return { runId };
+  }
+
+  private async resolveAgent(
+    agent: string | undefined,
+    workspaceDir: string,
+  ): Promise<string | undefined> {
+    if (this.agentService) {
+      return this.agentService.resolveAgentArg(agent, workspaceDir);
+    }
+    if (isBuiltinAgent(agent)) return undefined;
+    const name = agent!.trim();
+    if (isSafeAgentName(name)) return name;
+    throw new AppError('BAD_REQUEST', `Unknown or invalid agent "${name}"`, {
+      details: { agent: name },
+    });
   }
 
   async importSessions(input: ImportSessionsBody): Promise<{ imported: Session[] }> {

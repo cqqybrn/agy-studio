@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
-import type { AgentMode, Effort } from '@agy-studio/contracts';
-import { uploadAttachments } from '../../api/endpoints';
+import type { AgentInfo, AgentMode, Effort } from '@agy-studio/contracts';
+import { getAgents, uploadAttachments } from '../../api/endpoints';
 import { useSessionStore, type SendMessageOptions } from '../../stores/session.store';
 import { useWorkspaceStore } from '../../stores/workspace.store';
+import { AgentPicker, DEFAULT_AGENT_ID } from './AgentPicker';
 import { AttachmentChip } from './AttachmentChip';
 import { compressImageIfNeeded, formatFileSize } from './compress';
 import { EffortPicker } from './EffortPicker';
@@ -80,6 +81,26 @@ export function clearDraft(sessionId?: string): void {
   memoryDraftStorage.delete(key);
 }
 
+/**
+ * Options sent with a message; the built-in default agent is sent as "no agent".
+ */
+export function buildSendOptions(selection: {
+  attachmentIds: string[];
+  model?: string;
+  effort?: Effort;
+  mode?: AgentMode;
+  agent?: string;
+}): SendMessageOptions {
+  const { attachmentIds, model, effort, mode, agent } = selection;
+  return {
+    attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined,
+    model,
+    effort,
+    mode,
+    agent: agent && agent !== DEFAULT_AGENT_ID ? agent : undefined,
+  };
+}
+
 export function Composer({
   sessionId: propSessionId,
   workspaceId: propWorkspaceId,
@@ -88,9 +109,11 @@ export function Composer({
   model: propModel,
   effort: propEffort,
   mode: propMode,
+  agent: propAgent,
   onModelChange,
   onEffortChange,
   onModeChange,
+  onAgentChange,
   onSend,
   onAbort,
   className = '',
@@ -115,6 +138,8 @@ export function Composer({
   const [selectedModel, setSelectedModel] = useState<string | undefined>(propModel);
   const [selectedEffort, setSelectedEffort] = useState<Effort | undefined>(propEffort);
   const [selectedMode, setSelectedMode] = useState<AgentMode | undefined>(propMode);
+  const [selectedAgent, setSelectedAgent] = useState<string>(propAgent ?? DEFAULT_AGENT_ID);
+  const [agents, setAgents] = useState<AgentInfo[] | undefined>(undefined);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState<boolean>(false);
 
@@ -164,6 +189,25 @@ export function Composer({
   useEffect(() => {
     if (propMode !== undefined) setSelectedMode(propMode);
   }, [propMode]);
+  useEffect(() => {
+    if (propAgent !== undefined) setSelectedAgent(propAgent);
+  }, [propAgent]);
+
+  // Load agents available for the current workspace; the built-in default stays usable on failure
+  const agentsWorkspaceId = propWorkspaceId ?? currentWorkspace?.id;
+  useEffect(() => {
+    let cancelled = false;
+    getAgents(agentsWorkspaceId ? { workspaceId: agentsWorkspaceId } : undefined)
+      .then((list) => {
+        if (!cancelled && Array.isArray(list)) setAgents(list);
+      })
+      .catch(() => {
+        if (!cancelled) setAgents(undefined);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [agentsWorkspaceId]);
 
   // Handle draft saving on text change
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -348,12 +392,13 @@ export function Composer({
       .map((a) => a.uploadedAttachment?.id)
       .filter((id): id is string => Boolean(id));
 
-    const options: SendMessageOptions = {
-      attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined,
+    const options = buildSendOptions({
+      attachmentIds,
       model: selectedModel,
       effort: selectedEffort,
       mode: selectedMode,
-    };
+      agent: selectedAgent,
+    });
 
     try {
       if (onSend) {
@@ -645,6 +690,16 @@ export function Composer({
             onChange={(md) => {
               setSelectedMode(md);
               onModeChange?.(md);
+            }}
+          />
+
+          <AgentPicker
+            value={selectedAgent}
+            agents={agents}
+            disabled={disabled || isRunning}
+            onChange={(ag) => {
+              setSelectedAgent(ag);
+              onAgentChange?.(ag);
             }}
           />
         </div>

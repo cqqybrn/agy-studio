@@ -21,6 +21,8 @@ export interface ProcessRunnerOptions extends SpawnRunnerOptions {
   model?: string | null;
   effort?: Effort | string | null;
   mode?: AgentMode | string | null;
+  /** Custom agent name for `--agent`; null/empty/'default' keeps agy's built-in agent. */
+  agent?: string | null;
   resumeConversationId?: string | null;
 }
 
@@ -101,7 +103,7 @@ class AsyncEventQueue<T> implements AsyncIterable<T> {
 }
 
 /**
- * Builds CLI argument list incorporating stream arguments, permissions, model, effort, mode, and resume id.
+ * Builds CLI argument list incorporating stream arguments, permissions, model, effort, mode, agent, and resume id.
  */
 export function buildArgv(profile: AgyProfile, options: ProcessRunnerOptions): string[] {
   const scriptArg = options.argv?.find((a) => /\.(?:[cm]?[jt]s)$/.test(a));
@@ -128,6 +130,9 @@ export function buildArgv(profile: AgyProfile, options: ProcessRunnerOptions): s
   }
   if (options.mode) {
     argv.push('--mode', String(options.mode));
+  }
+  if (options.agent && options.agent.trim() && options.agent.trim().toLowerCase() !== 'default') {
+    argv.push('--agent', options.agent.trim());
   }
   if (options.resumeConversationId) {
     argv.push('--conversation', options.resumeConversationId);

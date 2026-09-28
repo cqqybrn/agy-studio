@@ -24,7 +24,8 @@
   },
   "paths": {
     "dataRoots": [
-      "%USERPROFILE%\\.gemini\\antigravity-cli"
+      "%USERPROFILE%\\.gemini\\antigravity-cli",
+      "%USERPROFILE%\\.gemini\\antigravity"
     ],
     "conversationDirPattern": "%USERPROFILE%\\.gemini\\antigravity-cli\\brain\\{{conversationId}}",
     "transcriptRelPath": ".system_generated\\logs\\transcript.jsonl",
@@ -70,11 +71,9 @@
       "LOCALAPPDATA"
     ],
     "wincredTargetPatterns": [
-      "LegacyGeneric:target=gemini:antigravity"
+      "gemini:antigravity"
     ],
-    "credentialFiles": [
-      "%USERPROFILE%\\.antigravity\\credentials.json"
-    ]
+    "credentialFiles": []
   },
   "login": {
     "argv": [

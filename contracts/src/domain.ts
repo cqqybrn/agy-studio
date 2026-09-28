@@ -230,6 +230,21 @@ export interface Model {
   isDefault: boolean;
 }
 
+/**
+ * `builtin`: agy's default agent (no `--agent` flag).
+ * `workspace`: `<workspace>/.agents/agents/<dir>/agent.md`.
+ * `global`: `%USERPROFILE%/.gemini/config/agents/<dir>/agent.md`.
+ */
+export type AgentScope = 'builtin' | 'workspace' | 'global';
+
+export interface AgentInfo {
+  /** Value passed to `agy --agent`; `default` means no flag. */
+  id: string;
+  name: string;
+  description: string | null;
+  scope: AgentScope;
+}
+
 export interface Prefs {
   defaultModel: string | null;
   defaultEffort: Effort | null;
@@ -246,8 +261,8 @@ export interface Prefs {
 export type AccountType = 'oauth' | 'apikey';
 
 /**
- * `isolated_home`: each account runs agy with its own home directory, so accounts can run concurrently.
- * `credential_snapshot`: one shared live credential slot; switching swaps it and requires no active runs.
+ * `isolated_home`: each account runs agy with its own home directory, so accounts can run concurrently. Not implemented in the current design.
+ * `credential_snapshot`: one shared live credential slot; switching swaps it and requires no active runs. The only mode the server produces.
  */
 export type AccountIsolation = 'isolated_home' | 'credential_snapshot';
 
@@ -303,10 +318,11 @@ export interface QuotaGroup {
 }
 
 /**
- * `statusline`: captured passively from agy's official statusline hook during runs.
- * `cli_probe`: parsed from the official `/usage` command run in a pseudo-terminal.
+ * `quota_api`: fetched from the quota endpoint used by the official client (may break without notice).
+ * `statusline` / `cli_probe`: reserved for official fallbacks; not produced in the current design.
+ * `unavailable`: no source succeeded; `groups` is empty unless `stale` data is kept.
  */
-export type QuotaSource = 'statusline' | 'cli_probe' | 'unavailable';
+export type QuotaSource = 'quota_api' | 'statusline' | 'cli_probe' | 'unavailable';
 
 export interface QuotaSnapshot {
   source: QuotaSource;

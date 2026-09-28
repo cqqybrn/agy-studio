@@ -1,5 +1,6 @@
 import type { AgentEvent, ISODateString, TranscriptStep, TranscriptToolCall } from '@agy-studio/contracts';
 import path from 'node:path';
+import { isUuid } from '../../utils/ids.js';
 import { JsonlTail } from '../../utils/jsonl-tail.js';
 import {
   getDefaultPaths,
@@ -192,6 +193,58 @@ export function parseLine(line: string): TranscriptStep | null {
     toolCalls,
     error,
   };
+}
+
+function pushSubagentConversationIds(subagents: unknown, out: string[]): void {
+  let list = subagents;
+  if (typeof list === 'string') {
+    try {
+      list = JSON.parse(list);
+    } catch {
+      return;
+    }
+  }
+  if (!Array.isArray(list)) return;
+  for (const sa of list) {
+    if (sa && typeof sa === 'object' && typeof (sa as any).conversation_id === 'string') {
+      out.push((sa as any).conversation_id);
+    }
+  }
+}
+
+/**
+ * Collects subagent conversation IDs spawned by a conversation, reading only subagent fields
+ * (subagent_info.subagents[].conversation_id, or invoke_subagent args Subagents[].conversation_id).
+ * Accepts transcript lines as well as stream-json lines wrapping the step in `step_update`.
+ * UUIDs that merely appear in message text are never returned.
+ */
+export function extractSubagentConversationIds(text: string): string[] {
+  const ids: string[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    let raw: any;
+    try {
+      raw = JSON.parse(trimmed);
+    } catch {
+      continue;
+    }
+    if (!raw || typeof raw !== 'object') continue;
+    const step = raw.step_update && typeof raw.step_update === 'object' ? raw.step_update : raw;
+
+    pushSubagentConversationIds(step.subagent_info?.subagents, ids);
+
+    const toolInfo = step.tool_info;
+    const isInvokeSubagent =
+      step.tool_name === 'invoke_subagent' || toolInfo?.name === 'invoke_subagent';
+    if (isInvokeSubagent && toolInfo && typeof toolInfo === 'object') {
+      const args = toolInfo.args ?? toolInfo.arguments ?? toolInfo.parameters ?? toolInfo.input;
+      if (args && typeof args === 'object') {
+        pushSubagentConversationIds(args.Subagents ?? args.subagents ?? args.agents, ids);
+      }
+    }
+  }
+  return [...new Set(ids.filter((id) => isUuid(id)))];
 }
 
 /**

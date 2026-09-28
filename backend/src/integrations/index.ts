@@ -6,3 +6,4 @@ export * from './agy/transcript.js';
 export * from './agy/brain-fs.js';
 export * from './agy/process.js';
 export * from './agy/settings.js';
+export * from './agy/agents.js';

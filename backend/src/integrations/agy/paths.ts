@@ -11,6 +11,12 @@ const __dirname = path.dirname(__filename);
 
 const CONVERSATION_ID_TOKEN = '{{conversationId}}';
 
+const CONVERSATION_DB_DIR = 'conversations';
+const CONVERSATION_DB_SUFFIXES = ['.db', '.db-shm', '.db-wal'];
+
+const WORKSPACE_AGENTS_REL = path.join('.agents', 'agents');
+const GLOBAL_AGENTS_TEMPLATE = '%USERPROFILE%\\.gemini\\config\\agents';
+
 export interface PathResolveOptions {
   /** An already expanded data root (one of profile.paths.dataRoots). */
   dataRoot?: string;
@@ -112,24 +118,58 @@ export function conversationsParentRel(paths: PathsConfig): string {
 }
 
 /**
- * Resolves the directory for a specific conversation ID.
+ * Candidate directories for a conversation: the given data root only, or one per profile data root
+ * in profile order (agy CLI root first).
+ */
+export function resolveConversationDirCandidates(
+  conversationId: string,
+  options: PathResolveOptions | undefined,
+  paths: PathsConfig,
+): string[] {
+  const rel = conversationDirRelPattern(paths).replace(CONVERSATION_ID_TOKEN, conversationId);
+  if (options?.dataRoot) {
+    return [joinRel(options.dataRoot, rel)];
+  }
+  return resolveDataRoots(paths, options?.homeDir).map((root) => joinRel(root, rel));
+}
+
+/**
+ * Resolves the directory for a specific conversation ID: the first data root where it exists,
+ * otherwise the first data root (the agy CLI root, where new conversations are written).
  */
 export function resolveConversationDir(
   conversationId: string,
   options: PathResolveOptions | undefined,
   paths: PathsConfig,
 ): string {
-  if (options?.homeDir) {
-    const expanded = expandPathTokens(paths.conversationDirPattern, homeEnvOverrides(options.homeDir));
-    return path.resolve(expanded.replace(CONVERSATION_ID_TOKEN, conversationId));
-  }
-  if (options?.dataRoot) {
-    const rel = conversationDirRelPattern(paths).replace(CONVERSATION_ID_TOKEN, conversationId);
-    return joinRel(options.dataRoot, rel);
-  }
-  return path.resolve(
-    expandPathTokens(paths.conversationDirPattern).replace(CONVERSATION_ID_TOKEN, conversationId),
+  const candidates = resolveConversationDirCandidates(conversationId, options, paths);
+  return candidates.find((dir) => fs.existsSync(dir)) ?? candidates[0];
+}
+
+/**
+ * Per-conversation SQLite files under <dataRoot>\conversations: <id>.db and its -shm/-wal sidecars.
+ */
+export function resolveConversationDbPaths(conversationId: string, dataRoot: string): string[] {
+  return CONVERSATION_DB_SUFFIXES.map((suffix) =>
+    path.join(dataRoot, CONVERSATION_DB_DIR, `${conversationId}${suffix}`),
   );
+}
+
+/**
+ * Directories holding one `<dir>/agent.md` per custom agent: the workspace's `.agents\agents`
+ * (when a workspace is given) and `%USERPROFILE%\.gemini\config\agents`.
+ */
+export function resolveAgentRoots(
+  workspaceDir: string | null | undefined,
+  homeDir?: string,
+): Array<{ root: string; scope: 'workspace' | 'global' }> {
+  const roots: Array<{ root: string; scope: 'workspace' | 'global' }> = [];
+  if (workspaceDir) {
+    roots.push({ root: path.join(path.resolve(workspaceDir), WORKSPACE_AGENTS_REL), scope: 'workspace' });
+  }
+  const overrides = homeDir ? homeEnvOverrides(homeDir) : undefined;
+  roots.push({ root: path.resolve(expandPathTokens(GLOBAL_AGENTS_TEMPLATE, overrides)), scope: 'global' });
+  return roots;
 }
 
 /**
