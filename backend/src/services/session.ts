@@ -23,6 +23,8 @@ import type { HomeIsolationPort } from './ports/home-isolation.port.js';
 import { AppError } from '../utils/errors.js';
 import { createId } from '../utils/ids.js';
 import type { SessionServicePort } from '../routes/ws/gateway.js';
+import { PromptInjector } from './attachment/prompt-inject.js';
+import type { AgyProfile } from '../integrations/agy/profile/schema.js';
 
 export interface SendMessageInput {
   sessionId: string;
@@ -45,6 +47,8 @@ export interface SessionServiceOptions {
   brainPort?: BrainPort;
   homeIsolation?: HomeIsolationPort;
   isolationMode?: 'isolated_home' | 'credential_snapshot';
+  promptInjector?: PromptInjector;
+  profile?: AgyProfile;
 }
 
 export class SessionService implements SessionServicePort {
@@ -59,6 +63,8 @@ export class SessionService implements SessionServicePort {
   private readonly brainPort?: BrainPort;
   private readonly homeIsolation?: HomeIsolationPort;
   private readonly isolationMode: 'isolated_home' | 'credential_snapshot';
+  private readonly promptInjector: PromptInjector;
+  private readonly profile?: AgyProfile;
 
   constructor(options: SessionServiceOptions) {
     this.sessionsRepo = options.sessionsRepo;
@@ -72,6 +78,8 @@ export class SessionService implements SessionServicePort {
     this.brainPort = options.brainPort;
     this.homeIsolation = options.homeIsolation;
     this.isolationMode = options.isolationMode ?? 'isolated_home';
+    this.promptInjector = options.promptInjector ?? new PromptInjector();
+    this.profile = options.profile;
   }
 
   /**
@@ -263,9 +271,16 @@ export class SessionService implements SessionServicePort {
     };
     await this.eventBus.publish(sessionId, null, userMessageEvent);
 
-    // 启动运行：调用 supervisor.start(sessionId, { prompt: text, cwd: workspace.path, accountName: session.accountName, model, effort, mode })
+    // 如果存在附件，使用 promptInjector 对 prompt 进行修饰并传入 supervisor
+    let effectivePrompt = text;
+    if (attachments.length > 0) {
+      const injected = this.promptInjector.injectAttachments(text, attachments, this.profile);
+      effectivePrompt = injected.prompt;
+    }
+
+    // 启动运行：调用 supervisor.start(sessionId, { prompt: effectivePrompt, cwd: workspace.path, accountName: session.accountName, model, effort, mode })
     const runResult = await this.supervisor.start(sessionId, {
-      prompt: text,
+      prompt: effectivePrompt,
       cwd: workspace.path,
       accountName: session.accountName,
       model: model ?? session.model,

@@ -293,6 +293,52 @@ describe('SessionService', () => {
       await completionPromise;
     });
 
+    it('modifies supervisor prompt using prompt-inject when attachments are provided', async () => {
+      const session = await sessionService.createSession({
+        workspaceId,
+        title: 'Session with Attachments',
+      });
+
+      const att = attachmentsRepo.create({
+        id: 'att-123',
+        workspaceId,
+        sessionId: session.id,
+        kind: 'image',
+        originalName: 'test.png',
+        mimeType: 'image/png',
+        size: 100,
+        storedPath: 'G:/fake/project/.agy-attachments/2026-09-28/att-123-test.png',
+        derivedTextPath: null,
+        createdAt: new Date().toISOString(),
+      });
+
+      let completionResolve: () => void = () => {};
+      const completionPromise = new Promise<void>((resolve) => {
+        completionResolve = resolve;
+      });
+
+      mockSupervisor.start.mockResolvedValue({
+        runId: 'run-xyz',
+        completion: completionPromise,
+      });
+
+      await sessionService.send({
+        sessionId: session.id,
+        text: 'Please check this image',
+        attachmentIds: [att.id],
+      });
+
+      expect(mockSupervisor.start).toHaveBeenCalledWith(
+        session.id,
+        expect.objectContaining({
+          prompt: expect.stringContaining('<images_input>'),
+        }),
+      );
+
+      completionResolve();
+      await completionPromise;
+    });
+
     it('implements getActiveRunId and abortRun for gateway.ts SessionServicePort', async () => {
       mockSupervisor.getActiveRunBySessionId.mockReturnValue({ id: 'run-active-1' });
       expect(sessionService.getActiveRunId('sess-1')).toBe('run-active-1');
