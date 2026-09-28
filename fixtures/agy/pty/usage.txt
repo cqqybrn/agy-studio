@@ -1,0 +1,10 @@
+Antigravity Quota Usage:
+Account: user@example.com (Pro)
+
+Gemini 2.5 Pro
+  5-Hour Limit:  [████████████████████] 100% remaining (Resets in 4h 12m)
+  Weekly Limit:  [████████████████░░░░] 82% remaining (Resets in 3d 14h)
+
+Gemini 2.5 Flash
+  5-Hour Limit:  [████████████████████] 100% remaining (Resets in 4h 58m)
+  Weekly Limit:  [████████████████████] 98% remaining (Resets in 5d 20h)

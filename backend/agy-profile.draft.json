@@ -1,0 +1,85 @@
+{
+  "agyVersion": "1.2.12",
+  "discoveredAt": "2026-09-28T00:00:00.000Z",
+  "binary": {
+    "candidates": [
+      "agy",
+      "agy.exe",
+      "%LOCALAPPDATA%\\agy\\bin\\agy.exe"
+    ]
+  },
+  "stream": {
+    "userFrameTemplate": null,
+    "multiTurnStdin": true,
+    "eventTypeMap": {},
+    "permissionEvent": null,
+    "imageInput": {
+      "supported": false,
+      "template": null
+    }
+  },
+  "paths": {
+    "dataRoots": [
+      "%USERPROFILE%\\.antigravity",
+      "%LOCALAPPDATA%\\agy"
+    ],
+    "conversationDirPattern": null,
+    "transcriptRelPath": null,
+    "artifactRules": []
+  },
+  "settings": {
+    "files": [
+      {
+        "scope": "user",
+        "pathTemplate": "%USERPROFILE%\\.antigravity\\settings.json"
+      }
+    ],
+    "alwaysProceed": {
+      "jsonPath": null,
+      "value": null
+    },
+    "statusline": {
+      "jsonPath": "statusline"
+    }
+  },
+  "credentials": {
+    "preferredIsolation": "isolated_home",
+    "homeEnvVars": [
+      "USERPROFILE",
+      "HOME",
+      "APPDATA",
+      "LOCALAPPDATA"
+    ],
+    "wincredTargetPatterns": [
+      "LegacyGeneric:target=gemini:antigravity"
+    ],
+    "credentialFiles": []
+  },
+  "login": {
+    "argv": [
+      "login"
+    ],
+    "authUrlPattern": null,
+    "successPatterns": [],
+    "failurePatterns": []
+  },
+  "quota": {
+    "statuslineInHeadless": false,
+    "usageCommand": "/usage",
+    "creditsCommand": "/credits",
+    "usageParser": "text-v1"
+  },
+  "catalog": {
+    "versionArgv": [
+      "--version"
+    ],
+    "modelsArgv": [
+      "models"
+    ],
+    "modelsParser": "text-v1",
+    "modes": [
+      "accept-edits",
+      "plan"
+    ]
+  }
+}

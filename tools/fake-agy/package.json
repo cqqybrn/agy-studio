@@ -1,0 +1,13 @@
+{
+  "name": "@agy-studio/tools-fake-agy",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "fake-agy": "./main.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  }
+}

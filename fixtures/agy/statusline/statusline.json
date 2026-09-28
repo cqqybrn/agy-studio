@@ -1,0 +1,26 @@
+{
+  "email": "user@example.com",
+  "tier": "pro",
+  "quotas": {
+    "gemini-pro": {
+      "five_hour": {
+        "remaining": 1.0,
+        "resets_in_seconds": 15120
+      },
+      "weekly": {
+        "remaining": 0.82,
+        "resets_in_seconds": 309600
+      }
+    },
+    "gemini-flash": {
+      "five_hour": {
+        "remaining": 1.0,
+        "resets_in_seconds": 17880
+      },
+      "weekly": {
+        "remaining": 0.98,
+        "resets_in_seconds": 504000
+      }
+    }
+  }
+}

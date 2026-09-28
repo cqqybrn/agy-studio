@@ -1,0 +1,25 @@
+{
+  "scenario": "simple-chat",
+  "agyVersion": "1.2.12",
+  "recordedAt": "2026-09-28T00:00:00.000Z",
+  "durationMs": 220,
+  "exitCode": 0,
+  "exitSignal": null,
+  "command": {
+    "bin": "agy",
+    "argv": [
+      "--input-format",
+      "stream-json",
+      "--output-format",
+      "stream-json",
+      "--dangerously-skip-permissions"
+    ],
+    "cwd": "<HOME>/workspace"
+  },
+  "options": {
+    "scenario": "simple-chat",
+    "prompt": "你好，请用一句话介绍你自己"
+  },
+  "turnsCount": 1,
+  "aborted": false
+}
