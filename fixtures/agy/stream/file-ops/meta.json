@@ -1,8 +1,8 @@
 {
-  "scenario": "simple-chat",
+  "scenario": "file-ops",
   "agyVersion": "1.2.12",
-  "recordedAt": "2026-09-28T08:27:57.087Z",
-  "durationMs": 13683,
+  "recordedAt": "2026-09-28T08:29:12.960Z",
+  "durationMs": 21056,
   "exitCode": 0,
   "exitSignal": null,
   "command": {
@@ -17,8 +17,8 @@
     "cwd": "G:\\agy-rec-sandbox"
   },
   "options": {
-    "scenario": "simple-chat",
-    "prompt": "你好，请用一句话介绍你自己",
+    "scenario": "file-ops",
+    "prompt": "在当前目录下创建一个 test-hello.txt 文件，写入 'hello agy'，读取其内容，然后将该文件删除",
     "cwd": "G:\\agy-rec-sandbox"
   },
   "turnsCount": 1,

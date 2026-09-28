@@ -1,8 +1,8 @@
 {
-  "scenario": "simple-chat",
+  "scenario": "image-path",
   "agyVersion": "1.2.12",
-  "recordedAt": "2026-09-28T08:27:57.087Z",
-  "durationMs": 13683,
+  "recordedAt": "2026-09-28T08:30:34.151Z",
+  "durationMs": 16420,
   "exitCode": 0,
   "exitSignal": null,
   "command": {
@@ -17,8 +17,8 @@
     "cwd": "G:\\agy-rec-sandbox"
   },
   "options": {
-    "scenario": "simple-chat",
-    "prompt": "你好，请用一句话介绍你自己",
+    "scenario": "image-path",
+    "prompt": "请查看这张图片并描述其内容：docs/example.png",
     "cwd": "G:\\agy-rec-sandbox"
   },
   "turnsCount": 1,

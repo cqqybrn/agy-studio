@@ -1,0 +1,29 @@
+{
+  "scenario": "quota-exhausted",
+  "agyVersion": "1.2.12",
+  "recordedAt": "2026-09-28T08:30:16.843Z",
+  "durationMs": 6100,
+  "exitCode": 1,
+  "exitSignal": null,
+  "command": {
+    "bin": "agy",
+    "argv": [
+      "--input-format",
+      "stream-json",
+      "--output-format",
+      "stream-json",
+      "--dangerously-skip-permissions",
+      "--model",
+      "invalid-model-test-xyz"
+    ],
+    "cwd": "G:\\agy-rec-sandbox"
+  },
+  "options": {
+    "scenario": "quota-exhausted",
+    "prompt": "测试异常处理",
+    "cwd": "G:\\agy-rec-sandbox",
+    "model": "invalid-model-test-xyz"
+  },
+  "turnsCount": 1,
+  "aborted": false
+}

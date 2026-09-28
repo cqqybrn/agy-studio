@@ -1,8 +1,8 @@
 {
-  "scenario": "simple-chat",
+  "scenario": "command-exec",
   "agyVersion": "1.2.12",
-  "recordedAt": "2026-09-28T08:27:57.087Z",
-  "durationMs": 13683,
+  "recordedAt": "2026-09-28T08:29:30.167Z",
+  "durationMs": 16325,
   "exitCode": 0,
   "exitSignal": null,
   "command": {
@@ -17,8 +17,8 @@
     "cwd": "G:\\agy-rec-sandbox"
   },
   "options": {
-    "scenario": "simple-chat",
-    "prompt": "你好，请用一句话介绍你自己",
+    "scenario": "command-exec",
+    "prompt": "执行命令 git --version 并告诉我结果",
     "cwd": "G:\\agy-rec-sandbox"
   },
   "turnsCount": 1,

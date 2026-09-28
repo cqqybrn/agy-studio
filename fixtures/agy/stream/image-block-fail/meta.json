@@ -1,9 +1,9 @@
 {
-  "scenario": "simple-chat",
+  "scenario": "image-block-fail",
   "agyVersion": "1.2.12",
-  "recordedAt": "2026-09-28T08:27:57.087Z",
-  "durationMs": 13683,
-  "exitCode": 0,
+  "recordedAt": "2026-09-28T08:30:42.935Z",
+  "durationMs": 7904,
+  "exitCode": 1,
   "exitSignal": null,
   "command": {
     "bin": "agy",
@@ -17,9 +17,9 @@
     "cwd": "G:\\agy-rec-sandbox"
   },
   "options": {
-    "scenario": "simple-chat",
-    "prompt": "你好，请用一句话介绍你自己",
-    "cwd": "G:\\agy-rec-sandbox"
+    "scenario": "image-block-fail",
+    "cwd": "G:\\agy-rec-sandbox",
+    "turnsFile": "G:\\agy-rec-sandbox\\image-block.txt"
   },
   "turnsCount": 1,
   "aborted": false

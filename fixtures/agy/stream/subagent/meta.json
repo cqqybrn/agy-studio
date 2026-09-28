@@ -1,8 +1,8 @@
 {
-  "scenario": "simple-chat",
+  "scenario": "subagent",
   "agyVersion": "1.2.12",
-  "recordedAt": "2026-09-28T08:27:57.087Z",
-  "durationMs": 13683,
+  "recordedAt": "2026-09-28T08:30:09.876Z",
+  "durationMs": 38829,
   "exitCode": 0,
   "exitSignal": null,
   "command": {
@@ -17,8 +17,8 @@
     "cwd": "G:\\agy-rec-sandbox"
   },
   "options": {
-    "scenario": "simple-chat",
-    "prompt": "你好，请用一句话介绍你自己",
+    "scenario": "subagent",
+    "prompt": "请启动一个子 agent 去调查当前目录下的 package.json 文件，并总结依赖项给你",
     "cwd": "G:\\agy-rec-sandbox"
   },
   "turnsCount": 1,

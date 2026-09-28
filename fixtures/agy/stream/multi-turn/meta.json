@@ -1,8 +1,8 @@
 {
-  "scenario": "simple-chat",
+  "scenario": "multi-turn",
   "agyVersion": "1.2.12",
-  "recordedAt": "2026-09-28T08:27:57.087Z",
-  "durationMs": 13683,
+  "recordedAt": "2026-09-28T08:31:18.797Z",
+  "durationMs": 13794,
   "exitCode": 0,
   "exitSignal": null,
   "command": {
@@ -17,10 +17,10 @@
     "cwd": "G:\\agy-rec-sandbox"
   },
   "options": {
-    "scenario": "simple-chat",
-    "prompt": "你好，请用一句话介绍你自己",
-    "cwd": "G:\\agy-rec-sandbox"
+    "scenario": "multi-turn",
+    "cwd": "G:\\agy-rec-sandbox",
+    "turnsFile": "G:\\agy-rec-sandbox\\multi-turn.txt"
   },
-  "turnsCount": 1,
+  "turnsCount": 2,
   "aborted": false
 }

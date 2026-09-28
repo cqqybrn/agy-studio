@@ -1,0 +1,27 @@
+{
+  "scenario": "abort-midway",
+  "agyVersion": "1.2.12",
+  "recordedAt": "2026-09-28T08:31:04.108Z",
+  "durationMs": 20258,
+  "exitCode": 1,
+  "exitSignal": null,
+  "command": {
+    "bin": "agy",
+    "argv": [
+      "--input-format",
+      "stream-json",
+      "--output-format",
+      "stream-json",
+      "--dangerously-skip-permissions"
+    ],
+    "cwd": "G:\\agy-rec-sandbox"
+  },
+  "options": {
+    "scenario": "abort-midway",
+    "prompt": "请写一篇包含 5000 字的长篇技术论文，详细解释分布式一致性算法 Raft",
+    "cwd": "G:\\agy-rec-sandbox",
+    "abortAfterMs": 20000
+  },
+  "turnsCount": 1,
+  "aborted": true
+}
