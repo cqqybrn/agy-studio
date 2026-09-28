@@ -2,9 +2,70 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { parseLine, tail, toEvents } from '../../src/integrations/agy/transcript.js';
+import {
+  parseLine,
+  resolveTranscriptPath,
+  tail,
+  toEvents,
+} from '../../src/integrations/agy/transcript.js';
+import { loadProfile } from '../../src/integrations/agy/profile/loader.js';
+
+const REAL_TRANSCRIPT = path.resolve(
+  __dirname,
+  '../../../fixtures/agy/fs/brain-sample/.system_generated/logs/transcript.jsonl',
+);
+const PROFILE_PATHS = loadProfile(path.resolve(__dirname, '../../agy-profile.json')).paths;
 
 describe('Integrations: transcript.ts', () => {
+  describe('resolveTranscriptPath', () => {
+    const convId = '6f79591d-1521-40d1-b302-3edd62c602a0';
+
+    it('derives brain\\<id>\\.system_generated\\logs\\transcript.jsonl from the profile for an account home', () => {
+      const home = path.join(os.tmpdir(), 'agy-account-home');
+      expect(resolveTranscriptPath(convId, { homeDir: home }, PROFILE_PATHS)).toBe(
+        path.join(
+          home,
+          '.gemini',
+          'antigravity-cli',
+          'brain',
+          convId,
+          '.system_generated',
+          'logs',
+          'transcript.jsonl',
+        ),
+      );
+    });
+
+    it('derives the same layout relative to an explicit data root', () => {
+      const dataRoot = path.join(os.tmpdir(), 'agy-data-root');
+      expect(resolveTranscriptPath(convId, { dataRoot }, PROFILE_PATHS)).toBe(
+        path.join(dataRoot, 'brain', convId, '.system_generated', 'logs', 'transcript.jsonl'),
+      );
+    });
+
+    it('tail() by conversation id reads the real transcript copied into an account home', async () => {
+      const home = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'transcript-home-'));
+      try {
+        const target = resolveTranscriptPath(convId, { homeDir: home }, PROFILE_PATHS);
+        await fs.promises.mkdir(path.dirname(target), { recursive: true });
+        await fs.promises.copyFile(REAL_TRANSCRIPT, target);
+
+        const handle = tail(convId, { homeDir: home, pollIntervalMs: 50 }, PROFILE_PATHS);
+        const received: number[] = [];
+        for await (const step of handle) {
+          received.push(step.stepIndex);
+          if (step.stepIndex === 4) {
+            handle.stop();
+            break;
+          }
+        }
+        expect(received).toEqual([0, 1, 2, 3, 4]);
+      } finally {
+        await fs.promises.rm(home, { recursive: true, force: true });
+      }
+    });
+  });
+
   describe('parseLine', () => {
     it('returns null for empty, whitespace, or invalid JSON', () => {
       expect(parseLine('')).toBeNull();
@@ -13,6 +74,21 @@ describe('Integrations: transcript.ts', () => {
       expect(parseLine('"not an object"')).toBeNull();
       expect(parseLine('12345')).toBeNull();
       expect(parseLine('null')).toBeNull();
+    });
+
+    it('parses real agy transcript lines (step_index/source/type/status/created_at/content)', () => {
+      const lines = fs.readFileSync(REAL_TRANSCRIPT, 'utf-8').split(/\r?\n/).filter(Boolean);
+      const step = parseLine(lines[1]);
+      expect(step).toEqual({
+        stepIndex: 1,
+        type: 'PLANNER_RESPONSE',
+        status: 'DONE',
+        createdAt: '2026-09-28T10:29:37Z',
+        content: 'OK',
+        thinking: null,
+        toolCalls: [],
+        error: null,
+      });
     });
 
     it('parses standard fake-agy transcript lines', () => {

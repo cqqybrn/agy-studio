@@ -7,57 +7,35 @@ import {
   globToRegExp,
   purgeConversation,
   resolveConversationDir,
+  resolveDataRoots,
 } from '../../src/integrations/agy/brain-fs.js';
+import { loadProfile } from '../../src/integrations/agy/profile/loader.js';
 import type { PathsConfig } from '../../src/integrations/agy/profile/schema.js';
 import { AppError } from '../../src/utils/errors.js';
 
+const BRAIN_SAMPLE_DIR = path.resolve(__dirname, '../../../fixtures/agy/fs/brain-sample');
+const PROFILE_PATHS: PathsConfig = loadProfile(path.resolve(__dirname, '../../agy-profile.json')).paths;
+
+/** Copies the recorded brain-sample into <dataRoot>/brain/<conversationId>, the real on-disk layout. */
+async function installBrainSample(dataRoot: string, conversationId: string): Promise<string> {
+  const convDir = path.join(dataRoot, 'brain', conversationId);
+  await fs.promises.cp(BRAIN_SAMPLE_DIR, convDir, { recursive: true });
+  return convDir;
+}
+
 describe('Integrations: brain-fs.ts', () => {
-  let tmpDataRoot: string;
-  let samplePathsConfig: PathsConfig;
+  let tmpHome: string;
+  let dataRoot: string;
 
   beforeEach(async () => {
-    tmpDataRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'brain-fs-test-'));
-    samplePathsConfig = {
-      dataRoots: [tmpDataRoot],
-      conversationDirPattern: path.join(tmpDataRoot, 'conversations', '{{conversationId}}'),
-      transcriptRelPath: 'transcript.jsonl',
-      artifactRules: [
-        {
-          kind: 'task',
-          glob: 'tasks/*.json',
-          mimeType: 'application/json',
-        },
-        {
-          kind: 'implementation_plan',
-          glob: 'plans/*.md',
-          mimeType: 'text/markdown',
-        },
-        {
-          kind: 'walkthrough',
-          glob: 'walkthroughs/*.md',
-          mimeType: 'text/markdown',
-        },
-        {
-          kind: 'markdown',
-          glob: 'artifacts/*.md',
-          mimeType: 'text/markdown',
-        },
-        {
-          kind: 'image',
-          glob: 'media/**/*.{png,jpg,jpeg,webp,gif}',
-          mimeType: 'image/png',
-        },
-        {
-          kind: 'recording',
-          glob: 'media/**/*.{mp4,webm}',
-          mimeType: 'video/mp4',
-        },
-      ],
-    };
+    tmpHome = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'brain-fs-test-'));
+    // isolated_home：以账号 home 替换 %USERPROFILE%，得到该账号的数据根目录
+    [dataRoot] = resolveDataRoots(PROFILE_PATHS, tmpHome);
+    await fs.promises.mkdir(dataRoot, { recursive: true });
   });
 
   afterEach(async () => {
-    await fs.promises.rm(tmpDataRoot, { recursive: true, force: true });
+    await fs.promises.rm(tmpHome, { recursive: true, force: true });
   });
 
   describe('globToRegExp', () => {
@@ -78,161 +56,126 @@ describe('Integrations: brain-fs.ts', () => {
     });
   });
 
-  describe('listConversations', () => {
-    it('lists conversations and extracts title from first user message up to 50 chars', async () => {
-      const brain = new BrainFs(samplePathsConfig);
-
-      const convId1 = 'a1111111-1111-4111-8111-111111111111';
-      const convId2 = 'b2222222-2222-4222-8222-222222222222';
-      const invalidDir = 'not-a-uuid-directory';
-
-      const convDir1 = path.join(tmpDataRoot, 'conversations', convId1);
-      const convDir2 = path.join(tmpDataRoot, 'conversations', convId2);
-      const invalidPath = path.join(tmpDataRoot, 'conversations', invalidDir);
-
-      await fs.promises.mkdir(convDir1, { recursive: true });
-      await fs.promises.mkdir(convDir2, { recursive: true });
-      await fs.promises.mkdir(invalidPath, { recursive: true });
-
-      // Conv 1: has user prompt with long text
-      const longPrompt =
-        'This is a very long user input text that should be strictly truncated to at most fifty characters in total';
-      const transcript1 = [
-        JSON.stringify({
-          step_index: 0,
-          kind: 'user',
-          content: longPrompt,
-          timestamp: '2026-09-28T09:00:00.000Z',
-        }),
-        JSON.stringify({
-          step_index: 1,
-          kind: 'thought',
-          content: 'Reasoning...',
-          timestamp: '2026-09-28T09:00:01.000Z',
-        }),
-      ].join('\n');
-      await fs.promises.writeFile(path.join(convDir1, 'transcript.jsonl'), transcript1, 'utf-8');
-
-      // Conv 2: multiline prompt
-      const multilinePrompt = 'Line 1\nLine 2 user instruction';
-      const transcript2 = [
-        JSON.stringify({
-          step_index: 0,
-          kind: 'user',
-          content: multilinePrompt,
-          timestamp: '2026-09-28T09:05:00.000Z',
-        }),
-      ].join('\n');
-      await fs.promises.writeFile(path.join(convDir2, 'transcript.jsonl'), transcript2, 'utf-8');
-
-      const summaries = await brain.listConversations(tmpDataRoot);
-
-      expect(summaries).toHaveLength(2);
-      // Sorted by updatedAt descending
-      expect(summaries[0].id).toBe(convId2);
-      expect(summaries[0].title).toBe('Line 1 Line 2 user instruction');
-      expect(summaries[0].createdAt).toBe('2026-09-28T09:05:00.000Z');
-
-      expect(summaries[1].id).toBe(convId1);
-      expect(summaries[1].title).toBe(longPrompt.slice(0, 50));
-      expect(summaries[1].title.length).toBeLessThanOrEqual(50);
-      expect(summaries[1].createdAt).toBe('2026-09-28T09:00:00.000Z');
+  describe('profile-derived paths', () => {
+    it('resolves the data root and conversation dir under <home>\\.gemini\\antigravity-cli\\brain', () => {
+      const convId = '2bc3ff47-8256-4f2c-9966-b909f2af6e5f';
+      expect(dataRoot).toBe(path.join(tmpHome, '.gemini', 'antigravity-cli'));
+      expect(resolveConversationDir(convId, { homeDir: tmpHome }, PROFILE_PATHS)).toBe(
+        path.join(tmpHome, '.gemini', 'antigravity-cli', 'brain', convId),
+      );
+      expect(resolveConversationDir(convId, { dataRoot }, PROFILE_PATHS)).toBe(
+        path.join(dataRoot, 'brain', convId),
+      );
     });
+  });
 
-    it('supports isolated_home mode where dataRoot is an account home directory', async () => {
-      const brain = new BrainFs(samplePathsConfig);
+  describe('listConversations', () => {
+    it('lists UUID directories under <dataRoot>\\brain from the real layout and ignores conversations\\<id>.db', async () => {
+      const brain = new BrainFs(PROFILE_PATHS);
+      const convId = '6f79591d-1521-40d1-b302-3edd62c602a0';
 
-      const accountHome = path.join(tmpDataRoot, 'account-alice');
-      const convId = 'c3333333-3333-4333-8333-333333333333';
-      const convDir = path.join(accountHome, '.antigravity', 'conversations', convId);
-      await fs.promises.mkdir(convDir, { recursive: true });
+      await installBrainSample(dataRoot, convId);
+      await fs.promises.mkdir(path.join(dataRoot, 'brain', 'not-a-uuid-directory'), { recursive: true });
+      // 真实布局中 conversations\ 下是 <id>.db 文件，不是会话目录
+      await fs.promises.mkdir(path.join(dataRoot, 'conversations'), { recursive: true });
+      await fs.promises.writeFile(
+        path.join(dataRoot, 'conversations', 'a1111111-1111-4111-8111-111111111111.db'),
+        '',
+      );
 
-      const transcript = JSON.stringify({
-        step_index: 0,
-        kind: 'user',
-        content: 'Alice prompt in isolated home',
-        timestamp: '2026-09-28T10:00:00.000Z',
-      });
-      await fs.promises.writeFile(path.join(convDir, 'transcript.jsonl'), transcript, 'utf-8');
+      const summaries = await brain.listConversations(dataRoot);
 
-      const summaries = await brain.listConversations(accountHome);
       expect(summaries).toHaveLength(1);
       expect(summaries[0].id).toBe(convId);
-      expect(summaries[0].title).toBe('Alice prompt in isolated home');
+      expect(summaries[0].title).toBe(
+        'Remember the secret word: PINEAPPLE. Reply only OK.'.slice(0, 50),
+      );
+      expect(summaries[0].createdAt).toBe('2026-09-28T10:29:37Z');
+      expect(summaries[0].updatedAt).toBe('2026-09-28T10:29:47Z');
     });
 
-    it('returns empty array when dataRoot does not exist or has no conversations', async () => {
-      const brain = new BrainFs(samplePathsConfig);
-      const result = await brain.listConversations(path.join(tmpDataRoot, 'non-existent'));
-      expect(result).toEqual([]);
+    it('supports isolated_home mode: the account home replaces %USERPROFILE%', async () => {
+      const brain = new BrainFs(PROFILE_PATHS);
+      const accountHome = path.join(tmpHome, 'account-alice');
+      const [aliceRoot] = resolveDataRoots(PROFILE_PATHS, accountHome);
+      const convId = 'c3333333-3333-4333-8333-333333333333';
+      await installBrainSample(aliceRoot, convId);
+
+      const summaries = await brain.listConversations(aliceRoot);
+      expect(summaries.map((s) => s.id)).toEqual([convId]);
+      // 另一个账号的数据根目录互不影响
+      expect(await brain.listConversations(dataRoot)).toEqual([]);
+    });
+
+    it('returns empty array when dataRoot does not exist or has no brain directory', async () => {
+      const brain = new BrainFs(PROFILE_PATHS);
+      expect(await brain.listConversations(path.join(tmpHome, 'non-existent'))).toEqual([]);
+      expect(await brain.listConversations(dataRoot)).toEqual([]);
+    });
+  });
+
+  describe('tailTranscript', () => {
+    it('reads the real transcript at .system_generated\\logs\\transcript.jsonl', async () => {
+      const brain = new BrainFs(PROFILE_PATHS);
+      const convId = '6f79591d-1521-40d1-b302-3edd62c602a0';
+      await installBrainSample(dataRoot, convId);
+
+      const handle = await brain.tailTranscript(convId, {}, dataRoot);
+      const received: Array<{ stepIndex: number; type: string }> = [];
+      for await (const step of handle.steps) {
+        received.push({ stepIndex: step.stepIndex, type: step.type });
+        if (step.stepIndex === 4) {
+          handle.stop();
+          break;
+        }
+      }
+
+      expect(received).toEqual([
+        { stepIndex: 0, type: 'USER_INPUT' },
+        { stepIndex: 1, type: 'PLANNER_RESPONSE' },
+        { stepIndex: 2, type: 'USER_INPUT' },
+        { stepIndex: 3, type: 'SYSTEM_MESSAGE' },
+        { stepIndex: 4, type: 'PLANNER_RESPONSE' },
+      ]);
     });
   });
 
   describe('listArtifacts & watchArtifacts', () => {
-    const convId = 'd4444444-4444-4444-8444-444444444444';
+    const convId = '2bc3ff47-8256-4f2c-9966-b909f2af6e5f';
     const sessionId = 'session-123';
-    let convDir: string;
 
-    beforeEach(async () => {
-      convDir = path.join(tmpDataRoot, 'conversations', convId);
-      await fs.promises.mkdir(convDir, { recursive: true });
+    it('lists implementation_plan.md and walkthrough.md from the real layout, skipping metadata and .system_generated', async () => {
+      const brain = new BrainFs(PROFILE_PATHS);
+      await installBrainSample(dataRoot, convId);
+
+      const artifacts = await brain.listArtifacts(convId, sessionId, dataRoot);
+
+      expect(artifacts.map((a) => a.relativePath)).toEqual([
+        'implementation_plan.md',
+        'walkthrough.md',
+      ]);
+
+      const [plan, walkthrough] = artifacts;
+      expect(plan.kind).toBe('implementation_plan');
+      expect(plan.mimeType).toBe('text/markdown');
+      expect(plan.name).toBe('implementation_plan.md');
+      expect(plan.sessionId).toBe(sessionId);
+      expect(plan.conversationId).toBe(convId);
+      expect(plan.id).toBe(Buffer.from(`${convId}/implementation_plan.md`).toString('base64url'));
+
+      expect(walkthrough.kind).toBe('walkthrough');
+      expect(walkthrough.mimeType).toBe('text/markdown');
     });
 
-    it('lists artifacts according to artifactRules and assigns stable id and mimeType', async () => {
-      const brain = new BrainFs(samplePathsConfig);
-
-      // Create directories
-      await fs.promises.mkdir(path.join(convDir, 'tasks'), { recursive: true });
-      await fs.promises.mkdir(path.join(convDir, 'plans'), { recursive: true });
-      await fs.promises.mkdir(path.join(convDir, 'media', 'screenshots'), { recursive: true });
-      await fs.promises.mkdir(path.join(convDir, 'artifacts'), { recursive: true });
-
-      // Create files
-      await fs.promises.writeFile(path.join(convDir, 'tasks', 'task-1.json'), '{"id":1}', 'utf-8');
-      await fs.promises.writeFile(path.join(convDir, 'plans', 'plan.md'), '# Plan', 'utf-8');
-      await fs.promises.writeFile(
-        path.join(convDir, 'media', 'screenshots', 'view.png'),
-        Buffer.from([0x89, 0x50, 0x4e, 0x47]),
-      );
-      await fs.promises.writeFile(path.join(convDir, 'artifacts', 'extra.txt'), 'extra text', 'utf-8');
-      // Should exclude transcript.jsonl
-      await fs.promises.writeFile(path.join(convDir, 'transcript.jsonl'), 'step', 'utf-8');
-
-      const artifacts = await brain.listArtifacts(convId, sessionId, tmpDataRoot);
-
-      expect(artifacts).toHaveLength(4);
-
-      const byRelPath = new Map(artifacts.map((a) => [a.relativePath, a]));
-
-      const task = byRelPath.get('tasks/task-1.json');
-      expect(task).toBeDefined();
-      expect(task?.kind).toBe('task');
-      expect(task?.mimeType).toBe('application/json');
-      expect(task?.sessionId).toBe(sessionId);
-      expect(task?.conversationId).toBe(convId);
-      expect(task?.name).toBe('task-1.json');
-
-      const plan = byRelPath.get('plans/plan.md');
-      expect(plan).toBeDefined();
-      expect(plan?.kind).toBe('implementation_plan');
-      expect(plan?.mimeType).toBe('text/markdown');
-
-      const img = byRelPath.get('media/screenshots/view.png');
-      expect(img).toBeDefined();
-      expect(img?.kind).toBe('image');
-      expect(img?.mimeType).toBe('image/png');
-
-      const extra = byRelPath.get('artifacts/extra.txt');
-      expect(extra).toBeDefined();
-      expect(extra?.kind).toBe('other');
-      expect(extra?.mimeType).toBe('text/plain');
-
-      // Verify ID is url-safe base64
-      expect(task?.id).toBe(Buffer.from(`${convId}/tasks/task-1.json`).toString('base64url'));
+    it('returns an empty list when the conversation directory does not exist', async () => {
+      const brain = new BrainFs(PROFILE_PATHS);
+      expect(await brain.listArtifacts(convId, sessionId, dataRoot)).toEqual([]);
     });
 
     it('watchArtifacts invokes onChange on creation and modification and cleans up timers on stop', async () => {
-      const brain = new BrainFs(samplePathsConfig);
+      const brain = new BrainFs(PROFILE_PATHS);
+      const convDir = path.join(dataRoot, 'brain', convId);
+      await fs.promises.mkdir(convDir, { recursive: true });
 
       const events: Array<{ name: string; version: number }> = [];
       const handle = await brain.watchArtifacts(
@@ -241,31 +184,28 @@ describe('Integrations: brain-fs.ts', () => {
         (art) => {
           events.push({ name: art.name, version: art.version });
         },
-        tmpDataRoot,
+        dataRoot,
       );
 
-      // 1. Create a task file
-      await fs.promises.mkdir(path.join(convDir, 'tasks'), { recursive: true });
-      const taskFile = path.join(convDir, 'tasks', 'task-1.json');
-      await fs.promises.writeFile(taskFile, '{"state":"todo"}', 'utf-8');
+      // 1. agy writes walkthrough.md
+      const walkthroughFile = path.join(convDir, 'walkthrough.md');
+      await fs.promises.writeFile(walkthroughFile, '# Walkthrough', 'utf-8');
 
-      // Wait for poll
       await new Promise((r) => setTimeout(r, 450));
-      expect(events).toEqual([{ name: 'task-1.json', version: 1 }]);
+      expect(events).toEqual([{ name: 'walkthrough.md', version: 1 }]);
 
       // 2. Modify the file
-      await fs.promises.writeFile(taskFile, '{"state":"done"}', 'utf-8');
+      await fs.promises.writeFile(walkthroughFile, '# Walkthrough\n\nDone.', 'utf-8');
       await new Promise((r) => setTimeout(r, 450));
       expect(events).toEqual([
-        { name: 'task-1.json', version: 1 },
-        { name: 'task-1.json', version: 2 },
+        { name: 'walkthrough.md', version: 1 },
+        { name: 'walkthrough.md', version: 2 },
       ]);
 
       // 3. Stop watcher
       handle.stop();
 
-      // Modify again after stop; should not trigger further onChange
-      await fs.promises.writeFile(taskFile, '{"state":"archived"}', 'utf-8');
+      await fs.promises.writeFile(walkthroughFile, '# Walkthrough\n\nArchived.', 'utf-8');
       await new Promise((r) => setTimeout(r, 450));
       expect(events).toHaveLength(2);
     });
@@ -276,65 +216,58 @@ describe('Integrations: brain-fs.ts', () => {
     let convDir: string;
 
     beforeEach(async () => {
-      convDir = path.join(tmpDataRoot, 'conversations', validUuid);
-      await fs.promises.mkdir(convDir, { recursive: true });
-      await fs.promises.writeFile(path.join(convDir, 'transcript.jsonl'), 'data', 'utf-8');
+      convDir = await installBrainSample(dataRoot, validUuid);
     });
 
     it('successfully purges a valid UUID conversation directory within data root', async () => {
       expect(fs.existsSync(convDir)).toBe(true);
-      await purgeConversation(tmpDataRoot, validUuid, samplePathsConfig);
+      await purgeConversation(dataRoot, validUuid, PROFILE_PATHS);
       expect(fs.existsSync(convDir)).toBe(false);
     });
 
     it('supports (conversationId, dataRoot) argument ordering as well', async () => {
       expect(fs.existsSync(convDir)).toBe(true);
-      await purgeConversation(validUuid, tmpDataRoot, samplePathsConfig);
+      await purgeConversation(validUuid, dataRoot, PROFILE_PATHS);
       expect(fs.existsSync(convDir)).toBe(false);
     });
 
     it('rejects non-UUID conversation IDs (非法ID)', async () => {
       await expect(
-        purgeConversation(tmpDataRoot, 'invalid-id-format', samplePathsConfig),
+        purgeConversation(dataRoot, 'invalid-id-format', PROFILE_PATHS),
       ).rejects.toThrowError(AppError);
 
-      await expect(
-        purgeConversation(tmpDataRoot, '12345', samplePathsConfig),
-      ).rejects.toThrowError(AppError);
+      await expect(purgeConversation(dataRoot, '12345', PROFILE_PATHS)).rejects.toThrowError(
+        AppError,
+      );
 
-      await expect(
-        purgeConversation(tmpDataRoot, '', samplePathsConfig),
-      ).rejects.toThrowError(AppError);
+      await expect(purgeConversation(dataRoot, '', PROFILE_PATHS)).rejects.toThrowError(AppError);
 
       expect(fs.existsSync(convDir)).toBe(true);
     });
 
     it('rejects path traversal attempts (路径穿越)', async () => {
-      // Path traversal inside id
       await expect(
-        purgeConversation(tmpDataRoot, '../../outside', samplePathsConfig),
+        purgeConversation(dataRoot, '../../outside', PROFILE_PATHS),
       ).rejects.toThrowError(AppError);
 
-      await expect(
-        purgeConversation(tmpDataRoot, '..', samplePathsConfig),
-      ).rejects.toThrowError(AppError);
+      await expect(purgeConversation(dataRoot, '..', PROFILE_PATHS)).rejects.toThrowError(
+        AppError,
+      );
 
       await expect(
-        purgeConversation(tmpDataRoot, `../${validUuid}`, samplePathsConfig),
+        purgeConversation(dataRoot, `../${validUuid}`, PROFILE_PATHS),
       ).rejects.toThrowError(AppError);
 
       expect(fs.existsSync(convDir)).toBe(true);
     });
 
     it('rejects symbolic links (符号链接)', async () => {
-      // Create a separate sensitive directory outside the conversation
-      const sensitiveDir = path.join(tmpDataRoot, 'sensitive-directory');
+      const sensitiveDir = path.join(tmpHome, 'sensitive-directory');
       await fs.promises.mkdir(sensitiveDir, { recursive: true });
       await fs.promises.writeFile(path.join(sensitiveDir, 'secret.txt'), 'secret data', 'utf-8');
 
-      // Create a symlink/junction conversation pointing to the sensitive directory
       const symlinkUuid = 'f6666666-6666-4666-8666-666666666666';
-      const symlinkPath = path.join(tmpDataRoot, 'conversations', symlinkUuid);
+      const symlinkPath = path.join(dataRoot, 'brain', symlinkUuid);
 
       // On Windows, 'junction' can be created without admin privileges; on POSIX, 'dir'
       const symlinkType = process.platform === 'win32' ? 'junction' : 'dir';
@@ -344,31 +277,27 @@ describe('Integrations: brain-fs.ts', () => {
       const lstat = await fs.promises.lstat(symlinkPath);
       expect(lstat.isSymbolicLink()).toBe(true);
 
-      // purgeConversation must reject the symlink and NOT delete the sensitive directory
       await expect(
-        purgeConversation(tmpDataRoot, symlinkUuid, samplePathsConfig),
+        purgeConversation(dataRoot, symlinkUuid, PROFILE_PATHS),
       ).rejects.toThrowError(AppError);
 
-      // Sensitive directory and symlink must remain untouched
       expect(fs.existsSync(sensitiveDir)).toBe(true);
       expect(fs.existsSync(path.join(sensitiveDir, 'secret.txt'))).toBe(true);
     });
 
     it('rejects targets resolving outside the data root (跨目录防删除)', async () => {
-      // Construct a config whose pattern resolves outside data root
       const outsideDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'outside-root-'));
       try {
         const maliciousConfig: PathsConfig = {
-          ...samplePathsConfig,
-          conversationDirPattern: path.join(outsideDir, 'conversations', '{{conversationId}}'),
+          ...PROFILE_PATHS,
+          conversationDirPattern: path.join(outsideDir, 'brain', '{{conversationId}}'),
         };
 
-        const targetConv = path.join(outsideDir, 'conversations', validUuid);
+        const targetConv = path.join(outsideDir, 'brain', validUuid);
         await fs.promises.mkdir(targetConv, { recursive: true });
 
-        // Purging with tmpDataRoot as boundary must reject the outside target
         await expect(
-          purgeConversation(tmpDataRoot, validUuid, maliciousConfig),
+          purgeConversation(dataRoot, validUuid, maliciousConfig),
         ).rejects.toThrowError(AppError);
 
         expect(fs.existsSync(targetConv)).toBe(true);
@@ -380,28 +309,19 @@ describe('Integrations: brain-fs.ts', () => {
     it('idempotently succeeds when conversation directory does not exist', async () => {
       const nonExistentUuid = '99999999-9999-4999-8999-999999999999';
       await expect(
-        purgeConversation(tmpDataRoot, nonExistentUuid, samplePathsConfig),
+        purgeConversation(dataRoot, nonExistentUuid, PROFILE_PATHS),
       ).resolves.toBeUndefined();
     });
   });
 
   describe('BrainFs integration with BrainPort', () => {
     it('implements BrainPort interface completely', async () => {
-      const brain = new BrainFs(samplePathsConfig);
+      const brain = new BrainFs(PROFILE_PATHS);
 
       const convId = '77777777-7777-4777-8777-777777777777';
-      const convDir = path.join(tmpDataRoot, 'conversations', convId);
-      await fs.promises.mkdir(convDir, { recursive: true });
+      const convDir = await installBrainSample(dataRoot, convId);
 
-      // Write transcript
-      await fs.promises.writeFile(
-        path.join(convDir, 'transcript.jsonl'),
-        JSON.stringify({ step_index: 0, kind: 'user', content: 'BrainPort test' }) + '\n',
-        'utf-8',
-      );
-
-      // tailTranscript
-      const handle = await brain.tailTranscript(convId, {}, tmpDataRoot);
+      const handle = await brain.tailTranscript(convId, {}, dataRoot);
       const received: number[] = [];
       for await (const step of handle.steps) {
         received.push(step.stepIndex);
@@ -410,8 +330,7 @@ describe('Integrations: brain-fs.ts', () => {
       }
       expect(received).toEqual([0]);
 
-      // purgeConversation
-      await brain.purgeConversation(convId, tmpDataRoot);
+      await brain.purgeConversation(convId, dataRoot);
       expect(fs.existsSync(convDir)).toBe(false);
     });
   });

@@ -64,6 +64,7 @@ export interface RunSupervisorOptions {
   settings?: SettingsPort;
   autoApprove?: AutoApproveService;
   stallTimeoutSeconds?: number;
+  terminalExitGraceMs?: number;
 }
 
 export interface StartRunInput {
@@ -88,6 +89,11 @@ export interface StartRunResult {
   completion: Promise<void>;
 }
 
+interface RunnerTerminal {
+  status: TerminalRunStatus;
+  error?: ApiErrorBody;
+}
+
 interface ActiveRunState {
   record: RunRecord;
   sessionId: string;
@@ -96,6 +102,8 @@ interface ActiveRunState {
   lease: AccountLease | null;
   watchdog: Watchdog | null;
   isAborted: boolean;
+  terminalGraceTimer: NodeJS.Timeout | null;
+  forcedTerminal: RunnerTerminal | null;
   completeOnce: (
     status: TerminalRunStatus,
     error: ApiErrorBody | null,
@@ -120,6 +128,7 @@ export class RunSupervisor {
   private readonly settings?: SettingsPort;
   private readonly autoApprove?: AutoApproveService;
   private readonly stallTimeoutSeconds?: number;
+  private readonly terminalExitGraceMs: number;
   private readonly eventListeners: SupervisorEventListener[] = [];
 
   private readonly activeSessions = new Map<string, string>(); // sessionId -> runId
@@ -138,6 +147,7 @@ export class RunSupervisor {
     this.autoApprove =
       options.autoApprove ?? (options.settings ? new AutoApproveService(options.settings) : undefined);
     this.stallTimeoutSeconds = options.stallTimeoutSeconds;
+    this.terminalExitGraceMs = options.terminalExitGraceMs ?? 10_000;
 
     if (options.onEvent) {
       this.eventListeners.push(options.onEvent);
@@ -217,6 +227,7 @@ export class RunSupervisor {
 
     // 设置「只完成一次守卫」
     let completed = false;
+    let savedConversationId = session?.agyConversationId ?? null;
     let timeoutTimer: NodeJS.Timeout | null = null;
     let resolveCompletion: () => void;
     const completionPromise = new Promise<void>((resolve) => {
@@ -236,6 +247,11 @@ export class RunSupervisor {
         timeoutTimer = null;
       }
 
+      if (activeState.terminalGraceTimer) {
+        clearTimeout(activeState.terminalGraceTimer);
+        activeState.terminalGraceTimer = null;
+      }
+
       if (activeState.watchdog) {
         activeState.watchdog.stop();
         activeState.watchdog = null;
@@ -252,10 +268,11 @@ export class RunSupervisor {
       const finalUsage = overrideUsage ?? runnerAny?.usage ?? null;
       const conversationId = runnerAny?.conversationId ?? session?.agyConversationId ?? null;
 
-      // 首次拿到 conversationId 时回填 session
-      if (conversationId && (!session || session.agyConversationId !== conversationId)) {
+      // run 结束时兜底回填 session（正常情况下 init 时已写入）
+      if (conversationId && savedConversationId !== conversationId) {
         try {
           this.sessionsRepo.update(sessionId, { agyConversationId: conversationId });
+          savedConversationId = conversationId;
         } catch (err) {
           this.logger?.error(
             { err, sessionId, conversationId },
@@ -321,6 +338,8 @@ export class RunSupervisor {
       lease: null,
       watchdog: null,
       isAborted: false,
+      terminalGraceTimer: null,
+      forcedTerminal: null,
       completeOnce,
       completion: completionPromise,
     };
@@ -384,6 +403,18 @@ export class RunSupervisor {
         effort,
         mode,
         resumeConversationId: continuationId,
+        onConversationId: (conversationId) => {
+          if (completed || savedConversationId === conversationId) return;
+          try {
+            this.sessionsRepo.update(sessionId, { agyConversationId: conversationId });
+            savedConversationId = conversationId;
+          } catch (err) {
+            this.logger?.error(
+              { err, sessionId, conversationId },
+              'Failed to update session agyConversationId',
+            );
+          }
+        },
       };
 
       runnerProcess = await this.runner.start(spawnOptions);
@@ -449,10 +480,7 @@ export class RunSupervisor {
     // 发送用户输入
     try {
       await runnerProcess.send(input.prompt, input.images);
-      if (!this.profile.stream.multiTurnStdin) {
-        const child = (runnerProcess as { child?: { stdin?: { end?: () => void } } }).child;
-        child?.stdin?.end?.();
-      }
+      runnerProcess.closeInput();
     } catch (err) {
       const apiErr = AppError.from(err).toApiError();
       await completeOnce('failed', apiErr);
@@ -460,7 +488,19 @@ export class RunSupervisor {
     }
 
     // 后台流式转发事件并收口
-    this.runBackgroundLoop(sessionId, runId, runnerProcess, activeState, completeOnce);
+    this.runBackgroundLoop(sessionId, runId, runnerProcess, activeState, completeOnce).catch(
+      async (err) => {
+        this.logger?.error({ err, runId, sessionId }, 'Unhandled error in background event loop');
+        try {
+          await completeOnce('failed', AppError.from(err).toApiError());
+        } catch (completeErr) {
+          this.logger?.error(
+            { err: completeErr, runId, sessionId },
+            'Failed to complete run after background loop error',
+          );
+        }
+      },
+    );
 
     return { runId, completion: completionPromise };
   }
@@ -486,6 +526,7 @@ export class RunSupervisor {
         }
         activeState.watchdog?.handleEvent(event);
         await this.emitEvent(sessionId, runId, event);
+        this.armTerminalGrace(runner, activeState, completeOnce);
       }
 
       activeState.watchdog?.stop();
@@ -497,6 +538,13 @@ export class RunSupervisor {
         await completeOnce(
           'aborted',
           new AppError('AGY_ABORTED', 'Run was aborted by user').toApiError(),
+        );
+      } else if (activeState.forcedTerminal) {
+        const runnerAny = runner as { usage?: TokenUsage | null };
+        await completeOnce(
+          activeState.forcedTerminal.status,
+          activeState.forcedTerminal.error ?? null,
+          runnerAny.usage,
         );
       } else if (exitCode !== 0 && exitCode !== null) {
         const runnerAny = runner as { terminal?: { error?: ApiErrorBody } };
@@ -514,8 +562,43 @@ export class RunSupervisor {
         await completeOnce(status, err, runnerAny.usage);
       }
     } catch (err) {
+      this.logger?.error({ err, runId, sessionId }, 'Error in run background loop');
       await completeOnce('failed', AppError.from(err).toApiError());
     }
+  }
+
+  /**
+   * Once the runner has reported a terminal result, gives the process terminalExitGraceMs to exit
+   * on its own; otherwise kills it and completes the run with the result's terminal status.
+   */
+  private armTerminalGrace(
+    runner: RunnerProcess,
+    activeState: ActiveRunState,
+    completeOnce: (
+      status: TerminalRunStatus,
+      error: ApiErrorBody | null,
+      overrideUsage?: TokenUsage | null,
+    ) => Promise<void>,
+  ): void {
+    if (activeState.terminalGraceTimer || activeState.forcedTerminal) return;
+    const terminal = (runner as { terminal?: RunnerTerminal | null }).terminal;
+    if (!terminal) return;
+
+    activeState.terminalGraceTimer = setTimeout(async () => {
+      activeState.terminalGraceTimer = null;
+      activeState.forcedTerminal = terminal;
+      this.logger?.warn?.(
+        { runId: activeState.record.id, graceMs: this.terminalExitGraceMs },
+        'Process did not exit after terminal result; killing it',
+      );
+      try {
+        await runner.kill();
+      } catch (err) {
+        this.logger?.debug?.({ err }, 'Ignoring runner kill error after terminal result');
+      }
+      const usage = (runner as { usage?: TokenUsage | null }).usage;
+      await completeOnce(terminal.status, terminal.error ?? null, usage);
+    }, this.terminalExitGraceMs);
   }
 
   /**

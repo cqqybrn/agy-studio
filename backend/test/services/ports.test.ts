@@ -18,6 +18,7 @@ describe('Service Ports Type Integrity', () => {
         pid: 1234,
         events: (async function* () {})(),
         send: async () => {},
+        closeInput: () => {},
         kill: async () => {},
         exited: Promise.resolve({ exitCode: 0, signal: null }),
       }),

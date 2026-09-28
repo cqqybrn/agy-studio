@@ -11,7 +11,7 @@ import type {
 import { AppError } from '../../utils/errors.js';
 import { loadProfile } from './profile/loader.js';
 import type { AgyProfile } from './profile/schema.js';
-import { expandPathTokens } from './transcript.js';
+import { expandPathTokens, homeEnvOverrides } from './paths.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -142,19 +142,8 @@ export function resolveSettingsPath(
     return null;
   }
 
-  let template = fileConfig.pathTemplate;
-
-  let envOverrides: Record<string, string> | undefined;
-  if (options?.homeDir) {
-    envOverrides = {
-      USERPROFILE: options.homeDir,
-      HOME: options.homeDir,
-      LOCALAPPDATA: path.join(options.homeDir, 'AppData', 'Local'),
-      APPDATA: path.join(options.homeDir, 'AppData', 'Roaming'),
-    };
-  }
-
-  let expanded = expandPathTokens(template, envOverrides);
+  const envOverrides = options?.homeDir ? homeEnvOverrides(options.homeDir) : undefined;
+  let expanded = expandPathTokens(fileConfig.pathTemplate, envOverrides);
 
   const wsPath = options?.workspacePath || process.cwd();
   expanded = expanded.replaceAll('{{workspacePath}}', wsPath);
@@ -232,11 +221,8 @@ export class AgySettings implements SettingsPort {
   ): Promise<EnsureAlwaysProceedResult> {
     const filePath = resolveSettingsPath(scope, this.profile, options);
     if (!filePath) {
-      return {
-        updated: false,
-        filePath: '',
-        warning: `No settings file definition found in profile for scope "${scope}"`,
-      };
+      // The profile deliberately declares no settings file for this scope (e.g. workspace).
+      return { updated: false, filePath: '' };
     }
 
     const jsonPath = this.profile.settings.alwaysProceed.jsonPath;

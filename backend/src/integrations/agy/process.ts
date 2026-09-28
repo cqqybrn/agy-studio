@@ -130,7 +130,7 @@ export function buildArgv(profile: AgyProfile, options: ProcessRunnerOptions): s
     argv.push('--mode', String(options.mode));
   }
   if (options.resumeConversationId) {
-    argv.push('--resume', options.resumeConversationId);
+    argv.push('--conversation', options.resumeConversationId);
   }
 
   if (otherArgs.length > 0) {
@@ -270,8 +270,13 @@ export class ProcessRunner implements AgyRunnerPort {
 
     const processLine = (line: string) => {
       const adaptResult = adapt(line, adaptCtx);
-      if (adaptResult.conversationId) {
+      if (adaptResult.conversationId && adaptResult.conversationId !== currentConversationId) {
         currentConversationId = adaptResult.conversationId;
+        try {
+          options.onConversationId?.(currentConversationId);
+        } catch {
+          // Listener errors must not break stream parsing
+        }
       }
       if (adaptResult.usage) {
         currentUsage = adaptResult.usage;
@@ -324,6 +329,8 @@ export class ProcessRunner implements AgyRunnerPort {
       }
     };
 
+    // Decode as a stream so multi-byte UTF-8 characters split across chunks stay intact
+    child.stdout?.setEncoding('utf8');
     child.stdout?.on('data', handleChunk);
     child.stdout?.on('end', () => {
       flushBuffer();
@@ -404,6 +411,11 @@ export class ProcessRunner implements AgyRunnerPort {
             }
           });
         });
+      },
+      closeInput(): void {
+        if (child.stdin && !child.stdin.destroyed && !child.stdin.writableEnded) {
+          child.stdin.end();
+        }
       },
       async kill(): Promise<void> {
         if (child.pid && isProcessAlive(child.pid)) {

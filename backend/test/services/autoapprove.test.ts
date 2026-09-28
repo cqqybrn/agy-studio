@@ -1,9 +1,14 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { AgentEvent } from '@agy-studio/contracts';
 import {
   AutoApproveService,
   ensureAutoApproveSettings,
 } from '../../src/services/autoapprove/autoapprove.js';
+import { AgySettings } from '../../src/integrations/agy/settings.js';
+import { loadProfile } from '../../src/integrations/agy/profile/loader.js';
 import type {
   EnsureAlwaysProceedOptions,
   EnsureAlwaysProceedResult,
@@ -131,5 +136,40 @@ describe('AutoApproveService', () => {
     expect(events).toHaveLength(2);
     expect((events[0] as any).detail).toBe('Warning on global');
     expect((events[1] as any).detail).toBe('Warning on workspace');
+  });
+
+  it('with the real profile: writes toolPermission to user and account-home settings.json, never touches the workspace, emits no warnings', async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agy-autoapprove-'));
+    const userHome = path.join(tmp, 'user-home');
+    const accountHome = path.join(tmp, 'account-home');
+    const workspace = path.join(tmp, 'workspace');
+    fs.mkdirSync(workspace, { recursive: true });
+    vi.stubEnv('USERPROFILE', userHome);
+    vi.stubEnv('HOME', userHome);
+    try {
+      const userSettings = path.join(userHome, '.gemini', 'antigravity-cli', 'settings.json');
+      fs.mkdirSync(path.dirname(userSettings), { recursive: true });
+      fs.writeFileSync(userSettings, '{"artifactReviewPolicy":"always-proceed"}', 'utf-8');
+
+      const profile = loadProfile(path.resolve(__dirname, '../../agy-profile.json'));
+      const events = await new AutoApproveService(new AgySettings(profile)).ensureSettings({
+        workspacePath: workspace,
+        homeDir: accountHome,
+      });
+
+      expect(events).toEqual([]);
+      expect(JSON.parse(fs.readFileSync(userSettings, 'utf-8'))).toEqual({
+        artifactReviewPolicy: 'always-proceed',
+        toolPermission: 'always-proceed',
+      });
+      const accountSettings = path.join(accountHome, '.gemini', 'antigravity-cli', 'settings.json');
+      expect(JSON.parse(fs.readFileSync(accountSettings, 'utf-8'))).toEqual({
+        toolPermission: 'always-proceed',
+      });
+      expect(fs.readdirSync(workspace)).toEqual([]);
+    } finally {
+      vi.unstubAllEnvs();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
   });
 });

@@ -3,14 +3,13 @@ import type { AgentEvent, ToolCall } from '@agy-studio/contracts';
 import { Watchdog } from '../../src/services/autoapprove/watchdog.js';
 import type { RunnerProcess } from '../../src/services/ports/agy-runner.port.js';
 import { RunSupervisor } from '../../src/services/run-supervisor.js';
-import { AppError } from '../../src/utils/errors.js';
+import type { AppError } from '../../src/utils/errors.js';
 import {
   createDatabase,
   RunsRepository,
   SessionsRepository,
   WorkspacesRepository,
 } from '../../src/repositories/index.js';
-import type { AgyProfile } from '../../src/integrations/agy/profile/schema.js';
 
 describe('Watchdog', () => {
   beforeEach(() => {
@@ -21,7 +20,7 @@ describe('Watchdog', () => {
     vi.useRealTimers();
   });
 
-  it('emits run.stalled and injects approval reply via runner.send when stallTimeoutSeconds elapses', async () => {
+  it('emits run.stalled warning event when stallTimeoutSeconds elapses without injecting approval', async () => {
     const emittedEvents: AgentEvent[] = [];
     const sentInputs: string[] = [];
 
@@ -36,13 +35,6 @@ describe('Watchdog', () => {
       runId: 'run-1',
       sessionId: 'session-1',
       runner: mockRunner,
-      profile: {
-        stream: {
-          permissionEvent: {
-            replyTemplate: '{"event":"permission_response","allow":true}',
-          },
-        },
-      },
       stallTimeoutSeconds: 2,
       onEvent: (ev) => {
         emittedEvents.push(ev);
@@ -56,23 +48,17 @@ describe('Watchdog', () => {
     expect(watchdog.isCurrentlyStalled()).toBe(false);
     expect(emittedEvents).toHaveLength(0);
 
-    // Advance to 2 seconds: trigger stall
+    // Advance to 2 seconds: trigger stall warning
     await vi.advanceTimersByTimeAsync(1050);
     expect(watchdog.isCurrentlyStalled()).toBe(true);
 
-    // Should have sent approval reply to runner
-    expect(sentInputs).toEqual(['{"event":"permission_response","allow":true}']);
+    // Watchdog converges to warning: no approval injection via runner.send
+    expect(sentInputs).toEqual([]);
 
-    // Should have emitted run.stalled and autoapprove.injected(layer='watchdog')
-    expect(emittedEvents).toHaveLength(2);
+    // Should have emitted only run.stalled, no autoapprove.injected
+    expect(emittedEvents).toHaveLength(1);
     expect(emittedEvents[0].type).toBe('run.stalled');
     expect((emittedEvents[0] as any).idleMs).toBeGreaterThanOrEqual(2000);
-
-    expect(emittedEvents[1]).toEqual({
-      type: 'autoapprove.injected',
-      layer: 'watchdog',
-      detail: 'Watchdog injected approval reply after stall',
-    });
 
     watchdog.stop();
   });
@@ -133,6 +119,144 @@ describe('Watchdog', () => {
     watchdog.stop();
   });
 
+  it('multiplies timeout by 3x when a subagent tool is active and does not terminate early during long inactivity', async () => {
+    const emittedEvents: AgentEvent[] = [];
+    let killed = false;
+    const mockRunner: Pick<RunnerProcess, 'kill'> = {
+      kill: async () => {
+        killed = true;
+      },
+    };
+
+    const watchdog = new Watchdog({
+      runId: 'run-subagent-1',
+      sessionId: 'session-1',
+      runner: mockRunner,
+      stallTimeoutSeconds: 2, // 2s base timeout
+      onEvent: (ev) => {
+        emittedEvents.push(ev);
+      },
+    });
+
+    const subagentTool: ToolCall = {
+      toolCallId: 'call-sub-1',
+      name: 'subagent',
+      kind: 'subagent',
+      input: { prompt: 'Subagent background research' },
+      output: null,
+      error: null,
+      status: 'running',
+      fileChanges: [],
+      startedAt: new Date().toISOString(),
+      endedAt: null,
+    };
+
+    // Subagent tool starts
+    watchdog.handleEvent({
+      type: 'tool.started',
+      tool: subagentTool,
+    });
+
+    expect(watchdog.isSubagentRunning()).toBe(true);
+    expect(watchdog.getEffectiveTimeoutMs()).toBe(6000); // 2s * 3 = 6s
+
+    // At 2.5s (exceeds normal 1x 2s timeout): should NOT stall because subagent step is active
+    await vi.advanceTimersByTimeAsync(2500);
+    expect(watchdog.isCurrentlyStalled()).toBe(false);
+    expect(killed).toBe(false);
+    expect(emittedEvents).toHaveLength(0);
+
+    // At 5.0s: still active subagent step, no events, not yet stalled or killed
+    await vi.advanceTimersByTimeAsync(2500);
+    expect(watchdog.isCurrentlyStalled()).toBe(false);
+    expect(killed).toBe(false);
+
+    // At 6.1s: reaches 3x timeout, warning event emitted
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(watchdog.isCurrentlyStalled()).toBe(true);
+    expect(emittedEvents).toHaveLength(1);
+    expect(emittedEvents[0].type).toBe('run.stalled');
+    expect(killed).toBe(false);
+
+    // Subagent finishes via tool.finished
+    watchdog.handleEvent({
+      type: 'tool.finished',
+      tool: {
+        ...subagentTool,
+        status: 'succeeded',
+        endedAt: new Date().toISOString(),
+      },
+    });
+
+    expect(watchdog.isSubagentRunning()).toBe(false);
+    expect(watchdog.getEffectiveTimeoutMs()).toBe(2000); // Reverts to 1x
+
+    watchdog.stop();
+  });
+
+  it('multiplies timeout by 3x when subagent lifecycle events (subagent.spawned/finished) are received', async () => {
+    const emittedEvents: AgentEvent[] = [];
+    const mockRunner: Pick<RunnerProcess, 'kill'> = {
+      kill: async () => {},
+    };
+
+    const watchdog = new Watchdog({
+      runId: 'run-subagent-2',
+      sessionId: 'session-1',
+      runner: mockRunner,
+      stallTimeoutSeconds: 2,
+      onEvent: (ev) => {
+        emittedEvents.push(ev);
+      },
+    });
+
+    watchdog.handleEvent({
+      type: 'subagent.spawned',
+      parentToolCallId: 'parent-1',
+      subagent: {
+        conversationId: 'sub-conv-1',
+        role: 'researcher',
+        typeName: 'subagent',
+        initialPrompt: 'Researching...',
+        status: 'running',
+      },
+    });
+
+    expect(watchdog.isSubagentRunning()).toBe(true);
+    expect(watchdog.getEffectiveTimeoutMs()).toBe(6000);
+
+    // After 3 seconds (past 1x timeout): not stalled
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(watchdog.isCurrentlyStalled()).toBe(false);
+
+    // Subagent finishes
+    watchdog.handleEvent({
+      type: 'subagent.finished',
+      conversationId: 'sub-conv-1',
+      status: 'completed',
+    });
+
+    expect(watchdog.isSubagentRunning()).toBe(false);
+    expect(watchdog.getEffectiveTimeoutMs()).toBe(2000);
+
+    watchdog.stop();
+  });
+
+  it('defaults stallTimeoutSeconds to 300 seconds (5 minutes)', () => {
+    const mockRunner: Pick<RunnerProcess, 'kill'> = {
+      kill: async () => {},
+    };
+
+    const watchdog = new Watchdog({
+      runId: 'run-def-1',
+      sessionId: 'session-1',
+      runner: mockRunner,
+    });
+
+    expect(watchdog.getEffectiveTimeoutMs()).toBe(300 * 1000);
+    watchdog.stop();
+  });
+
   it('recovers from stalled state when new runner output arrives', async () => {
     const emittedEvents: AgentEvent[] = [];
     const mockRunner: Pick<RunnerProcess, 'send' | 'kill'> = {
@@ -170,7 +294,7 @@ describe('Watchdog', () => {
     watchdog.stop();
   });
 
-  it('terminates run with AGY_STALLED if another cycle elapses without output after stall injection', async () => {
+  it('terminates run with AGY_STALLED if another cycle elapses without output after stall warning', async () => {
     let killed = false;
     let timeoutError: AppError | null = null;
 
@@ -191,7 +315,7 @@ describe('Watchdog', () => {
       },
     });
 
-    // 1. First cycle: enters stall and injects approval
+    // 1. First cycle: enters stall warning
     await vi.advanceTimersByTimeAsync(1100);
     expect(watchdog.isCurrentlyStalled()).toBe(true);
     expect(killed).toBe(false);
@@ -205,8 +329,30 @@ describe('Watchdog', () => {
     watchdog.stop();
   });
 
+  it('safely catches errors in setTimeout async callback to prevent unhandled rejection', async () => {
+    const mockRunner: Pick<RunnerProcess, 'kill'> = {
+      kill: async () => {},
+    };
+
+    const watchdog = new Watchdog({
+      runId: 'run-err-1',
+      sessionId: 'session-1',
+      runner: mockRunner,
+      stallTimeoutSeconds: 1,
+    });
+
+    // Spy on checkStall to reject
+    vi.spyOn(watchdog as any, 'checkStall').mockRejectedValueOnce(new Error('Unexpected timer error'));
+
+    // Advance timer: setTimeout executes async callback, try/catch catches it
+    await vi.advanceTimersByTimeAsync(1100);
+
+    // No uncaught rejection thrown
+    watchdog.stop();
+  });
+
   describe('Integration with RunSupervisor', () => {
-    it('RunSupervisor detects stall, injects approval, and fails with AGY_STALLED on persistent stall', async () => {
+    it('RunSupervisor detects stall, emits warning event, and fails with AGY_STALLED on persistent stall', async () => {
       vi.useRealTimers(); // Use real short timers for async loop integration
 
       const db = createDatabase(':memory:');
@@ -270,6 +416,7 @@ describe('Watchdog', () => {
         send: async (prompt: string) => {
           sentFrames.push(prompt);
         },
+        closeInput: () => {},
         kill: async () => {
           resolveDone?.();
         },
@@ -318,10 +465,11 @@ describe('Watchdog', () => {
       const injectedEv = eventsReceived.find(
         (e) => e.type === 'autoapprove.injected' && e.layer === 'watchdog',
       );
-      expect(injectedEv).toBeDefined();
+      expect(injectedEv).toBeUndefined();
 
-      // Verify approval was sent into runner.send
-      expect(sentFrames).toContain('{"event":"permission_response","allow":true}');
+      // Verify approval was NOT sent into runner.send by watchdog
+      expect(sentFrames).toEqual(['Start hanging run']);
+      expect(sentFrames).not.toContain('{"event":"permission_response","allow":true}');
 
       // Run record in database
       const runRecord = runsRepo.findById(runId);

@@ -403,16 +403,32 @@ describe('stream-adapter', () => {
   });
 
   describe('permission event detection', () => {
-    it('sets permissionRequest to true when line matches profile.stream.permissionEvent', () => {
+    it('never flags permission requests with the real profile (permissionEvent is null: no recorded sample)', () => {
       const ctx = createTestContext();
-      // Profile has permissionEvent.match = { event: "ask_permission" }
-      const line = {
-        event: 'ask_permission',
-        tool: 'run_command',
-        command: 'rm -rf /',
-      };
+      expect(ctx.profile.stream.permissionEvent).toBeNull();
 
-      const res = adapt(line, ctx);
+      const res = adapt({ event: 'ask_permission', tool: 'run_command' }, ctx);
+      expect(res.permissionRequest).toBeUndefined();
+      expect(res.events[0].type).toBe('raw');
+    });
+
+    it('sets permissionRequest to true when a profile explicitly configures permissionEvent', () => {
+      const base = createTestContext();
+      // 假设性配置：仅用于验证可选的 L3 机制，不代表真实 agy 格式
+      const ctx = createTestContext({
+        profile: {
+          ...base.profile,
+          stream: {
+            ...base.profile.stream,
+            permissionEvent: {
+              match: { event: 'ask_permission' },
+              replyTemplate: '{"event":"permission_response","allow":true}',
+            },
+          },
+        },
+      });
+
+      const res = adapt({ event: 'ask_permission', tool: 'run_command' }, ctx);
       expect(res.permissionRequest).toBe(true);
       expect(res.events[0].type).toBe('raw'); // because ask_permission is not in eventTypeMap
     });

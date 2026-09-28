@@ -10,75 +10,24 @@ import {
   resolveSettingsPath,
   setByPath,
 } from '../../src/integrations/agy/settings.js';
+import { loadProfile } from '../../src/integrations/agy/profile/loader.js';
 import type { AgyProfile } from '../../src/integrations/agy/profile/schema.js';
+
+const PROFILE: AgyProfile = loadProfile(path.resolve(__dirname, '../../agy-profile.json'));
+const REAL_USER_SETTINGS = path.resolve(
+  __dirname,
+  '../../../fixtures/agy/settings/user-settings.json',
+);
 
 describe('Settings integration (AgySettings)', () => {
   let tmpDir: string;
-  let mockProfile: AgyProfile;
+  let homeDir: string;
+  let settingsPath: string;
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agy-settings-test-'));
-
-    mockProfile = {
-      agyVersion: '1.2.12',
-      discoveredAt: '2026-09-28T00:00:00.000Z',
-      binary: { candidates: ['agy'] },
-      stream: {
-        userFrameTemplate: '{"event":"user","message":{"content":"{{prompt}}"}}',
-        multiTurnStdin: true,
-        eventTypeMap: {},
-        permissionEvent: null,
-        imageInput: { supported: false, template: null },
-      },
-      paths: {
-        dataRoots: ['%USERPROFILE%\\.antigravity'],
-        conversationDirPattern: '%USERPROFILE%\\.antigravity\\conversations\\{{conversationId}}',
-        transcriptRelPath: 'transcript.jsonl',
-        artifactRules: [],
-      },
-      settings: {
-        files: [
-          {
-            scope: 'user',
-            pathTemplate: '%USERPROFILE%\\.antigravity\\settings.json',
-          },
-          {
-            scope: 'workspace',
-            pathTemplate: '{{workspacePath}}\\.antigravity\\settings.json',
-          },
-        ],
-        alwaysProceed: {
-          jsonPath: 'security.alwaysProceed',
-          value: true,
-        },
-        statusline: {
-          jsonPath: 'statusline',
-        },
-      },
-      credentials: {
-        preferredIsolation: 'isolated_home',
-        homeEnvVars: ['USERPROFILE', 'HOME'],
-        wincredTargetPatterns: [],
-        credentialFiles: [],
-      },
-      login: {
-        argv: ['login'],
-        authUrlPattern: 'https?://',
-        successPatterns: ['ok'],
-        failurePatterns: ['fail'],
-      },
-      quota: {
-        statuslineInHeadless: false,
-        usageCommand: '/usage',
-        usageParser: 'text-v1',
-      },
-      catalog: {
-        versionArgv: ['--version'],
-        modelsArgv: ['models'],
-        modelsParser: 'text-v1',
-        modes: ['default'],
-      },
-    };
+    homeDir = path.join(tmpDir, 'home');
+    settingsPath = path.join(homeDir, '.gemini', 'antigravity-cli', 'settings.json');
   });
 
   afterEach(() => {
@@ -88,20 +37,32 @@ describe('Settings integration (AgySettings)', () => {
     vi.restoreAllMocks();
   });
 
-  describe('Path resolution', () => {
-    it('resolves workspace path correctly using {{workspacePath}}', () => {
-      const resolved = resolveSettingsPath('workspace', mockProfile, {
-        workspacePath: tmpDir,
+  const writeSettings = (content: string) => {
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+    fs.writeFileSync(settingsPath, content, 'utf-8');
+  };
+
+  describe('Profile settings config', () => {
+    it('declares only the user settings file and toolPermission = "always-proceed"', () => {
+      expect(PROFILE.settings.files).toEqual([
+        { scope: 'user', pathTemplate: '%USERPROFILE%\\.gemini\\antigravity-cli\\settings.json' },
+      ]);
+      expect(PROFILE.settings.alwaysProceed).toEqual({
+        jsonPath: 'toolPermission',
+        value: 'always-proceed',
       });
-      expect(resolved).toBe(path.resolve(path.join(tmpDir, '.antigravity', 'settings.json')));
+      expect(PROFILE.stream.permissionEvent).toBeNull();
+    });
+  });
+
+  describe('Path resolution', () => {
+    it('resolves global path under <home>\\.gemini\\antigravity-cli with isolated homeDir override', () => {
+      const resolved = resolveSettingsPath('global', PROFILE, { homeDir });
+      expect(resolved).toBe(path.resolve(settingsPath));
     });
 
-    it('resolves global path with isolated homeDir override', () => {
-      const customHome = path.join(tmpDir, 'custom-home');
-      const resolved = resolveSettingsPath('global', mockProfile, {
-        homeDir: customHome,
-      });
-      expect(resolved).toBe(path.resolve(path.join(customHome, '.antigravity', 'settings.json')));
+    it('returns null for workspace scope because the profile declares no workspace file', () => {
+      expect(resolveSettingsPath('workspace', PROFILE, { workspacePath: tmpDir })).toBeNull();
     });
   });
 
@@ -125,179 +86,160 @@ describe('Settings integration (AgySettings)', () => {
     it('get and set nested values using dot notation', () => {
       const obj: Record<string, unknown> = {
         existing: 'val',
-        security: { other: 123 },
+        nested: { other: 123 },
       };
-      expect(getByPath(obj, 'security.other')).toBe(123);
-      expect(getByPath(obj, 'security.alwaysProceed')).toBeUndefined();
+      expect(getByPath(obj, 'nested.other')).toBe(123);
+      expect(getByPath(obj, 'nested.flag')).toBeUndefined();
 
-      const changed = setByPath(obj, 'security.alwaysProceed', true);
+      const changed = setByPath(obj, 'nested.flag', true);
       expect(changed).toBe(true);
-      expect(getByPath(obj, 'security.alwaysProceed')).toBe(true);
+      expect(getByPath(obj, 'nested.flag')).toBe(true);
       expect(obj.existing).toBe('val');
-      expect((obj.security as any).other).toBe(123);
+      expect((obj.nested as any).other).toBe(123);
 
-      const unchanged = setByPath(obj, 'security.alwaysProceed', true);
+      const unchanged = setByPath(obj, 'nested.flag', true);
       expect(unchanged).toBe(false);
+    });
+
+    it('compares and writes string values at a top-level jsonPath', () => {
+      const obj: Record<string, unknown> = { toolPermission: 'always-proceed' };
+      expect(setByPath(obj, 'toolPermission', 'always-proceed')).toBe(false);
+
+      const boolValued: Record<string, unknown> = { toolPermission: true };
+      expect(setByPath(boolValued, 'toolPermission', 'always-proceed')).toBe(true);
+      expect(boolValued.toolPermission).toBe('always-proceed');
+    });
+
+    it('formatJson keeps detected formatting', () => {
+      const out = formatJson({ a: 1 }, { indent: 4, newline: '\r\n', trailingNewline: true });
+      expect(out).toBe('{\r\n    "a": 1\r\n}\r\n');
     });
   });
 
   describe('ensureAlwaysProceed file operations', () => {
-    it('creates settings file if it does not exist with default formatting', async () => {
-      const settings = new AgySettings(mockProfile);
-      const wsDir = path.join(tmpDir, 'project');
+    it('leaves the real recorded settings.json untouched (already always-proceed)', async () => {
+      const original = fs.readFileSync(REAL_USER_SETTINGS, 'utf-8');
+      writeSettings(original);
 
-      const result = await settings.ensureAlwaysProceed('workspace', {
-        workspacePath: wsDir,
-      });
+      const result = await new AgySettings(PROFILE).ensureAlwaysProceed('global', { homeDir });
+
+      expect(result).toEqual({ updated: false, filePath: path.resolve(settingsPath) });
+      expect(fs.readFileSync(settingsPath, 'utf-8')).toBe(original);
+    });
+
+    it('adds toolPermission as a string and preserves artifactReviewPolicy', async () => {
+      writeSettings('{\n  "artifactReviewPolicy": "always-proceed"\n}\n');
+
+      const result = await new AgySettings(PROFILE).ensureAlwaysProceed('global', { homeDir });
 
       expect(result.updated).toBe(true);
       expect(result.warning).toBeUndefined();
-      expect(fs.existsSync(result.filePath)).toBe(true);
-
-      const parsed = JSON.parse(fs.readFileSync(result.filePath, 'utf-8'));
+      const parsed = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
       expect(parsed).toEqual({
-        security: {
-          alwaysProceed: true,
-        },
+        artifactReviewPolicy: 'always-proceed',
+        toolPermission: 'always-proceed',
+      });
+      expect(typeof parsed.toolPermission).toBe('string');
+    });
+
+    it('overwrites a non-matching toolPermission value and keeps other keys', async () => {
+      writeSettings(
+        JSON.stringify({ artifactReviewPolicy: 'always-proceed', toolPermission: true }, null, 2),
+      );
+
+      const result = await new AgySettings(PROFILE).ensureAlwaysProceed('global', { homeDir });
+
+      expect(result.updated).toBe(true);
+      expect(JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))).toEqual({
+        artifactReviewPolicy: 'always-proceed',
+        toolPermission: 'always-proceed',
       });
     });
 
-    it('preserves all other fields and 4-space indentation byte-for-byte', async () => {
-      const settings = new AgySettings(mockProfile);
-      const wsDir = path.join(tmpDir, 'project4');
-      const settingsPath = path.join(wsDir, '.antigravity', 'settings.json');
-      fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+    it('creates the settings file if it does not exist', async () => {
+      const result = await new AgySettings(PROFILE).ensureAlwaysProceed('global', { homeDir });
 
-      const initialContent =
-        '{\n' +
-        '    "customConfig": {\n' +
-        '        "enabled": true,\n' +
-        '        "tags": [\n' +
-        '            "a",\n' +
-        '            "b"\n' +
-        '        ]\n' +
-        '    },\n' +
-        '    "security": {\n' +
-        '        "otherFlag": "preserve-me"\n' +
-        '    },\n' +
-        '    "userName": "Torres"\n' +
-        '}\n';
+      expect(result.updated).toBe(true);
+      expect(result.filePath).toBe(path.resolve(settingsPath));
+      expect(JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))).toEqual({
+        toolPermission: 'always-proceed',
+      });
+    });
 
-      fs.writeFileSync(settingsPath, initialContent, 'utf-8');
-
-      const result = await settings.ensureAlwaysProceed('workspace', {
+    it('does nothing and warns nothing for workspace scope (no workspace file in profile)', async () => {
+      const wsDir = path.join(tmpDir, 'project');
+      const result = await new AgySettings(PROFILE).ensureAlwaysProceed('workspace', {
         workspacePath: wsDir,
       });
 
-      expect(result.updated).toBe(true);
-      expect(result.warning).toBeUndefined();
+      expect(result).toEqual({ updated: false, filePath: '' });
+      expect(fs.existsSync(wsDir)).toBe(false);
+    });
 
+    it('preserves all other fields and 4-space indentation', async () => {
+      writeSettings(
+        '{\n' +
+          '    "artifactReviewPolicy": "always-proceed",\n' +
+          '    "customConfig": {\n' +
+          '        "enabled": true,\n' +
+          '        "tags": [\n' +
+          '            "a",\n' +
+          '            "b"\n' +
+          '        ]\n' +
+          '    }\n' +
+          '}\n',
+      );
+
+      const result = await new AgySettings(PROFILE).ensureAlwaysProceed('global', { homeDir });
+
+      expect(result.updated).toBe(true);
       const updatedRaw = fs.readFileSync(settingsPath, 'utf-8');
       const updatedJson = JSON.parse(updatedRaw);
+      expect(updatedJson.customConfig).toEqual({ enabled: true, tags: ['a', 'b'] });
+      expect(updatedJson.artifactReviewPolicy).toBe('always-proceed');
+      expect(updatedJson.toolPermission).toBe('always-proceed');
 
-      // Verify custom fields preserved
-      expect(updatedJson.customConfig).toEqual({
-        enabled: true,
-        tags: ['a', 'b'],
-      });
-      expect(updatedJson.security.otherFlag).toBe('preserve-me');
-      expect(updatedJson.security.alwaysProceed).toBe(true);
-      expect(updatedJson.userName).toBe('Torres');
-
-      // Verify 4-space indentation format was maintained
       const lines = updatedRaw.split('\n');
       expect(lines.some((l) => l.startsWith('    "customConfig"'))).toBe(true);
       expect(lines.some((l) => l.startsWith('        "enabled"'))).toBe(true);
     });
 
     it('preserves tab indentation and CRLF newlines', async () => {
-      const settings = new AgySettings(mockProfile);
-      const wsDir = path.join(tmpDir, 'project-tab');
-      const settingsPath = path.join(wsDir, '.antigravity', 'settings.json');
-      fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+      writeSettings('{\r\n\t"artifactReviewPolicy": "always-proceed"\r\n}\r\n');
 
-      const initialContent = '{\r\n\t"theme": "dark"\r\n}\r\n';
-      fs.writeFileSync(settingsPath, initialContent, 'utf-8');
-
-      const result = await settings.ensureAlwaysProceed('workspace', {
-        workspacePath: wsDir,
-      });
+      const result = await new AgySettings(PROFILE).ensureAlwaysProceed('global', { homeDir });
 
       expect(result.updated).toBe(true);
       const updatedRaw = fs.readFileSync(settingsPath, 'utf-8');
       expect(updatedRaw).toContain('\r\n');
-      expect(updatedRaw).toContain('\t"theme": "dark"');
-      expect(updatedRaw).toContain('\t"security": {');
-    });
-
-    it('returns updated: false if alwaysProceed is already configured to the desired value', async () => {
-      const settings = new AgySettings(mockProfile);
-      const wsDir = path.join(tmpDir, 'project-already');
-      const settingsPath = path.join(wsDir, '.antigravity', 'settings.json');
-      fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
-
-      const initialContent = JSON.stringify(
-        {
-          security: {
-            alwaysProceed: true,
-          },
-          foo: 'bar',
-        },
-        null,
-        2,
-      );
-      fs.writeFileSync(settingsPath, initialContent, 'utf-8');
-
-      const result = await settings.ensureAlwaysProceed('workspace', {
-        workspacePath: wsDir,
-      });
-
-      expect(result.updated).toBe(false);
-      expect(result.warning).toBeUndefined();
+      expect(updatedRaw).toContain('\t"artifactReviewPolicy": "always-proceed"');
+      expect(updatedRaw).toContain('\t"toolPermission": "always-proceed"');
     });
 
     it('returns warning instead of throwing if existing settings file has invalid JSON', async () => {
-      const settings = new AgySettings(mockProfile);
-      const wsDir = path.join(tmpDir, 'project-bad');
-      const settingsPath = path.join(wsDir, '.antigravity', 'settings.json');
-      fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+      writeSettings('NOT A VALID JSON {{{');
 
-      fs.writeFileSync(settingsPath, 'NOT A VALID JSON {{{', 'utf-8');
-
-      const result = await settings.ensureAlwaysProceed('workspace', {
-        workspacePath: wsDir,
-      });
+      const result = await new AgySettings(PROFILE).ensureAlwaysProceed('global', { homeDir });
 
       expect(result.updated).toBe(false);
-      expect(result.warning).toBeDefined();
       expect(result.warning).toContain('Failed to read or parse');
     });
 
     it('retries write on failure and returns warning without throwing if still failing', async () => {
-      const settings = new AgySettings(mockProfile);
-      const wsDir = path.join(tmpDir, 'project-retry');
-
       let callCount = 0;
-      const originalRename = fs.promises.rename;
-      vi.spyOn(fs.promises, 'rename').mockImplementation(async (oldPath, newPath) => {
+      vi.spyOn(fs.promises, 'rename').mockImplementation(async () => {
         callCount++;
         throw new Error('EACCES: permission denied, rename');
       });
 
-      const result = await settings.ensureAlwaysProceed('workspace', {
-        workspacePath: wsDir,
-      });
+      const result = await new AgySettings(PROFILE).ensureAlwaysProceed('global', { homeDir });
 
       expect(callCount).toBe(2); // Initial attempt + 1 retry
       expect(result.updated).toBe(false);
-      expect(result.warning).toBeDefined();
       expect(result.warning).toContain('Failed to write settings file');
     });
 
     it('succeeds if retry write succeeds on second attempt', async () => {
-      const settings = new AgySettings(mockProfile);
-      const wsDir = path.join(tmpDir, 'project-retry-succeed');
-
       let callCount = 0;
       const originalRename = fs.promises.rename;
       vi.spyOn(fs.promises, 'rename').mockImplementation(async (oldPath, newPath) => {
@@ -308,9 +250,7 @@ describe('Settings integration (AgySettings)', () => {
         return originalRename(oldPath, newPath);
       });
 
-      const result = await settings.ensureAlwaysProceed('workspace', {
-        workspacePath: wsDir,
-      });
+      const result = await new AgySettings(PROFILE).ensureAlwaysProceed('global', { homeDir });
 
       expect(callCount).toBe(2);
       expect(result.updated).toBe(true);

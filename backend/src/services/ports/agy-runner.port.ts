@@ -7,12 +7,14 @@ export interface SpawnRunnerOptions {
   env?: Record<string, string | undefined>;
   sessionId?: string;
   runId?: string;
+  onConversationId?: (conversationId: string) => void;
 }
 
 export interface RunnerProcess {
   readonly pid: number | undefined;
   readonly events: AsyncIterable<AgentEvent>;
   send(text: string, images?: string[]): Promise<void>;
+  closeInput(): void;
   kill(): Promise<void>;
   readonly exited: Promise<{ exitCode: number | null; signal: string | null }>;
 }

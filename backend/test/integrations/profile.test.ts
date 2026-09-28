@@ -13,7 +13,7 @@ describe('AgyProfile & Loader', () => {
     const profile = loadProfile(profileJsonPath);
     expect(profile.agyVersion).toBe('1.2.12');
     expect(profile.binary.candidates.length).toBeGreaterThan(0);
-    expect(profile.stream.multiTurnStdin).toBe(true);
+    expect(profile.stream.multiTurnStdin).toBe(false);
     expect(profile.stream.userFrameTemplate).toBeDefined();
     expect(profile.paths.conversationDirPattern).toBeDefined();
     expect(profile.credentials.preferredIsolation).toBe('isolated_home');

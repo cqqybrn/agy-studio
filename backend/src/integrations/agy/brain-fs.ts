@@ -4,9 +4,7 @@ import type {
   TranscriptStep,
 } from '@agy-studio/contracts';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import type {
   ArtifactWatchHandle,
   BrainPort,
@@ -16,26 +14,19 @@ import type {
 } from '../../services/ports/brain.port.js';
 import { AppError } from '../../utils/errors.js';
 import { isUuid } from '../../utils/ids.js';
-import { loadProfile } from './profile/loader.js';
+import {
+  conversationsParentRel,
+  expandPathTokens,
+  getDefaultPaths,
+  resolveConversationDir as resolveConversationDirFromProfile,
+  resolveDataRoots,
+  resolveTranscriptPath,
+  type PathResolveOptions,
+} from './paths.js';
 import type { AgyProfile, PathsConfig } from './profile/schema.js';
-import { expandPathTokens, parseLine, tail } from './transcript.js';
+import { parseLine, tail } from './transcript.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-export function getDefaultPaths(): PathsConfig {
-  const candidates = [
-    path.resolve(__dirname, '../../../agy-profile.json'),
-    path.resolve(process.cwd(), 'backend/agy-profile.json'),
-    path.resolve(process.cwd(), 'agy-profile.json'),
-  ];
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return loadProfile(candidate).paths;
-    }
-  }
-  throw new AppError('NOT_FOUND', 'Unable to locate agy-profile.json');
-}
+export { getDefaultPaths, resolveDataRoots } from './paths.js';
 
 /**
  * Replaces environment variables in path templates (%VAR%).
@@ -94,56 +85,23 @@ export function globToRegExp(pattern: string): RegExp {
  */
 export function resolveConversationDir(
   conversationId: string,
-  options?: { dataRoot?: string; homeDir?: string },
+  options?: PathResolveOptions,
   pathsConfig?: PathsConfig,
 ): string {
-  const paths = pathsConfig || getDefaultPaths();
-  const rawPattern = paths.conversationDirPattern;
-
-  if (options?.homeDir) {
-    const envOverrides = {
-      USERPROFILE: options.homeDir,
-      HOME: options.homeDir,
-      LOCALAPPDATA: path.join(options.homeDir, 'AppData', 'Local'),
-      APPDATA: path.join(options.homeDir, 'AppData', 'Roaming'),
-    };
-    return expandPathTokens(rawPattern, envOverrides).replace('{{conversationId}}', conversationId);
-  }
-
-  if (options?.dataRoot) {
-    const dataRoot = options.dataRoot;
-
-    // Check if dataRoot is an account home (has .antigravity inside it)
-    if (
-      fs.existsSync(path.join(dataRoot, '.antigravity', 'conversations')) ||
-      (fs.existsSync(path.join(dataRoot, '.antigravity')) && !fs.existsSync(path.join(dataRoot, 'conversations')))
-    ) {
-      const envOverrides = {
-        USERPROFILE: dataRoot,
-        HOME: dataRoot,
-        LOCALAPPDATA: path.join(dataRoot, 'AppData', 'Local'),
-        APPDATA: path.join(dataRoot, 'AppData', 'Roaming'),
-      };
-      return expandPathTokens(rawPattern, envOverrides).replace('{{conversationId}}', conversationId);
-    }
-
-    // Check if rawPattern starts with paths.dataRoots[0]
-    const rootPattern = paths.dataRoots[0];
-    const normalizedRaw = rawPattern.replace(/\\/g, '/');
-    const normalizedRoot = rootPattern.replace(/\\/g, '/');
-
-    if (normalizedRaw.startsWith(normalizedRoot)) {
-      const relToRoot = normalizedRaw.slice(normalizedRoot.length).replace(/^\/+/, '');
-      const substitutedRel = relToRoot.replace('{{conversationId}}', conversationId);
-      return path.join(dataRoot, substitutedRel);
-    }
-
-    // If rawPattern does not start with dataRoots[0], expand it directly
-    return expandPathTokens(rawPattern).replace('{{conversationId}}', conversationId);
-  }
-
-  return expandPathTokens(rawPattern).replace('{{conversationId}}', conversationId);
+  return resolveConversationDirFromProfile(conversationId, options, pathsConfig || getDefaultPaths());
 }
+
+/**
+ * Extracts a conversation title from a user-input transcript step.
+ * Real agy wraps the prompt in <USER_REQUEST>…</USER_REQUEST> followed by metadata blocks.
+ */
+function titleFromUserStep(content: string): string {
+  const match = content.match(/<USER_REQUEST>([\s\S]*?)<\/USER_REQUEST>/);
+  const text = match ? match[1] : content;
+  return text.replace(/[\r\n]+/g, ' ').trim().slice(0, 50);
+}
+
+const USER_STEP_TYPES = new Set(['user', 'user_input', 'user_message']);
 
 /**
  * Recursively walk all files in a directory.
@@ -322,39 +280,14 @@ export class BrainFs implements BrainPort {
    * In isolated_home mode, dataRoot may be specific to an account's home.
    */
   async listConversations(dataRoot?: string): Promise<DiskConversationSummary[]> {
-    const dirsToScan: string[] = [];
-
-    if (dataRoot) {
-      if (fs.existsSync(path.join(dataRoot, 'conversations'))) {
-        dirsToScan.push(path.join(dataRoot, 'conversations'));
-      }
-      if (fs.existsSync(path.join(dataRoot, '.antigravity', 'conversations'))) {
-        dirsToScan.push(path.join(dataRoot, '.antigravity', 'conversations'));
-      }
-      if (dirsToScan.length === 0 && fs.existsSync(dataRoot)) {
-        try {
-          const entries = await fs.promises.readdir(dataRoot, { withFileTypes: true });
-          if (entries.some((e) => (e.isDirectory() || e.isSymbolicLink()) && isUuid(e.name))) {
-            dirsToScan.push(dataRoot);
-          }
-        } catch {}
-      }
-    } else {
-      for (const root of this.paths.dataRoots) {
-        const expanded = expandPathTokens(root);
-        const convDir = path.join(expanded, 'conversations');
-        if (fs.existsSync(convDir)) {
-          dirsToScan.push(convDir);
-        }
-      }
-    }
-
+    const roots = dataRoot ? [dataRoot] : resolveDataRoots(this.paths);
+    const parentRel = conversationsParentRel(this.paths);
     const summaryMap = new Map<string, DiskConversationSummary>();
 
-    for (const convParentDir of dirsToScan) {
+    for (const root of roots) {
       let entries: fs.Dirent[];
       try {
-        entries = await fs.promises.readdir(convParentDir, { withFileTypes: true });
+        entries = await fs.promises.readdir(path.join(root, parentRel), { withFileTypes: true });
       } catch {
         continue;
       }
@@ -364,11 +297,8 @@ export class BrainFs implements BrainPort {
         const convId = entry.name;
         if (!isUuid(convId)) continue;
 
-        const convFullPath = path.join(convParentDir, convId);
-        const transcriptFile = path.join(
-          convFullPath,
-          this.paths.transcriptRelPath || 'transcript.jsonl',
-        );
+        const convFullPath = this.resolveConversationDir(convId, { dataRoot: root });
+        const transcriptFile = resolveTranscriptPath(convId, { dataRoot: root }, this.paths);
 
         let title = 'Untitled';
         let createdAt: string;
@@ -390,13 +320,10 @@ export class BrainFs implements BrainPort {
                 lastStep = step;
                 if (
                   title === 'Untitled' &&
-                  (step.type === 'user' ||
-                    step.type === 'user_input' ||
-                    step.type === 'user_message') &&
+                  USER_STEP_TYPES.has(step.type.toLowerCase()) &&
                   step.content
                 ) {
-                  const singleLine = step.content.replace(/[\r\n]+/g, ' ').trim();
-                  title = singleLine.slice(0, 50);
+                  title = titleFromUserStep(step.content) || 'Untitled';
                 }
               }
             }
@@ -470,11 +397,11 @@ export class BrainFs implements BrainPort {
 
     const files = await walkFiles(convDir);
     const artifacts: Artifact[] = [];
-    const transcriptRel = (this.paths.transcriptRelPath || 'transcript.jsonl').replace(/\\/g, '/');
+    const transcriptRel = this.paths.transcriptRelPath.replace(/\\/g, '/');
 
     for (const file of files) {
       const relPath = path.relative(convDir, file).replace(/\\/g, '/');
-      if (relPath === transcriptRel || relPath.endsWith('/' + transcriptRel)) {
+      if (relPath === transcriptRel) {
         continue;
       }
       if (relPath.startsWith('.') || relPath.includes('/.')) {
@@ -494,11 +421,7 @@ export class BrainFs implements BrainPort {
       }
 
       if (!kind) {
-        if (relPath.startsWith('artifacts/')) {
-          kind = 'other';
-        } else {
-          continue;
-        }
+        continue;
       }
 
       const stat = await fs.promises.stat(file);

@@ -10,18 +10,13 @@
   },
   "stream": {
     "userFrameTemplate": "{\"event\":\"user\",\"message\":{\"content\":\"{{prompt}}\"}}",
-    "multiTurnStdin": true,
+    "multiTurnStdin": false,
     "eventTypeMap": {
       "init": "init",
       "step_update": "step_update",
       "result": "result"
     },
-    "permissionEvent": {
-      "match": {
-        "event": "ask_permission"
-      },
-      "replyTemplate": "{\"event\":\"permission_response\",\"allow\":true}"
-    },
+    "permissionEvent": null,
     "imageInput": {
       "supported": false,
       "template": null
@@ -29,41 +24,25 @@
   },
   "paths": {
     "dataRoots": [
-      "%USERPROFILE%\\.antigravity",
-      "%LOCALAPPDATA%\\agy"
+      "%USERPROFILE%\\.gemini\\antigravity-cli"
     ],
-    "conversationDirPattern": "%USERPROFILE%\\.antigravity\\conversations\\{{conversationId}}",
-    "transcriptRelPath": "transcript.jsonl",
+    "conversationDirPattern": "%USERPROFILE%\\.gemini\\antigravity-cli\\brain\\{{conversationId}}",
+    "transcriptRelPath": ".system_generated\\logs\\transcript.jsonl",
     "artifactRules": [
       {
-        "kind": "task",
-        "glob": "tasks/*.json",
-        "mimeType": "application/json"
-      },
-      {
         "kind": "implementation_plan",
-        "glob": "plans/*.md",
+        "glob": "implementation_plan.md",
         "mimeType": "text/markdown"
       },
       {
         "kind": "walkthrough",
-        "glob": "walkthroughs/*.md",
+        "glob": "walkthrough.md",
         "mimeType": "text/markdown"
       },
       {
         "kind": "markdown",
-        "glob": "artifacts/*.md",
+        "glob": "*.md",
         "mimeType": "text/markdown"
-      },
-      {
-        "kind": "image",
-        "glob": "media/**/*.{png,jpg,jpeg,webp,gif}",
-        "mimeType": "image/png"
-      },
-      {
-        "kind": "recording",
-        "glob": "media/**/*.{mp4,webm}",
-        "mimeType": "video/mp4"
       }
     ]
   },
@@ -71,16 +50,12 @@
     "files": [
       {
         "scope": "user",
-        "pathTemplate": "%USERPROFILE%\\.antigravity\\settings.json"
-      },
-      {
-        "scope": "workspace",
-        "pathTemplate": "{{workspacePath}}\\.antigravity\\settings.json"
+        "pathTemplate": "%USERPROFILE%\\.gemini\\antigravity-cli\\settings.json"
       }
     ],
     "alwaysProceed": {
-      "jsonPath": "security.alwaysProceed",
-      "value": true
+      "jsonPath": "toolPermission",
+      "value": "always-proceed"
     },
     "statusline": {
       "jsonPath": "statusline"

@@ -1,9 +1,14 @@
 import type { AgentEvent, ISODateString, TranscriptStep, TranscriptToolCall } from '@agy-studio/contracts';
-import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { JsonlTail } from '../../utils/jsonl-tail.js';
+import {
+  getDefaultPaths,
+  resolveTranscriptPath as resolveTranscriptPathFromProfile,
+  type PathResolveOptions,
+} from './paths.js';
 import type { PathsConfig } from './profile/schema.js';
+
+export { expandPathTokens } from './paths.js';
 
 export interface TailOptions {
   fromStep?: number;
@@ -20,103 +25,14 @@ export interface TailHandle extends AsyncIterable<TranscriptStep> {
 }
 
 /**
- * Expands %ENV_VAR% tokens in path strings.
- */
-export function expandPathTokens(template: string, envOverrides?: Record<string, string>): string {
-  return template.replace(/%([^%]+)%/g, (_, varName) => {
-    if (envOverrides && envOverrides[varName] !== undefined) {
-      return envOverrides[varName];
-    }
-    if (process.env[varName] !== undefined) {
-      return process.env[varName]!;
-    }
-    if (varName === 'USERPROFILE' || varName === 'HOME') {
-      return process.env.USERPROFILE || process.env.HOME || os.homedir();
-    }
-    if (varName === 'LOCALAPPDATA') {
-      const home = process.env.USERPROFILE || process.env.HOME || os.homedir();
-      return process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
-    }
-    if (varName === 'APPDATA') {
-      const home = process.env.USERPROFILE || process.env.HOME || os.homedir();
-      return process.env.APPDATA || path.join(home, 'AppData', 'Roaming');
-    }
-    return '';
-  });
-}
-
-/**
- * Resolves the absolute path to a conversation's transcript.jsonl file.
+ * Resolves the absolute path to a conversation's transcript file from profile.paths.
  */
 export function resolveTranscriptPath(
   conversationId: string,
-  options?: { dataRoot?: string; homeDir?: string },
+  options?: PathResolveOptions,
   pathsConfig?: PathsConfig,
 ): string {
-  const relPath = pathsConfig?.transcriptRelPath || 'transcript.jsonl';
-  const rawPattern = pathsConfig?.conversationDirPattern;
-
-  if (options?.homeDir) {
-    const home = options.homeDir;
-    if (rawPattern) {
-      const envOverrides = {
-        USERPROFILE: home,
-        HOME: home,
-        LOCALAPPDATA: path.join(home, 'AppData', 'Local'),
-        APPDATA: path.join(home, 'AppData', 'Roaming'),
-      };
-      const convDir = expandPathTokens(rawPattern, envOverrides).replace('{{conversationId}}', conversationId);
-      return path.join(convDir, relPath);
-    }
-    return path.join(home, '.antigravity', 'conversations', conversationId, relPath);
-  }
-
-  if (options?.dataRoot) {
-    const dataRoot = options.dataRoot;
-
-    if (
-      fs.existsSync(path.join(dataRoot, '.antigravity', 'conversations')) ||
-      (fs.existsSync(path.join(dataRoot, '.antigravity')) && !fs.existsSync(path.join(dataRoot, 'conversations')))
-    ) {
-      if (rawPattern) {
-        const envOverrides = {
-          USERPROFILE: dataRoot,
-          HOME: dataRoot,
-          LOCALAPPDATA: path.join(dataRoot, 'AppData', 'Local'),
-          APPDATA: path.join(dataRoot, 'AppData', 'Roaming'),
-        };
-        const convDir = expandPathTokens(rawPattern, envOverrides).replace('{{conversationId}}', conversationId);
-        return path.join(convDir, relPath);
-      }
-      return path.join(dataRoot, '.antigravity', 'conversations', conversationId, relPath);
-    }
-
-    if (rawPattern && pathsConfig?.dataRoots?.[0]) {
-      const rootPattern = pathsConfig.dataRoots[0];
-      const normalizedRaw = rawPattern.replace(/\\/g, '/');
-      const normalizedRoot = rootPattern.replace(/\\/g, '/');
-
-      if (normalizedRaw.startsWith(normalizedRoot)) {
-        const relToRoot = normalizedRaw.slice(normalizedRoot.length).replace(/^\/+/, '');
-        const substitutedRel = relToRoot.replace('{{conversationId}}', conversationId);
-        return path.join(dataRoot, substitutedRel, relPath);
-      }
-
-      const convDir = expandPathTokens(rawPattern).replace('{{conversationId}}', conversationId);
-      return path.join(convDir, relPath);
-    }
-
-    return path.join(dataRoot, 'conversations', conversationId, relPath);
-  }
-
-  if (rawPattern) {
-    const pattern = expandPathTokens(rawPattern);
-    const convDir = pattern.replace('{{conversationId}}', conversationId);
-    return path.join(convDir, relPath);
-  }
-
-  const defaultHome = process.env.USERPROFILE || process.env.HOME || os.homedir();
-  return path.join(defaultHome, '.antigravity', 'conversations', conversationId, relPath);
+  return resolveTranscriptPathFromProfile(conversationId, options, pathsConfig ?? getDefaultPaths());
 }
 
 /**

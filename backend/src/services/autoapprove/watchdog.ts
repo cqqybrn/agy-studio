@@ -16,7 +16,7 @@ export interface WatchdogProfileConfig {
 export interface WatchdogOptions {
   runId: string;
   sessionId: string;
-  runner: Pick<RunnerProcess, 'send' | 'kill'>;
+  runner: Pick<RunnerProcess, 'kill'> & Partial<Pick<RunnerProcess, 'send'>>;
   profile?: WatchdogProfileConfig;
   stallTimeoutSeconds?: number;
   onEvent?: (event: AgentEvent) => void | Promise<void>;
@@ -25,15 +25,14 @@ export interface WatchdogOptions {
 
 /**
  * Watchdog monitors agy run output for stalls.
- * - Emits run.stalled if no output is received within stallTimeoutSeconds.
- * - Multiplies timeout by 3x when a 'run_command' tool is running.
- * - Upon entering stalled, injects approval reply via runner.send and emits autoapprove.injected(layer='watchdog').
+ * - Emits run.stalled warning event if no output is received within stallTimeoutSeconds.
+ * - Multiplies timeout by 3x when a 'run_command' or 'subagent' step is running.
  * - If still no output after another cycle, terminates run with AGY_STALLED.
  */
 export class Watchdog {
   readonly runId: string;
   readonly sessionId: string;
-  private readonly runner: Pick<RunnerProcess, 'send' | 'kill'>;
+  private readonly runner: Pick<RunnerProcess, 'kill'> & Partial<Pick<RunnerProcess, 'send'>>;
   private readonly profile?: WatchdogProfileConfig;
   private readonly stallTimeoutSeconds: number;
   private readonly onEvent?: (event: AgentEvent) => void | Promise<void>;
@@ -43,15 +42,16 @@ export class Watchdog {
   private lastOutputTime: number;
   private isStopped = false;
   private isStalled = false;
-  private hasInjected = false;
   private readonly activeCommandTools = new Set<string>();
+  private readonly activeSubagentTools = new Set<string>();
+  private readonly activeSubagents = new Set<string>();
 
   constructor(options: WatchdogOptions) {
     this.runId = options.runId;
     this.sessionId = options.sessionId;
     this.runner = options.runner;
     this.profile = options.profile;
-    this.stallTimeoutSeconds = options.stallTimeoutSeconds ?? 180;
+    this.stallTimeoutSeconds = options.stallTimeoutSeconds ?? 300;
     this.onEvent = options.onEvent;
     this.onStalledTimeout = options.onStalledTimeout;
 
@@ -74,10 +74,17 @@ export class Watchdog {
   }
 
   /**
-   * Returns the current effective timeout in milliseconds (3x if a command is running).
+   * Returns whether a subagent tool or subagent is currently active.
+   */
+  isSubagentRunning(): boolean {
+    return this.activeSubagentTools.size > 0 || this.activeSubagents.size > 0;
+  }
+
+  /**
+   * Returns the current effective timeout in milliseconds (3x if a command or subagent is running).
    */
   getEffectiveTimeoutMs(): number {
-    const multiplier = this.isCommandRunning() ? 3 : 1;
+    const multiplier = this.isCommandRunning() || this.isSubagentRunning() ? 3 : 1;
     return this.stallTimeoutSeconds * 1000 * multiplier;
   }
 
@@ -94,46 +101,50 @@ export class Watchdog {
     }
   }
 
-  /**
-   * Extracts the approval reply string from the profile or falls back to default.
-   */
-  private getApprovalReply(): string {
-    const replyTemplate = this.profile?.stream?.permissionEvent?.replyTemplate;
-    if (typeof replyTemplate === 'string') {
-      return replyTemplate;
-    }
-    if (replyTemplate && typeof replyTemplate === 'object') {
-      return JSON.stringify(replyTemplate);
-    }
-    return '{"event":"permission_response","allow":true}';
+  private isSubagentTool(tool: { kind?: string; name?: string }): boolean {
+    return (
+      tool.kind === 'subagent' ||
+      tool.name === 'subagent' ||
+      (typeof tool.name === 'string' && tool.name.toLowerCase().includes('subagent'))
+    );
   }
 
   /**
-   * Feeds an AgentEvent into the watchdog, resetting idle timers and tracking command tools.
+   * Feeds an AgentEvent into the watchdog, resetting idle timers and tracking command/subagent tools.
    */
   handleEvent(event: AgentEvent): void {
     if (this.isStopped) return;
 
-    // Track run_command tool calls
+    // Track run_command and subagent tool calls
     if (event.type === 'tool.started') {
       if (event.tool.kind === 'run_command') {
         this.activeCommandTools.add(event.tool.toolCallId);
+      }
+      if (this.isSubagentTool(event.tool)) {
+        this.activeSubagentTools.add(event.tool.toolCallId);
       }
     } else if (event.type === 'tool.finished') {
       if (event.tool.kind === 'run_command') {
         this.activeCommandTools.delete(event.tool.toolCallId);
       }
+      if (this.isSubagentTool(event.tool)) {
+        this.activeSubagentTools.delete(event.tool.toolCallId);
+      }
     } else if (event.type === 'tool.updated') {
       if (event.patch.status === 'succeeded' || event.patch.status === 'failed') {
         this.activeCommandTools.delete(event.toolCallId);
+        this.activeSubagentTools.delete(event.toolCallId);
       }
+    } else if (event.type === 'subagent.spawned') {
+      this.activeSubagents.add(event.subagent.conversationId);
+    } else if (event.type === 'subagent.finished') {
+      this.activeSubagents.delete(event.conversationId);
     }
 
     // New runner output received: reset stalled state
     this.lastOutputTime = Date.now();
     if (this.isStalled) {
       this.isStalled = false;
-      this.hasInjected = false;
     }
 
     this.scheduleCheck();
@@ -155,7 +166,11 @@ export class Watchdog {
     const delay = overrideDelayMs ?? Math.max(0, effectiveTimeoutMs - elapsed);
 
     this.timer = setTimeout(async () => {
-      await this.checkStall();
+      try {
+        await this.checkStall();
+      } catch {
+        // Prevent unhandled async errors in timer callback from crashing the process
+      }
     }, delay);
   }
 
@@ -175,39 +190,24 @@ export class Watchdog {
     }
 
     if (!this.isStalled) {
-      // 1. Enter stalled state
+      // 1. Enter stalled state: publish warning event
       this.isStalled = true;
 
-      // Publish run.stalled
+      // Publish run.stalled warning event
       await this.emitEvent({
         type: 'run.stalled',
         idleMs: elapsed,
       });
 
-      // Inject approval reply via runner.send
-      const reply = this.getApprovalReply();
-      try {
-        await this.runner.send(reply);
-      } catch {
-        // Ignore send errors if runner closed
-      }
-
-      this.hasInjected = true;
-      await this.emitEvent({
-        type: 'autoapprove.injected',
-        layer: 'watchdog',
-        detail: 'Watchdog injected approval reply after stall',
-      });
-
-      // Schedule another cycle: if still no output, terminate run
+      // Schedule another cycle: if still no output, terminate run (circuit breaker)
       this.scheduleCheck(this.getEffectiveTimeoutMs());
     } else {
-      // 2. Already stalled and another cycle elapsed with no output: terminate
+      // 2. Already stalled and another cycle elapsed with no output: terminate run
       this.stop();
 
       const error = new AppError(
         'AGY_STALLED',
-        'Run stalled: no output produced after watchdog approval injection',
+        'Run stalled: process remained unresponsive and produced no output after stall warning threshold',
       );
 
       try {
@@ -236,5 +236,7 @@ export class Watchdog {
       this.timer = null;
     }
     this.activeCommandTools.clear();
+    this.activeSubagentTools.clear();
+    this.activeSubagents.clear();
   }
 }

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type Database from 'better-sqlite3';
 import {
   createDatabase,
@@ -23,6 +23,10 @@ import type {
 import type { AgentEvent, Session } from '@agy-studio/contracts';
 import { isProcessAlive, killTree } from '../../src/utils/proc-tree.js';
 import { AppError } from '../../src/utils/errors.js';
+import { ProcessRunner } from '../../src/integrations/agy/process.js';
+import { loadProfile } from '../../src/integrations/agy/profile/loader.js';
+
+const FIXTURES_DIR = path.resolve(__dirname, '../../../fixtures/agy');
 
 describe('RunSupervisor Integration Tests', () => {
   let tempDir: string;
@@ -168,6 +172,7 @@ describe('RunSupervisor Integration Tests', () => {
             totalTokens: 35,
           },
           async send() {},
+          closeInput() {},
           async kill() {
             if (child.pid) await killTree(child.pid);
           },
@@ -250,6 +255,7 @@ describe('RunSupervisor Integration Tests', () => {
           pid: child.pid,
           events: emptyEvents(),
           async send() {},
+          closeInput() {},
           async kill() {
             if (child.pid) await killTree(child.pid);
           },
@@ -315,6 +321,7 @@ describe('RunSupervisor Integration Tests', () => {
           pid: child.pid,
           events: hangingEvents(),
           async send() {},
+          closeInput() {},
           async kill() {
             if (child.pid) await killTree(child.pid);
           },
@@ -385,6 +392,7 @@ describe('RunSupervisor Integration Tests', () => {
           pid: child.pid,
           events: hangingEvents(),
           async send() {},
+          closeInput() {},
           async kill() {
             if (child.pid) await killTree(child.pid);
           },
@@ -447,6 +455,7 @@ describe('RunSupervisor Integration Tests', () => {
           pid: child.pid,
           events: hangingEvents(),
           async send() {},
+          closeInput() {},
           async kill() {
             if (child.pid) await killTree(child.pid);
           },
@@ -504,6 +513,7 @@ describe('RunSupervisor Integration Tests', () => {
           pid: child.pid,
           events: hangingEvents(),
           async send() {},
+          closeInput() {},
           async kill() {
             if (child.pid) await killTree(child.pid);
           },
@@ -593,6 +603,7 @@ describe('RunSupervisor Integration Tests', () => {
             yield { type: 'message.delta', messageId: 'm1', text: 'hi' };
           })(),
           async send() {},
+          closeInput() {},
           async kill() {
             if (child.pid) await killTree(child.pid);
           },
@@ -699,6 +710,7 @@ describe('RunSupervisor Integration Tests', () => {
           pid: child.pid,
           events: emptyEvents(),
           async send() {},
+          closeInput() {},
           async kill() {
             if (child.pid) await killTree(child.pid);
           },
@@ -726,5 +738,283 @@ describe('RunSupervisor Integration Tests', () => {
 
     expect(capturedResumeId).toBe('prev-conv-777');
     expect(activeLeaseCount).toBe(0);
+  });
+
+  it('11. runBackgroundLoop 抛出未捕获异常时，.catch 捕获、记录错误日志、把 run 标记为 failed 并发出 run.completed 结束事件', async () => {
+    setupSession('sess-loop-error');
+
+    const loggedErrors: Array<{ obj: unknown; msg?: string }> = [];
+    const mockLogger = {
+      error: (obj: unknown, msg?: string) => {
+        loggedErrors.push({ obj, msg });
+      },
+      warn: () => {},
+      info: () => {},
+      debug: () => {},
+    };
+
+    const emittedEvents: AgentEvent[] = [];
+
+    const runner: AgyRunnerPort = {
+      async start(): Promise<RunnerProcess> {
+        return {
+          pid: 12345,
+          events: emptyEvents(),
+          async send() {},
+          closeInput() {},
+          async kill() {},
+          exited: Promise.resolve({ exitCode: 0, signal: null }),
+        };
+      },
+    };
+
+    const supervisor = new RunSupervisor({
+      runsRepo,
+      sessionsRepo,
+      runner,
+      profile: mockProfile,
+      acquireLease: (acc) => createMockLease(acc),
+      logger: mockLogger,
+      onEvent: (_sId, _rId, ev) => {
+        emittedEvents.push(ev);
+      },
+    });
+
+    // Mock runBackgroundLoop to reject
+    const backgroundError = new Error('Async background loop fatal failure');
+    vi.spyOn(supervisor as any, 'runBackgroundLoop').mockRejectedValue(backgroundError);
+
+    const { runId, completion } = await supervisor.start('sess-loop-error', {
+      prompt: 'Hello with failing background loop',
+      cwd: tempDir,
+    });
+
+    await completion;
+
+    // 1. Logger recorded error
+    const loopErrorLog = loggedErrors.find((l) => l.msg === 'Unhandled error in background event loop');
+    expect(loopErrorLog).toBeDefined();
+
+    // 2. Run record in runsRepo is marked failed
+    const runRecord = runsRepo.findById(runId);
+    expect(runRecord?.status).toBe('failed');
+    expect(runRecord?.error?.message).toContain('Async background loop fatal failure');
+
+    // 3. Emitted run.completed event with status failed
+    const completedEv = emittedEvents.find((e) => e.type === 'run.completed');
+    expect(completedEv).toBeDefined();
+    expect((completedEv as any).status).toBe('failed');
+    expect((completedEv as any).error?.message).toContain('Async background loop fatal failure');
+
+    // 4. Session status is error and lease is released
+    const session = sessionsRepo.findById('sess-loop-error');
+    expect(session?.status).toBe('error');
+    expect(activeLeaseCount).toBe(0);
+  });
+
+  it('12. 发送后关闭 stdin：stdin 打开时会一直等待的进程在 result 后正常退出，run 以 completed 结束', async () => {
+    setupSession('sess-close-stdin');
+
+    const fixturePath = path.join(FIXTURES_DIR, 'stream', 'resume-conversation', 'turn1.stdout.jsonl');
+    const markerPath = path.join(tempDir, 'stdin-closed.marker');
+    const scriptPath = path.join(tempDir, 'fake-agy-wait-stdin.mjs');
+    // 模拟真实 agy：收到 user 帧后输出实录的一轮，然后只要 stdin 还开着就继续等待下一轮
+    fs.writeFileSync(
+      scriptPath,
+      `
+      import fs from 'node:fs';
+      import readline from 'node:readline';
+      const keepAlive = setInterval(() => {}, 1000);
+      const rl = readline.createInterface({ input: process.stdin });
+      rl.on('line', () => {
+        process.stdout.write(fs.readFileSync(${JSON.stringify(fixturePath)}, 'utf-8'));
+      });
+      rl.on('close', () => {
+        fs.writeFileSync(${JSON.stringify(markerPath)}, 'closed');
+        clearInterval(keepAlive);
+        process.exit(0);
+      });
+    `,
+      'utf-8',
+    );
+
+    const profile = loadProfile(path.resolve(__dirname, '../../agy-profile.json'));
+    const emittedEvents: AgentEvent[] = [];
+    const supervisor = new RunSupervisor({
+      runsRepo,
+      sessionsRepo,
+      runner: new ProcessRunner(profile, process.execPath),
+      profile,
+      acquireLease: (acc) => createMockLease(acc),
+      onEvent: (_sId, _rId, ev) => {
+        emittedEvents.push(ev);
+      },
+    });
+
+    const startedAt = Date.now();
+    const { runId, completion } = await supervisor.start('sess-close-stdin', {
+      prompt: 'Remember the secret word: PINEAPPLE. Reply only OK.',
+      cwd: tempDir,
+      argv: [scriptPath],
+    });
+    await completion;
+
+    // 远小于 10 秒保险：是关闭 stdin 让进程自己退出，而不是被保险杀掉
+    expect(Date.now() - startedAt).toBeLessThan(5000);
+    expect(fs.existsSync(markerPath)).toBe(true);
+
+    const runRecord = runsRepo.findById(runId);
+    expect(runRecord?.status).toBe('completed');
+    const completed = emittedEvents.filter((e) => e.type === 'run.completed');
+    expect(completed).toHaveLength(1);
+    expect((completed[0] as { status: string }).status).toBe('completed');
+    expect(sessionsRepo.findById('sess-close-stdin')?.agyConversationId).toBe(
+      '6f79591d-1521-40d1-b302-3edd62c602a0',
+    );
+    expect(activeLeaseCount).toBe(0);
+  });
+
+  it('13. 收到 init 的 conversationId 后立即写入 session，不等 run 结束', async () => {
+    setupSession('sess-early-conv');
+
+    const fixturePath = path.join(FIXTURES_DIR, 'stream', 'resume-conversation', 'turn1.stdout.jsonl');
+    const initLine = fs.readFileSync(fixturePath, 'utf-8').split(/\r?\n/)[0];
+    const scriptPath = path.join(tempDir, 'fake-agy-init-only.mjs');
+    // 只输出实录的 init 行，然后一直等待（模拟 agy 还在思考中）
+    fs.writeFileSync(
+      scriptPath,
+      `
+      import readline from 'node:readline';
+      setInterval(() => {}, 1000);
+      const rl = readline.createInterface({ input: process.stdin });
+      rl.once('line', () => {
+        process.stdout.write(${JSON.stringify(initLine + '\n')});
+      });
+    `,
+      'utf-8',
+    );
+
+    const profile = loadProfile(path.resolve(__dirname, '../../agy-profile.json'));
+    const supervisor = new RunSupervisor({
+      runsRepo,
+      sessionsRepo,
+      runner: new ProcessRunner(profile, process.execPath),
+      profile,
+      acquireLease: (acc) => createMockLease(acc),
+    });
+
+    const { runId, completion } = await supervisor.start('sess-early-conv', {
+      prompt: 'Hello',
+      cwd: tempDir,
+      argv: [scriptPath],
+    });
+
+    try {
+      await vi.waitFor(
+        () => {
+          expect(sessionsRepo.findById('sess-early-conv')?.agyConversationId).toBe(
+            '6f79591d-1521-40d1-b302-3edd62c602a0',
+          );
+        },
+        { timeout: 4000, interval: 50 },
+      );
+      expect(supervisor.hasActiveRuns()).toBe(true);
+      expect(runsRepo.findById(runId)?.status).toBe('running');
+    } finally {
+      await supervisor.abort(runId);
+      await completion;
+    }
+    expect(activeLeaseCount).toBe(0);
+  });
+
+  it('14. result 后进程 10 秒内不退出：保险杀进程，并按 result 的 terminal 状态以 completed 结束', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      setupSession('sess-grace');
+
+      let killed = false;
+      let releaseEvents!: () => void;
+      const eventsReleased = new Promise<void>((resolve) => {
+        releaseEvents = resolve;
+      });
+      let resolveExited!: (res: { exitCode: number | null; signal: string | null }) => void;
+      const exited = new Promise<{ exitCode: number | null; signal: string | null }>((resolve) => {
+        resolveExited = resolve;
+      });
+      let terminal: { status: 'completed' } | null = null;
+
+      const runner: AgyRunnerPort = {
+        async start(): Promise<RunnerProcess> {
+          return {
+            pid: 424242,
+            events: (async function* () {
+              terminal = { status: 'completed' };
+              yield {
+                type: 'usage',
+                usage: {
+                  inputTokens: 1,
+                  outputTokens: 1,
+                  thinkingTokens: 0,
+                  cacheReadTokens: 0,
+                  totalTokens: 2,
+                },
+              } as AgentEvent;
+              await eventsReleased;
+            })(),
+            get terminal() {
+              return terminal;
+            },
+            async send() {},
+            closeInput() {},
+            async kill() {
+              killed = true;
+              releaseEvents();
+              resolveExited({ exitCode: 1, signal: null });
+            },
+            exited,
+          } as RunnerProcess;
+        },
+      };
+
+      const emittedEvents: AgentEvent[] = [];
+      const supervisor = new RunSupervisor({
+        runsRepo,
+        sessionsRepo,
+        runner,
+        profile: mockProfile,
+        acquireLease: (acc) => createMockLease(acc),
+        onEvent: (_sId, _rId, ev) => {
+          emittedEvents.push(ev);
+        },
+      });
+
+      const { runId, completion } = await supervisor.start('sess-grace', {
+        prompt: 'Hello',
+        cwd: tempDir,
+      });
+      let done = false;
+      void completion.then(() => {
+        done = true;
+      });
+
+      await vi.advanceTimersByTimeAsync(9_999);
+      expect(killed).toBe(false);
+      expect(done).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(1);
+      await completion;
+      expect(killed).toBe(true);
+
+      const runRecord = runsRepo.findById(runId);
+      expect(runRecord?.status).toBe('completed');
+      expect(runRecord?.error).toBeNull();
+      const completed = emittedEvents.filter((e) => e.type === 'run.completed');
+      expect(completed).toHaveLength(1);
+      expect((completed[0] as { status: string }).status).toBe('completed');
+      expect(sessionsRepo.findById('sess-grace')?.status).toBe('idle');
+      expect(activeLeaseCount).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
