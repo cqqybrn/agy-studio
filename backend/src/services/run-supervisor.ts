@@ -11,6 +11,9 @@ import type {
   RunnerProcess,
   SpawnRunnerOptions,
 } from './ports/agy-runner.port.js';
+import type { SettingsPort } from './ports/settings.port.js';
+import { AutoApproveService } from './autoapprove/autoapprove.js';
+import { Watchdog } from './autoapprove/watchdog.js';
 import type { RunRecord, RunsRepository } from '../repositories/runs.js';
 import type { SessionsRepository } from '../repositories/sessions.js';
 import { killTree } from '../utils/proc-tree.js';
@@ -58,6 +61,9 @@ export interface RunSupervisorOptions {
   defaultTimeoutMs?: number;
   logger?: SupervisorLogger;
   onEvent?: SupervisorEventListener;
+  settings?: SettingsPort;
+  autoApprove?: AutoApproveService;
+  stallTimeoutSeconds?: number;
 }
 
 export interface StartRunInput {
@@ -73,6 +79,8 @@ export interface StartRunInput {
   timeoutMs?: number;
   env?: Record<string, string | undefined>;
   argv?: string[];
+  homeDir?: string;
+  stallTimeoutSeconds?: number;
 }
 
 export interface StartRunResult {
@@ -86,6 +94,7 @@ interface ActiveRunState {
   accountName: string | null;
   runner: RunnerProcess | null;
   lease: AccountLease | null;
+  watchdog: Watchdog | null;
   isAborted: boolean;
   completeOnce: (
     status: TerminalRunStatus,
@@ -108,6 +117,9 @@ export class RunSupervisor {
   private readonly maxConcurrentRuns: number;
   private readonly defaultTimeoutMs: number;
   private readonly logger?: SupervisorLogger;
+  private readonly settings?: SettingsPort;
+  private readonly autoApprove?: AutoApproveService;
+  private readonly stallTimeoutSeconds?: number;
   private readonly eventListeners: SupervisorEventListener[] = [];
 
   private readonly activeSessions = new Map<string, string>(); // sessionId -> runId
@@ -122,6 +134,10 @@ export class RunSupervisor {
     this.maxConcurrentRuns = options.maxConcurrentRuns ?? 3;
     this.defaultTimeoutMs = options.defaultTimeoutMs ?? 10 * 60 * 1000;
     this.logger = options.logger;
+    this.settings = options.settings;
+    this.autoApprove =
+      options.autoApprove ?? (options.settings ? new AutoApproveService(options.settings) : undefined);
+    this.stallTimeoutSeconds = options.stallTimeoutSeconds;
 
     if (options.onEvent) {
       this.eventListeners.push(options.onEvent);
@@ -220,6 +236,11 @@ export class RunSupervisor {
         timeoutTimer = null;
       }
 
+      if (activeState.watchdog) {
+        activeState.watchdog.stop();
+        activeState.watchdog = null;
+      }
+
       const endedAt = new Date().toISOString();
       const durationMs = Date.now() - startTime;
 
@@ -298,6 +319,7 @@ export class RunSupervisor {
       accountName,
       runner: null,
       lease: null,
+      watchdog: null,
       isAborted: false,
       completeOnce,
       completion: completionPromise,
@@ -318,6 +340,21 @@ export class RunSupervisor {
       const apiErr = AppError.from(err).toApiError();
       await completeOnce('failed', apiErr);
       throw err;
+    }
+
+    // 运行开始前确保 settings（全局、账号 home、工作区）处于 always-proceed 模式
+    if (this.autoApprove) {
+      try {
+        const warningEvents = await this.autoApprove.ensureSettings({
+          workspacePath: cwd,
+          homeDir: input.homeDir,
+        });
+        for (const ev of warningEvents) {
+          await this.emitEvent(sessionId, runId, ev);
+        }
+      } catch (err) {
+        this.logger?.error({ err, sessionId, runId }, 'Failed to run autoApprove ensureSettings');
+      }
     }
 
     // 启动进程
@@ -355,6 +392,27 @@ export class RunSupervisor {
       if (runnerProcess.pid) {
         initialRecord.pid = runnerProcess.pid;
         this.runsRepo.update(runId, { pid: runnerProcess.pid });
+      }
+
+      // 启动 watchdog 监控卡死
+      const stallTimeoutSec = input.stallTimeoutSeconds ?? this.stallTimeoutSeconds;
+      if (stallTimeoutSec && stallTimeoutSec > 0) {
+        activeState.watchdog = new Watchdog({
+          runId,
+          sessionId,
+          runner: runnerProcess,
+          profile: this.profile,
+          stallTimeoutSeconds: stallTimeoutSec,
+          onEvent: async (ev) => {
+            await this.emitEvent(sessionId, runId, ev);
+          },
+          onStalledTimeout: async (err) => {
+            try {
+              await activeState.runner?.kill();
+            } catch {}
+            await completeOnce('failed', err.toApiError());
+          },
+        });
       }
     } catch (err) {
       const apiErr = AppError.from(err).toApiError();
@@ -426,8 +484,11 @@ export class RunSupervisor {
         if (activeState.isAborted) {
           break;
         }
+        activeState.watchdog?.handleEvent(event);
         await this.emitEvent(sessionId, runId, event);
       }
+
+      activeState.watchdog?.stop();
 
       // 等待进程退出
       const { exitCode } = await runner.exited;
@@ -467,6 +528,7 @@ export class RunSupervisor {
     }
 
     active.isAborted = true;
+    active.watchdog?.stop();
 
     try {
       await active.runner?.kill();

@@ -12,7 +12,8 @@
   "dependencies": {
     "@agy-studio/contracts": "*",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "zustand": "^5.0.3"
   },
   "devDependencies": {
     "@types/node": "^22.13.9",
