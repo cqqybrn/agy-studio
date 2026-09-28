@@ -2,6 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { Session } from '@agy-studio/contracts';
 import { RouterProvider, useRouter } from './router';
 import { AccountsView, ManagerView, PlaygroundView, SettingsView } from './views';
+import { useWorkspaceStore } from './stores/workspace.store';
+import {
+  InboxList,
+  ImportSessionsButton,
+  NewSessionButton,
+  WorkspaceSwitcher,
+} from './components/inbox';
 
 export type CurrentSession = Session | null;
 
@@ -13,6 +20,7 @@ const MAX_RIGHT_WIDTH = 640;
 
 function TopBar() {
   const { path, navigate } = useRouter();
+  const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
 
   return (
     <header className="flex h-12 w-full shrink-0 items-center justify-between border-b border-border-default bg-bg-panel px-4 text-xs select-none">
@@ -25,15 +33,21 @@ function TopBar() {
           <span className="tracking-wide">AGY Studio</span>
         </div>
         <div className="h-3.5 w-px bg-border-subtle" />
-        <button
-          type="button"
+        <div
           className="flex items-center gap-1.5 rounded border border-border-default bg-bg-surface px-2.5 py-1 text-text-secondary hover:border-border-strong hover:text-text-primary transition-colors"
           data-testid="workspace-select"
         >
           <span className="text-text-tertiary">工作区:</span>
-          <span className="font-medium text-text-primary">默认工作区</span>
+          <span className="font-medium text-text-primary">
+            {currentWorkspace?.name ?? '默认工作区'}
+          </span>
+          {currentWorkspace?.isGitRepo && (
+            <span className="rounded bg-accent/15 px-1 py-0.2 font-mono text-[9px] text-accent">
+              git
+            </span>
+          )}
           <span className="text-[10px] text-text-tertiary">▾</span>
-        </button>
+        </div>
       </div>
 
       {/* 中部：路由导航与模型占位 */}
@@ -227,33 +241,29 @@ function MainLayout() {
       <TopBar />
 
       <main className="flex flex-1 overflow-hidden">
-        {/* 左栏：260px 收件箱 / 会话列表 */}
+        {/* 左栏：260px 工作区选择与收件箱 / 会话列表 */}
         <aside
           className="flex h-full w-[260px] shrink-0 flex-col border-r border-border-default bg-bg-panel"
           data-testid="left-sidebar"
         >
-          <div className="flex h-10 items-center justify-between border-b border-border-default px-3 text-xs font-medium text-text-secondary">
+          {/* 工作区切换 */}
+          <div className="border-b border-border-default p-2">
+            <WorkspaceSwitcher />
+          </div>
+
+          {/* 快捷操作：新建会话与导入会话 */}
+          <div className="flex flex-col gap-1.5 border-b border-border-default p-2">
+            <NewSessionButton className="w-full" />
+            <ImportSessionsButton />
+          </div>
+
+          {/* 收件箱标题 */}
+          <div className="flex h-8 shrink-0 items-center justify-between border-b border-border-default px-3 text-xs font-medium text-text-secondary">
             <span>收件箱</span>
-            <button
-              type="button"
-              className="rounded bg-accent/10 px-2 py-0.5 text-accent hover:bg-accent/20 transition-colors"
-            >
-              + 新建会话
-            </button>
           </div>
-          <div className="flex-1 overflow-y-auto p-2 text-xs text-text-tertiary">
-            <div className="space-y-1">
-              <div className="rounded-md border border-border-subtle bg-bg-surface px-2.5 py-2 text-text-secondary hover:border-border-strong hover:text-text-primary cursor-pointer transition-colors">
-                <div className="flex items-center justify-between font-medium text-text-primary">
-                  <span>会话 01</span>
-                  <span className="text-[10px] text-text-tertiary">刚刚</span>
-                </div>
-                <div className="mt-1 truncate text-[11px] text-text-tertiary font-mono">
-                  搭建 frontend/ 界面骨架与主题
-                </div>
-              </div>
-            </div>
-          </div>
+
+          {/* 会话列表 */}
+          <InboxList />
         </aside>
 
         {/* 中栏：自适应主视窗 */}

@@ -69,6 +69,9 @@ vi.mock('../api/ws', () => {
 vi.mock('../api/endpoints', () => ({
   getSessionEvents: vi.fn(),
   getSessions: vi.fn(),
+  createSession: vi.fn(),
+  deleteSession: vi.fn(),
+  importSessions: vi.fn(),
   getWorkspaces: vi.fn(),
   createWorkspace: vi.fn(),
   deleteWorkspace: vi.fn(),
@@ -544,6 +547,51 @@ describe('Frontend Stores', () => {
       useSessionStore.getState().handleSessionDeleted('s-1');
       expect(useSessionStore.getState().list.map((s) => s.id)).toEqual(['s-2']);
       expect(useSessionStore.getState().activeSessionId).toBeNull();
+    });
+
+    it('creates, deletes, and imports sessions', async () => {
+      const createdSession: Session = {
+        id: 's-created',
+        workspaceId: 'w-1',
+        title: 'Created Session',
+        agyConversationId: null,
+        status: 'idle',
+        model: null,
+        effort: null,
+        mode: null,
+        source: 'studio',
+        accountName: null,
+        lastRunId: null,
+        lastSeq: 0,
+        createdAt: '2026-09-28T10:00:00.000Z',
+        updatedAt: '2026-09-28T10:00:00.000Z',
+      };
+      (endpoints.createSession as any).mockResolvedValueOnce(createdSession);
+
+      const resCreated = await useSessionStore.getState().createSession({
+        workspaceId: 'w-1',
+        title: 'Created Session',
+      });
+      expect(resCreated).toEqual(createdSession);
+      expect(useSessionStore.getState().activeSessionId).toBe('s-created');
+      expect(useSessionStore.getState().list.some((s) => s.id === 's-created')).toBe(true);
+
+      // deleteSession
+      (endpoints.deleteSession as any).mockResolvedValueOnce({ ok: true });
+      await useSessionStore.getState().deleteSession('s-created');
+      expect(useSessionStore.getState().list.some((s) => s.id === 's-created')).toBe(false);
+      expect(useSessionStore.getState().activeSessionId).toBeNull();
+
+      // importSessions
+      const importedSession: Session = {
+        ...createdSession,
+        id: 's-imported',
+        source: 'imported',
+      };
+      (endpoints.importSessions as any).mockResolvedValueOnce({ imported: [importedSession] });
+      const imported = await useSessionStore.getState().importSessions({ workspaceId: 'w-1' });
+      expect(imported).toEqual([importedSession]);
+      expect(useSessionStore.getState().list.some((s) => s.id === 's-imported')).toBe(true);
     });
 
     it('handles run.status global updates', () => {

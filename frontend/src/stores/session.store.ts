@@ -2,7 +2,9 @@ import { create } from 'zustand';
 import type {
   AgentMode,
   ApiEndpoints,
+  CreateSessionBody,
   Effort,
+  ImportSessionsBody,
   ISODateString,
   Run,
   RunStatus,
@@ -10,7 +12,13 @@ import type {
   SessionEventEnvelope,
   SessionStatus,
 } from '@agy-studio/contracts';
-import { getSessionEvents, getSessions } from '../api/endpoints';
+import {
+  createSession as apiCreateSession,
+  deleteSession as apiDeleteSession,
+  getSessionEvents,
+  getSessions,
+  importSessions as apiImportSessions,
+} from '../api/endpoints';
 import { wsClient } from '../api/ws';
 import type { TimelineState } from '../domain/timeline.types';
 import { createInitialTimelineState, reduce, reduceAll } from '../domain/timelineReducer';
@@ -58,6 +66,9 @@ export interface SessionState {
   handleSessionUpserted: (session: Session) => void;
   handleSessionDeleted: (sessionId: string) => void;
   handleRunStatus: (run: Pick<Run, 'id' | 'sessionId'> & { status: RunStatus }) => void;
+  createSession: (body: CreateSessionBody) => Promise<Session>;
+  deleteSession: (sessionId: string, purge?: boolean) => Promise<void>;
+  importSessions: (body: ImportSessionsBody) => Promise<Session[]>;
 }
 
 export function createEmptySlot(loading = false): SessionSlot {
@@ -388,5 +399,25 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       });
       return { list: nextList };
     });
+  },
+
+  createSession: async (body: CreateSessionBody) => {
+    const session = await apiCreateSession(body);
+    get().handleSessionUpserted(session);
+    get().setActiveSessionId(session.id);
+    return session;
+  },
+
+  deleteSession: async (sessionId: string, purge?: boolean) => {
+    await apiDeleteSession(sessionId, { purge });
+    get().handleSessionDeleted(sessionId);
+  },
+
+  importSessions: async (body: ImportSessionsBody) => {
+    const res = await apiImportSessions(body);
+    for (const session of res.imported) {
+      get().handleSessionUpserted(session);
+    }
+    return res.imported;
   },
 }));
