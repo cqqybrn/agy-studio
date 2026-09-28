@@ -1,0 +1,92 @@
+{
+  "probedAt": "2026-09-28T22:58:00+08:00",
+  "agyVersion": "1.2.12",
+  "method": "已登录状态下的静态探测：cmdkey /list 条目名 + CredRead 读取条目元数据与数据结构（只记录字段名、类型、长度，不记录值）+ 在 agy.exe 中检索字符串。未做登出/登录前后差异。",
+  "cmdkeyTargets": [
+    "MicrosoftAccount:target=SSO_POP_Device",
+    "LegacyGeneric:target=gemini:antigravity",
+    "LegacyGeneric:target=git:https://github.com",
+    "LegacyGeneric:target=MicrosoftAccount:user=<REDACTED_EMAIL>",
+    "WindowsLive:target=virtualapp/didlogical",
+    "LegacyGeneric:target=com.logi.ghub/shared"
+  ],
+  "agyEntry": {
+    "cmdkeyDisplay": "LegacyGeneric:target=gemini:antigravity",
+    "targetName": "gemini:antigravity",
+    "type": "CRED_TYPE_GENERIC (1)",
+    "persist": "CRED_PERSIST_LOCAL_MACHINE (2)",
+    "userName": "antigravity",
+    "comment": null,
+    "attributeCount": 0,
+    "lastWrittenObserved": "2026-09-28T22:19:18+08:00",
+    "writer": "Go 库 zalando/go-keyring（agy.exe 内含 keyring.fallbackServiceProvider 等符号）；该库在 Windows 上以 TargetName = \"<service>:<user>\"、UserName = \"<user>\" 写入，即 service=\"gemini\"、user=\"antigravity\"",
+    "blob": {
+      "sizeBytes": 1430,
+      "encoding": "UTF-8 JSON，无 BOM，无 NUL 字节，非 base64 包装",
+      "schema": {
+        "token": {
+          "access_token": "string",
+          "token_type": "string（实录值 Bearer）",
+          "refresh_token": "string",
+          "expiry": "string（RFC3339 带 7 位小数与时区偏移，形如 9999-99-99T99:99:99.9999999+99:99）"
+        },
+        "auth_method": "string（实录值 consumer）",
+        "id_token": "string（Google 签发的 JWT，iss=https://accounts.google.com，声明字段 iss, azp, aud, sub, email, email_verified, at_hash, iat, exp）"
+      },
+      "notes": [
+        "实录中条目 LastWritten 与 token.expiry 相差约 1 小时，说明 agy 刷新 access_token 后会把整条 JSON 写回同一条目",
+        "账号身份可从 id_token 的 sub / email 声明读取，无需联网"
+      ]
+    }
+  },
+  "unrelatedFiles": {
+    "%USERPROFILE%\\.gemini\\oauth_creds.json": {
+      "schema": "与 agyEntry.blob 完全相同的 JSON 结构",
+      "sameOAuthClientAsAgyEntry": true,
+      "sameGoogleAccountAsAgyEntry": false,
+      "lastWrite": "2026-09-27T17:57:17+08:00",
+      "tokenExpired": true
+    },
+    "%USERPROFILE%\\.gemini\\google_accounts.json": {
+      "schema": { "active": "string（邮箱）", "old": "array" },
+      "activeMatches": "oauth_creds.json 的账号，不是 agyEntry 的账号"
+    },
+    "agyBinaryReferences": {
+      "oauth_creds": 0,
+      "google_accounts": 0
+    },
+    "conclusion": "agy CLI 不读写这两个文件，它们由同一 OAuth 客户端的其他 Google 程序（推测为 Antigravity IDE 或 gemini 系工具）遗留，不属于 agy 的 live 凭据槽位，快照与清空时不得触碰"
+  },
+  "guessedPathsChecked": {
+    "%USERPROFILE%\\.antigravity\\credentials.json": "不存在",
+    "%USERPROFILE%\\.antigravity\\": "不存在"
+  },
+  "sharedWithIde": {
+    "verdict": "极可能共用（强间接证据，未做破坏性验证）",
+    "evidence": [
+      "IDE 的 %LOCALAPPDATA%\\Programs\\antigravity\\resources\\bin\\language_server.exe 与 agy.exe 内含同一套 codeassistclient token 存储代码（KeyringTokenStorage / fileTokenStorage / compositeTokenStorage / savingTokenSource）以及同一个 zalando/go-keyring 库",
+      "条目在 2026-09-28 22:19:18 与 23:14:27 两次被重写（access_token 更换，账号与 refresh_token 不变），两个时间点前后都没有任何 agy CLI 进程或 CLI 日志；间隔 55 分钟，符合常驻进程在 access_token 过期前自动刷新并写回的规律，而当晚唯一常驻的是 IDE language server（自 16:59 起运行）",
+      "字面量 gemini:antigravity 在两个二进制中都不存在，是运行时拼接的 service:user，因此不能用字符串搜索否定共用"
+    ]
+  },
+  "fileFallback": {
+    "exists": true,
+    "evidence": [
+      "Failed to save token to keyring, falling back to file: %v",
+      "Keyring SaveToken / LoadToken timed out after %v, falling back to file storage",
+      "Using file-based token storage because a keyring timeout was recorded within the last %v",
+      "Using file-based token storage because %s detected",
+      "failed to remove token from both keyring (%v) and file (%v)"
+    ],
+    "path": "未确定；二进制中无完整路径字符串。当前磁盘上唯一含 refresh_token 字段的文件是 %USERPROFILE%\\.gemini\\oauth_creds.json（结构与 OAuth 客户端都与 agy 相同，但账号不同且已过期），是否就是该回退文件无法静态证实",
+    "keyringMarker": "另有 keyring 超时标记文件（keyring marker，位于用户主目录下某处，路径未确定），存在时 agy 会直接改用文件存储"
+  },
+  "logout": {
+    "method": "交互模式输入 /logout，在补全菜单中回车后立即登出，无确认提示；agy 没有 login/logout 子命令",
+    "removes": "已动态实录：只删除 gemini:antigravity 条目，无文件变化（见 logout-login-diff.json）"
+  },
+  "openQuestions": [
+    "文件回退（仅 keyring 异常时触发）的确切路径与 keyring marker 路径",
+    "IDE 运行时登出/切换对 IDE 的实际影响（动态实录时 IDE 未运行）"
+  ]
+}

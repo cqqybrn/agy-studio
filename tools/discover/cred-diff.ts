@@ -52,7 +52,12 @@ export function queryCredentials(): string[] {
   }
 
   try {
-    const raw = execSync('cmdkey /list', { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] });
+    // 中文 Windows 的 cmdkey 默认按 GBK 输出，不切到 UTF-8 代码页会导致「目标」解码失败、解析出 0 条
+    const raw = execSync('chcp 65001>nul && cmdkey /list', {
+      encoding: 'utf-8',
+      shell: 'cmd.exe',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
     return parseCmdkeyOutput(raw);
   } catch (error) {
     console.error('[cred-diff] 调用 cmdkey /list 失败:', error);

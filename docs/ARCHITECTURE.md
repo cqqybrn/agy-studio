@@ -4,6 +4,13 @@
 > 可以看思考过程、子 agent、Artifacts、额度，并切换账号。
 >
 > 本文档按 `cursor-architect-copilot` 的六阶段流程编写。契约的唯一真相源是 `contracts/src/*.ts`，文档与代码冲突时以代码为准。
+>
+> | #    | agy-auto 怎么做                                              | agy-studio 现状                                              | 影响                                                         | 归属                            |
+> | :--- | :----------------------------------------------------------- | :----------------------------------------------------------- | :----------------------------------------------------------- | :------------------------------ |
+> | 1    | 删除会话时，除了 `brain/<id>/`，还删 `conversations/<id>.db`、`.db-shm`、`.db-wal`，并顺着 transcript 找出子代理的会话 id 一起删 | `brain-fs.ts` 第 253 行只删 `brain/<id>/` 这一个目录         | 删掉的会话在 agy 自己的历史列表里还在，子代理的数据残留，磁盘越积越多 | 1.5，1.9 要用到                 |
+> | 2    | 支持 `--agent`：内置默认 agent，加上项目里的 `.agents/agents/*/agent.md` 和全局的 `~/.gemini/config/agents` | contracts 和架构文档里完全没有 agent 这个概念                | 用户没法选自定义 agent。agy 本身支持，`--help` 里有 `--agent` 参数 | 要改 contracts，影响 2.8 输入框 |
+> | 3    | 处理 `error_message` 类型的步骤，显示成错误                  | `stream-adapter.ts` 只处理 `user_input`、`agent_response`、`tool`、`subagent`、`system_message` 五种 | 运行中途的报错（比如额度耗尽、接口出错）可能被当成未知事件，界面上看不到 | 1.4                             |
+> | 4    | 同时扫描 CLI（`~/.gemini/antigravity-cli`）和 IDE（`~/.gemini/antigravity`）两个数据目录 | 只扫描 CLI 的目录                                            | 看不到你在 Antigravity IDE 里的对话                          | 可选，                          |
 
 ---
 
@@ -12,7 +19,7 @@
 1. **零移植**：不移植、不参考任何第三方 agy 包装项目的代码。关于 agy 的一切知识只有两个来源：
    - Antigravity **官方文档**（CLI 参数、stream-json 输出、settings、statusline、`/usage`、`/credits`、`models` 等命令）
    - 我们自己在本机做的**黑盒探测**（阶段 0 的探测模块，产出 fixtures 和 `agy-profile.json`）
-2. **不碰私有接口**：不从 agy 程序里提取 OAuth 凭据，不直接调用 Google 的内部 HTTP 接口。额度只通过官方的 statusline 和 `/usage` 命令获取。
+2. **尽量少碰私有接口**：登录只走 agy 自己的登录流程，不自己实现 OAuth。唯一的例外是**额度查询**：直接调用官方客户端所用的额度接口（只读、低频），失效时额度面板显示"不可用"，不影响其他功能。为此允许从 agy 程序中读取其 OAuth 客户端标识，只在内存中使用，不写盘、不进仓库、不出现在日志里。
 3. **agy 知识隔离**：所有与 agy 内部细节相关的代码只能放在 `backend/src/integrations/agy/`；所有"会随 agy 版本变化"的事实（路径、事件格式、settings 键名、凭据位置、命令输出格式）都写在数据文件 `agy-profile.json` 里，而不是散落在代码中。agy 升级时，重跑探测、更新 profile 和 fixtures 即可。
 4. **端口与适配器**：服务层只依赖自己定义的接口（端口），由 integrations 层实现。换掉 agy 的某个行为，只需要换一个适配器。
 
@@ -35,8 +42,8 @@
 3. **会话**：新建、续聊、历史回放（刷新页面不丢过程）、导入磁盘上已有的 agy 会话、删除（可选连带清理 agy 文件）
 4. **工作区**：选择项目目录作为 agy 的工作目录
 5. **模型**：选择模型、effort、mode；保存默认值
-6. **额度面板**：与官方一致的分组与 Weekly / 5h 桶，数据来自官方 statusline 或 `/usage`
-7. **账号**：列出、网页发起登录、切换、删除；如果探测结果允许，每个账号使用独立的 home 目录，多个账号可以同时运行
+6. **额度面板**：与官方一致的分组与 Weekly / 5h 桶，数据来自额度接口；接口失效时显示"不可用"
+7. **账号**：列出、登录（弹出终端窗口由用户在 agy 中完成）、切换、删除；采用凭据快照方式，切换账号时换快照，同一时间只有一个账号在运行
 8. **Artifacts 面板**：任务清单、实施计划、完成总结、截图与录屏
 9. **附件**：图片和文件上传（通过路径注入给 agent），PDF/Word/Excel 服务端转成文本
 10. **检查点**：每次运行前用影子 git 仓库做快照，支持查看 diff 和一键回滚
@@ -49,7 +56,8 @@
 | 代码编辑器、完整 Git GUI、交互式终端 | 第二期 |
 | MCP、Skills 管理界面 | 第二期 |
 | 额度耗尽自动换号 | 有违反服务条款的风险，第二期作为默认关闭的开关 |
-| 调用 Google 私有接口、提取 agy 内置凭据 | 违反设计原则 2 |
+| 自己实现 Google 登录、调用额度以外的私有接口 | 违反设计原则 2 |
+| 多个账号同时运行（独立 home 目录隔离） | 实现复杂且收益小；第二期再评估 |
 | 定时任务、Web Push、插件系统、PWA | 第二期 |
 | OpenAI 兼容接口、任何反代或中转 | 与目标无关 |
 | 原生多模态图片输入 | 先验证（V4），MVP 用路径注入 |
@@ -67,11 +75,12 @@
 | V4 | user 消息能否携带图片（数组、base64 或专用参数） | 录制 | 1.11 | 路径注入 |
 | V5 | agy 在磁盘上的目录布局：会话、transcript、artifacts、截图、录屏分别在哪 | 运行前后对 `%USERPROFILE%`、`%APPDATA%`、`%LOCALAPPDATA%` 做文件快照差异 | 1.5, 1.10 | 只用 stdout 事件，放弃 Artifacts 与子 agent 实时追踪 |
 | V6 | settings 文件的位置（全局、工作区）以及"总是放行"对应的键名和取值 | 官方文档 + 在 IDE / CLI 中切换设置后做文件差异 | 1.7 | 只依赖 CLI 参数 |
-| V7 | 登录凭据存在哪：Windows 凭据管理器的哪些条目、还是哪些文件 | 登录前后对 `cmdkey /list` 输出和用户目录做差异 | 1.14 | — （必须探明） |
-| V8 | 覆盖 `USERPROFILE` / `HOME` / `APPDATA` / `LOCALAPPDATA` 后启动 agy，是否会使用独立的凭据与数据目录 | 用临时目录覆盖环境变量后登录，检查凭据与数据落在哪 | 1.14 | 使用 `credential_snapshot` 模式 |
-| V9 | statusline 是否在无界面（stream-json）模式下也会被调用；传入的 JSON 字段（额度、邮箱、套餐、上下文用量） | 配置一个把 stdin 原样写文件的 statusline 命令，分别在交互和无界面模式下运行 | 1.16 | 只用 `/usage` 探针 |
-| V10 | 交互模式下 `/usage`、`/credits` 的输出格式；登录流程的命令、授权链接格式、成功标志 | 在伪终端中运行并录屏（保存原始输出） | 1.15, 1.17 | 额度显示为"不可用"；登录改为提示用户在终端完成 |
+| V7 | 登录凭据存在哪：Windows 凭据管理器的哪些条目、还是哪些文件；凭据内容的编码格式（只记录格式，不记录内容） | 登录前后对 `cmdkey /list` 输出和用户目录做差异 | 1.14, 1.17 | — （必须探明） |
+| V8 | ~~覆盖 home 类环境变量后 agy 是否使用独立凭据~~ | 不再需要：当前设计只用 `credential_snapshot` | — | — |
+| V9 | ~~statusline 在无界面模式下是否被调用~~ | 不再需要：取消 statusline 桥接 | — | — |
+| V10 | 登录完成的判定方式（仅此一项；`/usage` 与授权链接格式不再需要） | 弹出终端登录，前后对比 live 凭据的变化 | 1.15 | 若轮询 live 凭据不可靠，由架构师在 contracts 中增加"确认登录完成"端点 |
 | V11 | `agy --version`、`agy models` 的输出格式；mode 的可选值 | 直接运行 | 1.13 | 使用默认值 |
+| V12 | 额度接口的请求与响应格式（只记录字段结构，token 与邮箱脱敏） | 用本机已登录账号调用一次，保存脱敏后的响应 | 1.17 | 额度显示为"不可用" |
 
 ### 参考资料
 
@@ -80,7 +89,7 @@
 | [Antigravity 官方文档](https://antigravity.google/docs) | 唯一的外部知识来源 |
 | [siteboon/claudecodeui](https://github.com/siteboon/claudecodeui)（AGPL-3.0） | 只看它的**架构文档**学习思路（WebSocket 按 seq 重放、运行归服务端所有、附件路径注入），**不看不抄源码** |
 | vercel/ai-elements、assistant-ui（MIT / Apache） | 可以作为 npm 依赖直接使用的前端组件库 |
-| node-pty（MIT） | 伪终端，用于登录和 `/usage` 探针 |
+| agy-auto（作者本人的项目） | 可以参考它对 agy 行为的摸索结论（凭据位置、额度接口）；结论必须经过本机探测验证并写入 VERIFY.md 与 fixtures 后才能使用，代码按本项目分层重写 |
 
 ---
 
@@ -143,9 +152,7 @@ WS   : 实时事件推送 + 发送消息 + 中止运行（单连接订阅多个�
 
 ### 1.5 仅后端内部使用的接口（不属于前后端契约）
 
-| 端点 | 调用方 | 说明 |
-|---|---|---|
-| `POST /internal/statusline` | statusline 桥接脚本（模块 1.16） | 只接受回环地址来源，并校验 `DATA_DIR/internal.token` 中的随机令牌 |
+当前设计中没有。原先为 statusline 桥接预留的 `POST /internal/statusline` 随模块 1.16 一起取消。
 
 ### 1.6 鉴权
 
@@ -173,12 +180,12 @@ WS   : 实时事件推送 + 发送消息 + 中止运行（单连接订阅多个�
 │   ↓ 只依赖 services/ports 中定义的接口                                     │
 │ integrations/agy（防腐层，唯一了解 agy 的地方）                             │
 │   profile · process · stream-adapter · brain-fs · transcript · settings  │
-│   credential-store · home-isolation · login-pty · statusline · usage-pty │
+│   credential-store · login-terminal · quota-api · catalog                │
 │   ↓                                                                      │
 │ repositories (SQLite)                utils                               │
 └───────┬───────────────────────┬─────────────────────┬────────────────────┘
-        │ spawn / pty           │ fs 监听              │ statusline 回调
-    agy 进程                agy 数据目录           statusline 桥接脚本
+        │ spawn                 │ fs 监听              │ HTTPS（只读、低频）
+    agy 进程                agy 数据目录             额度接口
 ```
 
 ### 2.2 后端分层
@@ -200,12 +207,11 @@ WS   : 实时事件推送 + 发送消息 + 中止运行（单连接订阅多个�
 |---|---|---|
 | `AgyRunnerPort` | 启动一个 agy 运行进程，逐条产出 `AgentEvent`，写入后续消息，终止 | `process.ts` + `stream-adapter.ts` |
 | `BrainPort` | 定位会话目录、列出磁盘上的会话、读取 / 追踪 transcript、列出与监听 artifacts、清理会话文件 | `brain-fs.ts` + `transcript.ts` |
-| `SettingsPort` | 确保指定作用域的 settings 为"总是放行"；安装 statusline 桥接 | `settings.ts` |
+| `SettingsPort` | 确保 settings 为"总是放行" | `settings.ts` |
 | `CredentialPort` | 读取当前凭据状态、做快照、恢复、清空（`credential_snapshot` 模式） | `credential-store.ts` |
-| `HomeIsolationPort` | 为账号创建独立 home 目录，给出启动 agy 时的环境变量（`isolated_home` 模式） | `home-isolation.ts` |
-| `LoginPort` | 在伪终端中启动登录流程，产出授权链接与完成信号 | `login-pty.ts` |
-| `QuotaProbePort` | 在伪终端中执行 `/usage`（以及 `/credits`），解析成 `QuotaSnapshot` | `usage-pty.ts` |
-| `StatuslineParserPort` | 把 statusline 回调的 JSON 解析成额度与账号信息 | `statusline.ts` |
+| `LoginPort` | 弹出一个真实的终端窗口运行 agy 让用户自己登录，并检测登录完成 | `login-terminal.ts` |
+| `QuotaProbePort` | 读取当前账号的 token，调用额度接口，解析成 `QuotaSnapshot` | `quota-api.ts` |
+| `HomeIsolationPort`、`StatuslineParserPort` | 模块 1.3 已定义，当前设计**不实现**，保留端口文件供第二期使用 | — |
 | `ModelCatalogPort` | 获取模型列表、版本号、mode 可选值 | `catalog.ts` |
 
 ### 2.4 agy-profile.json（agy 知识的数据化）
@@ -219,10 +225,10 @@ WS   : 实时事件推送 + 发送消息 + 中止运行（单连接订阅多个�
   stream:      { userFrameTemplate, multiTurnStdin, eventTypeMap{}, permissionEvent{match, replyTemplate} | null,
                  imageInput{supported, template} },
   paths:       { dataRoots[], conversationDirPattern, transcriptRelPath, artifactRules[] },
-  settings:    { files[{scope, pathTemplate}], alwaysProceed{jsonPath, value}, statusline{jsonPath} },
-  credentials: { preferredIsolation, homeEnvVars[], wincredTargetPatterns[], credentialFiles[] },
-  login:       { argv[], authUrlPattern, successPatterns[], failurePatterns[] },
-  quota:       { statuslineInHeadless, usageCommand, creditsCommand, usageParser: 'text-v1' },
+  settings:    { files[{scope, pathTemplate}], alwaysProceed{jsonPath, value} },
+  credentials: { preferredIsolation: 'credential_snapshot', wincredTargetPatterns[], credentialFiles[] },
+  login:       { argv[], ... },            // 1.15 只用 argv 在终端窗口中启动 agy，其余字段不再使用
+  quota:       { ... },                    // 1.17 额外需要的接口地址等写入 profile，字段由 1.17 在 schema 中补充
   catalog:     { versionArgv[], modelsArgv[], modelsParser: 'text-v1', modes[] }
 }
 ```
@@ -238,34 +244,36 @@ WS   : 实时事件推送 + 发送消息 + 中止运行（单连接订阅多个�
 | `run-supervisor` | 运行状态机、并发上限、同会话互斥、超时、"恰好一次完成"守卫、孤儿进程清理、向 account 服务申请租约 | 解析 agy 输出 |
 | `autoapprove` | 运行前确保 settings 放行；把 permission 事件交给 runner 自动回复；卡死看门狗 | 知道 settings 文件在哪（由 SettingsPort 负责） |
 | `event-bus` | 分配 seq、合并文本 delta、批量写库、推送 | 解析 agy 输出 |
-| `account` | 账号库、租约（读写锁）、切换、登录编排 | 凭据怎么存（由 CredentialPort / HomeIsolationPort 负责） |
-| `quota` | 聚合 statusline 与探针两个来源、按账号缓存、限流、广播 | 解析命令输出 |
+| `account` | 账号库、租约（读写锁）、切换、登录编排 | 凭据怎么存（由 CredentialPort 负责） |
+| `quota` | 按账号缓存、限流、失败时保留旧数据、广播 | 怎么拿 token、接口长什么样（由 QuotaProbePort 负责） |
 | `checkpoint` | 影子 git 快照、diff、回滚 | 用户自己的 git 仓库（完全不碰） |
 
 ### 2.6 账号模型与租约
 
-两种隔离模式，由探测结果 V7、V8 决定，写在 `profile.credentials.preferredIsolation`：
+只实现 `credential_snapshot` 模式（`isolated_home` 留到第二期）：
 
-| | `isolated_home`（优先） | `credential_snapshot`（降级） |
-|---|---|---|
-| 原理 | 每个账号一个目录 `DATA_DIR/profiles/<name>/home`，启动 agy 时把 home 类环境变量指向它 | 只有一个共享的 live 凭据槽位，切换时整体替换 |
-| 并发 | 不同账号可以同时运行 | 同一时间只能使用 live 账号 |
-| 会话 | 会话在首次运行时绑定账号（`Session.accountName`），之后始终用该账号续聊 | 所有会话用 live 账号 |
-| 切换 | 只改"新会话的默认账号"，永远不会忙 | 需要没有任何运行；切换期间禁止新运行 |
+| 项 | 说明 |
+|---|---|
+| 原理 | agy 只有一个 live 凭据槽位（Windows 凭据管理器中的条目，以及 `profile.credentials.credentialFiles` 列出的文件）；每个账号保存一份加密快照，切换时用快照整体替换 live 槽位 |
+| 并发 | 同一时间只使用 live 账号；不同会话可以并发运行，但都用 live 账号 |
+| 会话 | `Session.accountName` 记录运行时的账号，仅用于展示 |
+| 切换 | 需要没有任何运行；切换期间禁止新运行 |
 
-**租约（读写锁）**：`account.acquireLease(accountName)` 返回租约，运行结束释放。
-- 运行和额度探针持有**读锁**（可以多个并存）
-- `credential_snapshot` 模式下的切换、登录、删除 live 账号持有**写锁**：要求读锁数为 0，持有期间新的读锁请求立即失败（返回 `ACCOUNT_SWITCH_IN_PROGRESS`，不排队，避免死锁）
-- `isolated_home` 模式下，写锁只针对单个账号（登录、删除该账号时），不影响其他账号
+**租约（读写锁）**：`account.acquireLease()` 返回租约，运行结束释放。
+- 运行和额度查询持有**读锁**（可以多个并存）
+- 切换、登录、删除 live 账号持有**写锁**：要求读锁数为 0，持有期间新的读锁请求立即失败（返回 `ACCOUNT_SWITCH_IN_PROGRESS`，不排队，避免死锁）
 
 ### 2.7 额度来源
 
-| 来源 | 触发 | 成本 | 说明 |
-|---|---|---|---|
-| statusline（被动） | agy 运行时回调桥接脚本 | 零 | 需要 V9 证实无界面模式也会回调；否则只在交互模式下有数据 |
-| `/usage` 探针（主动） | 前端点刷新、缓存过期且有页面在看 | 启动一个伪终端 agy 进程 | 每账号最多 2 分钟一次，同时到达的请求合并为一次 |
+只有一个来源：**额度接口**。
 
-聚合规则：取两个来源中 `fetchedAt` 最新的；探针失败时保留旧数据并标 `stale`；两个来源都没有时 `source='unavailable'`。
+| 项 | 说明 |
+|---|---|
+| 触发 | 前端打开额度面板或点刷新；缓存过期且有页面在看 |
+| 过程 | 读取 live 凭据中的 refresh token → 换取 access token（只保存在内存，过期前复用）→ 调用额度接口 → 解析成 `QuotaSnapshot`，`source='quota_api'` |
+| 限流 | 每账号最多 1 分钟一次，同时到达的请求合并为一次 |
+| 失败 | 保留旧数据并标 `stale`；从未成功过则 `source='unavailable'`，前端显示"额度不可用"，不影响其他功能 |
+| 安全 | OAuth 客户端标识从 agy 程序中读取后只保存在内存；token、客户端标识都不写日志、不写盘、不返回给前端 |
 
 ### 2.8 运行状态机
 
@@ -298,7 +306,7 @@ queued ──► starting ──► running ──► completed
 | `prefs` | key, value_json |
 | `schema_migrations` | version, applied_at |
 
-凭据只存在两个地方：`isolated_home` 模式下在各账号的 home 目录里（由 agy 自己写入）；`credential_snapshot` 模式下是 `DATA_DIR/credentials/<name>/` 中加密保存的快照（用 Windows DPAPI 加密，只有当前 Windows 用户能解密）。
+凭据只存在两个地方：agy 自己的 live 槽位（由 agy 写入），以及 `DATA_DIR/credentials/<name>/` 中加密保存的快照（用 Windows DPAPI 加密，只有当前 Windows 用户能解密）。
 
 ### 2.10 前端分层
 
@@ -345,10 +353,9 @@ agy-studio/
 │     ├─ main.ts · app.ts
 │     ├─ routes/
 │     │  ├─ http/{system,workspaces,sessions,artifacts,checkpoints,attachments,models,prefs,quota,accounts}.routes.ts
-│     │  ├─ ws/gateway.ts
-│     │  └─ internal/statusline.routes.ts
+│     │  └─ ws/gateway.ts
 │     ├─ services/
-│     │  ├─ ports/{agy-runner,brain,settings,credential,home-isolation,login,quota-probe,statusline-parser,model-catalog}.port.ts
+│     │  ├─ ports/{agy-runner,brain,settings,credential,login,quota-probe,model-catalog}.port.ts
 │     │  ├─ run-supervisor.ts · event-bus.ts · session.ts · workspace.ts
 │     │  ├─ autoapprove/{autoapprove,watchdog}.ts
 │     │  ├─ artifact.ts · attachment/{store,convert,prompt-inject}.ts · checkpoint.ts
@@ -357,18 +364,18 @@ agy-studio/
 │     │  ├─ profile/{schema,loader}.ts
 │     │  ├─ process.ts · stream-schema.ts · stream-adapter.ts
 │     │  ├─ brain-fs.ts · transcript.ts · settings.ts
-│     │  ├─ credential-store.ts · dpapi.ts · home-isolation.ts
-│     │  ├─ pty.ts · login-pty.ts · usage-pty.ts · usage-parser.ts
-│     │  ├─ statusline.ts · catalog.ts
+│     │  ├─ credential-store.ts · dpapi.ts
+│     │  ├─ login-terminal.ts · quota-api.ts · oauth-client.ts
+│     │  ├─ catalog.ts
 │     ├─ repositories/{db,migrations,workspaces,sessions,runs,events,attachments,checkpoints,accounts,quota-cache,prefs}.ts
 │     └─ utils/{config,logger,errors,proc-tree,jsonl-tail,backoff,rw-lock,ids}.ts
 ├─ frontend/
 │  └─ src/{main.tsx,App.tsx,theme.css,api/,stores/,domain/,views/,components/}
 ├─ tools/
-│  ├─ discover/                  # 探测脚本：录制 stream、文件差异、凭据差异、伪终端录屏
+│  ├─ discover/                  # 探测脚本：录制 stream、文件差异、凭据差异、额度接口响应（脱敏）
 │  ├─ fake-agy/                  # 回放 fixtures 的假 agy
-│  └─ statusline-bridge/         # 被 agy 调用的 statusline 命令，把 JSON 转发给后端
-├─ fixtures/agy/                 # 录制的 stdout、transcript、伪终端输出（已脱敏）
+│  └─ smoke/                     # 用真实 agy 跑的冒烟测试（不进 CI，检查点时手动运行）
+├─ fixtures/agy/                 # 录制的 stdout、transcript、磁盘布局、脱敏后的额度接口响应
 ├─ e2e/
 └─ docs/{ARCHITECTURE.md,VERIFY.md}
 ```
@@ -380,7 +387,6 @@ agy-studio/
 | 运行时 | Node 20+，TypeScript，ESM |
 | 后端 | Fastify + `@fastify/websocket` + `@fastify/multipart`，zod，pino |
 | 数据库 | better-sqlite3（WAL） |
-| 伪终端 | node-pty |
 | 凭据 | `@napi-rs/keyring`（读写 Windows 凭据管理器）+ DPAPI 加密快照 |
 | 文件监听 | chokidar |
 | 进程 | `child_process.spawn`（不用 shell）；Windows 下 `taskkill /T /F` 终止进程树 |
@@ -431,11 +437,11 @@ git push -u origin main
 | 1.11 | 附件服务 | 🟡 | 1.2, 1.9 |
 | 1.12 | 检查点（影子 git） | 🔴 | 1.2, 1.6 |
 | 1.13 | 模型、偏好、系统接口 | 🟢 | 1.2, 1.3 |
-| 1.14 | 凭据存储、home 隔离与账号服务 | 🔴 | 1.2, 1.3, 1.6 |
-| 1.15 | 伪终端登录流程 | 🔴 | 1.14 |
-| 1.16 | statusline 桥接与接收 | 🟡 | 1.3, 1.14 |
-| 1.17 | `/usage` 探针与额度聚合 | 🔴 | 1.14, 1.16 |
-| 1.18 | 后端装配与启动 | 🟡 | 1.6–1.17 |
+| 1.14 | 凭据快照与账号服务 | 🔴 | 1.2, 1.3, 1.6 |
+| 1.15 | 终端窗口登录 | 🟡 | 1.14 |
+| 1.16 | ~~statusline 桥接与接收~~（已取消） | — | — |
+| 1.17 | 额度接口与缓存 | 🔴 | 1.14 |
+| 1.18 | 后端装配与启动 | 🟡 | 1.6–1.15, 1.17 |
 | — | **集成检查点 A：后端联调，Opus 统一复查 🟡 模块** | | |
 | 2.1 | 前端骨架与主题 | 🟢 | 0.1 |
 | 2.2 | HTTP 客户端 | 🟡 | 2.1 |
@@ -471,11 +477,12 @@ git push -u origin main
 
 #### 0.3 探测二：环境探测 🟡
 - **交付物**：`tools/discover/` 下的 `fs-diff.ts`（对用户目录做快照差异）、`cred-diff.ts`（对 `cmdkey /list` 做差异）、`isolation-test.ts`（覆盖 home 类环境变量后运行 agy）、`statusline-capture.ts`（安装一个把 stdin 写文件的 statusline 命令）、`pty-record.ts`（在伪终端中运行 `/usage`、`/credits`、登录流程并保存原始输出）、`catalog-probe.ts`（版本、模型、mode）；产出 `fixtures/agy/{fs,pty,statusline}/`、`docs/VERIFY.md` 中 V5–V11 的结论、`backend/agy-profile.draft.json`
+- **2026-09-28 修订**：`isolation-test`、`statusline-capture`、`pty-record` 及其产物随 1.16 取消与 1.15/1.17 简化而不再需要（已有的 `fixtures/agy/pty/`、`statusline/` 是编造数据，不得作为依据）；改为补充 `quota-probe.ts`：用本机已登录账号调用一次额度接口，把脱敏后的响应写入 `fixtures/agy/quota/`（V12）
 - **完成标准**：VERIFY.md 每项都有"结论 / 证据文件 / 对实现的影响"；所有产物已脱敏
 - **说明**：探测脚本在运行任何会修改凭据或 settings 的操作前，必须先备份，结束后恢复
 
 #### 0.4 fake-agy 回放器 🟢
-- **交付物**：`tools/fake-agy/`：按场景回放 stdout，把 transcript 与 artifacts 写到 `FAKE_AGY_HOME` 下 profile 描述的位置；回放过程中按 profile 的 statusline 配置调用 statusline 命令；在伪终端模式下回放 `/usage` 与登录的录屏输出
+- **交付物**：`tools/fake-agy/`：按场景回放 stdout，把 transcript 与 artifacts 写到 `FAKE_AGY_HOME` 下 profile 描述的位置；与真实 agy 一样，回放完 `result` 后等待 stdin 关闭才退出
 - **完成标准**：设置 `AGY_BIN=<fake-agy>` 与 `FAKE_AGY_HOME` 后，后端感知不到区别
 
 #### 1.1 后端工具层 🟢
@@ -511,7 +518,7 @@ git push -u origin main
 
 #### 1.7 自动同意四层兜底 🔴
 - **交付物**：L1 参数由 1.6 固定带上；L2 `integrations/agy/settings.ts`（实现 `SettingsPort.ensureAlwaysProceed(scope, homeDir?)`：按 profile 读合并写，原子替换，保留其他字段）；L3 由 runner 根据 `profile.stream.permissionEvent` 自动回复，服务层只接收 `autoapprove.injected` 事件；L4 `services/autoapprove/watchdog.ts`（无输出超时 → stalled → 尝试注入 → 再超时 → `AGY_STALLED`；有命令类工具运行时计时放宽 3 倍）
-- **潜在死穴**：把长命令（如依赖安装）误判为卡死；settings 被 IDE 同时写入导致文件损坏；`isolated_home` 模式下只改了默认 home 的 settings，忘了各账号自己的 home
+- **潜在死穴**：把长命令（如依赖安装）误判为卡死；settings 被 IDE 同时写入导致文件损坏
 - **完成标准**：settings 写入前后其他字段不变；fake-agy 覆盖 permission 事件与卡死两条链路
 
 #### 1.8 EventBus 与 WS 网关 🔴
@@ -520,7 +527,7 @@ git push -u origin main
 - **完成标准**：覆盖运行中途订阅、断线重连、两个客户端同时订阅、同一连接重复订阅同一会话后每条事件只推送一次、合并后 seq 连续、写库失败不推送
 
 #### 1.9 会话与工作区服务、REST 🟡
-- **交付物**：`services/session.ts`（创建时确定账号、发送、回填 conversation id、状态更新与 `session.upserted` 广播、删除与清理、从磁盘导入——`isolated_home` 模式下遍历每个账号的数据目录）；`services/workspace.ts`；对应路由
+- **交付物**：`services/session.ts`（创建时确定账号、发送、回填 conversation id、状态更新与 `session.upserted` 广播、删除与清理、从磁盘导入）；`services/workspace.ts`；对应路由
 - **完成标准**：端点与 `ApiEndpoints` 一致；运行中删除返回 `SESSION_BUSY`
 
 #### 1.10 Artifacts 服务与 REST 🟡
@@ -540,8 +547,9 @@ git push -u origin main
 - **交付物**：`integrations/agy/catalog.ts`（按 profile 执行版本与模型命令并解析）；`services/model.ts`（缓存 10 分钟）、`services/prefs.ts`；system 路由（capabilities 的 features 来自 profile；比较 agy 版本与 profile 版本）
 - **完成标准**：agy 未安装时 capabilities 返回 `agyPath: null`，不会报 500
 
-#### 1.14 凭据存储、home 隔离与账号服务 🔴
-- **交付物**：`integrations/agy/home-isolation.ts`（创建账号目录，按 `profile.credentials.homeEnvVars` 生成环境变量）；`credential-store.ts` + `dpapi.ts`（按 profile 的条目模式与文件列表做快照、恢复、清空；快照用 DPAPI 加密落盘）；`services/account/account.ts`（账号库、默认账号、§2.6 的租约与切换逻辑、`account.changed` 广播）、`lease-lock.ts`（基于 `utils/rw-lock`，按模式决定锁的粒度）
+#### 1.14 凭据快照与账号服务 🔴
+- **前置证据**：VERIFY.md 的 V7（凭据条目名、编码格式、相关文件）必须有本机探测结论，没有就停下
+- **交付物**：`integrations/agy/credential-store.ts` + `dpapi.ts`（按 profile 的条目模式与文件列表做快照、恢复、清空；快照用 DPAPI 加密落盘）；`services/account/account.ts`（账号库、默认账号、§2.6 的租约与切换逻辑、`account.changed` 广播）、`lease-lock.ts`（基于 `utils/rw-lock`，全局一把锁）
 - **潜在死穴**：
   - `credential_snapshot` 切换写到一半失败，live 槽位留下残缺凭据 → 先备份当前 live，任一步失败就恢复
   - 运行中的 agy 刷新 token 后写回 live 槽位，覆盖刚切换的账号 → 有读锁时绝不允许写锁
@@ -549,19 +557,20 @@ git push -u origin main
   - 凭据出现在日志或 API 响应中
 - **完成标准**：锁的并发测试；模拟写入失败能恢复；日志中搜不到凭据内容
 
-#### 1.15 伪终端登录流程 🔴
-- **交付物**：`integrations/agy/pty.ts`（node-pty 封装：启动、写入、去除 ANSI 后的文本流、超时、终止）；`login-pty.ts`（实现 `LoginPort`：按 profile 启动登录，匹配授权链接、成功与失败标志）；在 `account.ts` 中编排登录：`isolated_home` 模式下直接在新账号的 home 中登录；`credential_snapshot` 模式下持写锁 → 备份 live → 清空 → 登录 → 快照为新账号 → 按用户选择恢复原账号或切到新账号；5 分钟超时自动取消
-- **潜在死穴**：登录中途用户关闭页面或超时，live 槽位处于被清空状态 → 任何结束路径（成功、失败、取消、超时、服务关闭）都必须执行恢复；伪终端进程泄漏
-- **完成标准**：用 fake-agy 的伪终端回放覆盖成功、失败、超时、取消四条路径；每条路径结束后 live 凭据状态正确，没有残留进程
+#### 1.15 终端窗口登录 🟡
+- **前置证据**：VERIFY.md 的 V10（登录完成后 live 凭据的变化）
+- **交付物**：`integrations/agy/login-terminal.ts`（实现 `LoginPort`：用 `profile.login.argv` 在一个新的系统终端窗口中启动 agy，由用户自己完成登录；服务端不读取、不解析终端输出）；在 `account.ts` 中编排登录：持写锁 → 备份 live → 清空 → 弹出终端（状态 `awaiting_browser`，`authUrl` 为 null）→ 每 2 秒检查 live 凭据是否出现（判定方式以 V10 为准）→ 快照为新账号 → 按用户选择恢复原账号或切到新账号；10 分钟超时自动取消
+- **潜在死穴**：登录中途用户关闭页面、关掉终端或超时，live 槽位处于被清空状态 → 任何结束路径（成功、取消、超时、服务关闭）都必须在同一个 finally 中恢复；凭据刚写入一半就被快照 → 检测到凭据后再等 2 秒、两次读取一致才快照
+- **完成标准**：用可注入的假终端启动器和假凭据存储覆盖成功、取消、超时、服务关闭四条路径；每条路径结束后 live 凭据状态正确，写锁已释放
 
-#### 1.16 statusline 桥接与接收 🟡
-- **交付物**：`tools/statusline-bridge/`（被 agy 调用：读取 stdin 的 JSON → 带上 internal 令牌 POST 到后端，500ms 超时，失败静默 → 向 stdout 输出一行简短状态；如果用户原本配置了 statusline 命令，则转调原命令并输出其结果）；`integrations/agy/statusline.ts`（解析 JSON → 额度与账号信息）；`routes/internal/statusline.routes.ts`；安装逻辑放在 `SettingsPort.installStatusline(homeDir?)`（保存用户原配置以便卸载时恢复）
-- **完成标准**：桥接脚本在后端未启动时 500ms 内退出且不报错；非回环来源或令牌错误返回 401
+#### 1.16 ~~statusline 桥接与接收~~（已取消）
+额度改为由 1.17 直接查询额度接口，不再需要 statusline 桥接。
 
-#### 1.17 `/usage` 探针与额度聚合 🔴
-- **交付物**：`integrations/agy/usage-pty.ts` + `usage-parser.ts`（在伪终端中启动 agy，等待就绪后发送 `/usage`，输出稳定后截取、去 ANSI、解析成分组和桶；可选执行 `/credits`）；`services/quota.ts`（聚合 statusline 与探针、按账号缓存并写入 `quota_cache`、每账号 2 分钟限流、同时到达的请求合并为一次、失败时返回旧数据并标 `stale`、`account.changed` 时作废缓存、`quota.updated` 广播）
-- **潜在死穴**：探针进程卡住不退出 → 30 秒硬超时并终止进程树；`credential_snapshot` 模式下探针与切换账号竞争 → 探针必须持有读锁；探针结果返回时账号已切换 → 按账号名缓存，丢弃与请求账号不一致的结果；界面输出格式变化导致解析出错误数据 → 解析失败就整体放弃，不输出部分结果
-- **完成标准**：解析器对所有录屏 fixtures 做快照测试；限流、合并、stale、切换作废都有测试
+#### 1.17 额度接口与缓存 🔴
+- **前置证据**：VERIFY.md 的 V7（refresh token 在哪）与 V12（额度接口请求与响应格式，脱敏后存入 `fixtures/agy/quota/`）
+- **交付物**：`integrations/agy/oauth-client.ts`（从 agy 程序中读取 OAuth 客户端标识，只保存在内存）；`quota-api.ts`（实现 `QuotaProbePort`：读取 live 凭据中的 refresh token → 换取 access token（内存缓存，过期前复用）→ 调用额度接口 → 解析成 `QuotaSnapshot`）；`services/quota.ts`（按账号缓存并写入 `quota_cache`、每账号 1 分钟限流、同时到达的请求合并为一次、失败时返回旧数据并标 `stale`、从未成功则 `source='unavailable'`、`account.changed` 时作废缓存、`quota.updated` 广播）
+- **潜在死穴**：token 或客户端标识出现在日志、错误信息、数据库或 API 响应中；接口结构变化导致解析出错误数据 → 解析失败就整体放弃，不输出部分结果；查询返回时账号已切换 → 按账号名缓存，丢弃与请求账号不一致的结果；查询期间与切换账号竞争 → 读取 live 凭据时持读锁
+- **完成标准**：解析器对脱敏 fixtures 做快照测试；限流、合并、stale、unavailable、切换作废都有测试；测试日志中搜不到 token
 
 #### 1.18 后端装配与启动 🟡
 - **交付物**：`app.ts`（手写构造注入：先创建 integrations 实现，再注入 services，最后注册路由）；`main.ts`（配置 → 迁移 → 加载 profile → 清理孤儿进程 → 监听）；生产模式静态托管前端；优雅关闭
@@ -579,9 +588,9 @@ git push -u origin main
 | 2.6 🟢 时间线原子组件 | 思考块、各类工具卡片、终端输出、Markdown、分隔条、错误与卡死提示；开发用 Playground 页 |
 | 2.7 🟡 子 agent 卡片 | 运行中实时追加；结束后首次展开懒加载；步骤过多时截断 |
 | 2.8 🟡 输入框与附件 | 输入法组字处理、粘贴与拖拽、手机拍照、图片压缩、上传进度、运行中停止、草稿保存 |
-| 2.9 🟢 收件箱、工作区与新建会话 | 按状态分组的会话列表；工作区切换与添加；新建会话时可以选择账号（仅 `isolated_home` 模式显示） |
+| 2.9 🟢 收件箱、工作区与新建会话 | 按状态分组的会话列表；工作区切换与添加；新建会话直接使用当前账号 |
 | 2.10 🟡 Artifacts 面板 | Task 进度、Plan、Walkthrough、Media；更新时刷新并高亮；Plan 选中文字评论并发送 |
-| 2.11 🟢 额度与账号 | 顶栏额度环；额度面板（分组、桶、倒计时、置灰、过期提示、数据来源、刷新）；账号菜单与管理页（显示隔离模式、各账号运行数、网页登录流程） |
+| 2.11 🟢 额度与账号 | 顶栏额度环；额度面板（分组、桶、倒计时、置灰、过期提示、不可用提示、刷新）；账号菜单与管理页（各账号运行数、终端窗口登录流程） |
 | 2.12 🟡 检查点界面 | 检查点列表、diff 查看、带二次确认的回滚 |
 | 2.13 🟡 对话视图组装 | 虚拟滚动、动态行高、自动跟随与"回到底部"、断线提示条 |
 
@@ -640,12 +649,12 @@ git push -u origin main
 任务：在 tools/discover/ 下编写环境探测脚本：
 1. fs-diff.ts：对 %USERPROFILE%、%APPDATA%、%LOCALAPPDATA% 做文件快照（路径、大小、修改时间），运行指定命令后再快照，输出新增、修改、删除的列表（排除浏览器缓存等噪音目录，可配置）
 2. cred-diff.ts：执行 cmdkey /list 前后对比，输出新增或变化的凭据条目名称（只输出名称，绝不输出内容）
-3. isolation-test.ts：创建临时目录，把 USERPROFILE、HOME、APPDATA、LOCALAPPDATA 指向其中的子目录后启动 agy，配合 fs-diff 与 cred-diff 判断数据与凭据落在哪里
-4. statusline-capture.ts：按官方文档把 statusline 命令配置为一个把 stdin 追加写入文件的脚本；分别在交互模式和 stream-json 模式下运行一次；结束后恢复原配置
-5. pty-record.ts：用 node-pty 启动 agy，按脚本依次发送输入（如 /usage、/credits），保存原始输出（含 ANSI）和去除 ANSI 后的文本；另有 login 模式用于录制登录流程
+3. quota-probe.ts：用本机已登录账号调用一次额度接口，只保存响应的字段结构（token、邮箱、项目 ID 全部替换为占位符）
+4. （已取消：isolation-test、statusline-capture、pty-record）
+5. （同上）
 6. catalog-probe.ts：记录 agy --version、模型列表命令的原始输出、mode 可选值
 7. 所有会修改 settings 或凭据的脚本：运行前备份，结束（包括异常退出）时恢复
-8. 产出放到 fixtures/agy/{fs,pty,statusline,catalog}/，全部脱敏
+8. 产出放到 fixtures/agy/{fs,quota,catalog}/，全部脱敏
 9. 根据结果生成 backend/agy-profile.draft.json（字段参照 ARCHITECTURE.md §2.4，不确定的字段填 null 并在 VERIFY.md 中说明）
 10. 在 tools/discover/README.md 中补充每个脚本的使用顺序
 约束：只改 tools/discover/、fixtures/agy/ 的 README 占位、docs/VERIFY.md、backend/agy-profile.draft.json。
@@ -661,11 +670,11 @@ git push -u origin main
 要求：
 1. 可执行入口（Windows 提供 .cmd 包装），接受 profile 中记录的参数形式
 2. 环境变量：FAKE_AGY_SCENARIO 选择 stream 场景，FAKE_AGY_SPEED 回放倍速（0 表示不等待），FAKE_AGY_HOME 数据根目录
-3. stream 模式：按时间戳回放 stdout；把 transcript 与 artifacts 按 profile.paths 的规则写到 FAKE_AGY_HOME 下；如果 profile 配置了 statusline，则在回放过程中调用它并传入 fixtures/agy/statusline/ 中录到的 JSON
-4. 交互模式（没有 stream 参数时）：回放 fixtures/agy/pty/ 中的录屏输出；收到 /usage、/credits 输入时输出对应录屏；登录场景按 FAKE_AGY_LOGIN=success|fail|hang 回放
+3. stream 模式：按时间戳回放 stdout；把 transcript 与 artifacts 按 profile.paths 的规则写到 FAKE_AGY_HOME 下；回放完 result 后与真实 agy 一样，等 stdin 关闭才以 0 退出
+4. （已取消：交互模式与伪终端回放）
 5. 收到 SIGTERM / SIGINT 立即退出
 约束：只新增 tools/fake-agy/。
-验收：vitest 覆盖 stream 回放、倍速 0 的耗时、pty 模式下 /usage 输出、SIGTERM 退出。
+验收：vitest 覆盖 stream 回放、倍速 0 的耗时、stdin 不关闭时不退出、SIGTERM 退出。
 完成后提示我执行：git add . && git commit -m "feat: 完成模块 0.4 fake-agy 回放器"
 ```
 
@@ -745,7 +754,7 @@ git push -u origin main
 你是执行工程师。阅读 docs/ARCHITECTURE.md 模块 1.5、backend/src/services/ports/brain.port.ts、backend/agy-profile.json 的 paths 部分、docs/VERIFY.md 的 V3、V5，以及 fixtures/agy/fs/。
 任务：实现 backend/src/integrations/agy/brain-fs.ts 与 transcript.ts，二者共同实现 BrainPort。
 要点：
-- 所有路径从 profile.paths 计算；支持传入账号的 home 目录（isolated_home 模式下每个账号的数据根不同）
+- 所有路径从 profile.paths 计算
 - listConversations(dataRoot)：返回 id、标题（取首条用户输入的前 50 字符）、创建与更新时间
 - transcript：parseLine(line) => TranscriptStep | null；tail(conversationId, {fromStep}) 返回 AsyncIterable<TranscriptStep>，文件不存在时每 300ms 轮询，使用 utils/jsonl-tail，按 stepIndex 去重，stop() 释放全部资源
 - toEvents(step, role: 'main'|'subagent', conversationId)：主会话含思考 → thinking.delta(source='transcript')；子会话 → subagent.step
@@ -783,7 +792,7 @@ git push -u origin main
 ```text
 你是执行工程师。阅读 docs/ARCHITECTURE.md 模块 1.7 的四层设计与潜在死穴、services/ports/settings.port.ts、backend/agy-profile.json 的 settings 部分、docs/VERIFY.md 的 V2、V6。
 任务：
-1. backend/src/integrations/agy/settings.ts：实现 SettingsPort.ensureAlwaysProceed(scope: 'global'|'workspace', opts: {workspacePath?; homeDir?})：按 profile.settings.files 计算路径（homeDir 用于 isolated_home 模式下的账号目录），读取 → 按 alwaysProceed.jsonPath 设置值 → 写临时文件 → rename；保留其他全部字段；文件不存在时创建；写失败重试一次，仍失败则返回警告而不是抛错
+1. backend/src/integrations/agy/settings.ts：实现 SettingsPort.ensureAlwaysProceed(scope: 'global'|'workspace', opts: {workspacePath?; homeDir?})：按 profile.settings.files 计算路径（homeDir 为预留参数，当前总是使用默认用户目录），读取 → 按 alwaysProceed.jsonPath 设置值 → 写临时文件 → rename；保留其他全部字段；文件不存在时创建；写失败重试一次，仍失败则返回警告而不是抛错
 2. backend/src/services/autoapprove/autoapprove.ts：运行开始前对全局（及账号 home）和工作区调用 ensureAlwaysProceed；有警告时发布 autoapprove.injected(layer='settings', detail=警告内容)
 3. backend/src/services/autoapprove/watchdog.ts：每个运行一个实例；stallTimeoutSeconds 无输出 → 发布 run.stalled；有 kind 为 run_command 的工具处于 running 时超时放宽 3 倍；进入 stalled 后通过 runner.send 注入一次 profile 中的同意回复并发布 autoapprove.injected(layer='watchdog')；再过一个周期仍无输出 → 以 AGY_STALLED 终止运行
 4. 在 run-supervisor.ts 中加入最少的接入代码
@@ -813,12 +822,12 @@ git push -u origin main
 你是执行工程师。阅读 docs/ARCHITECTURE.md §2.6、模块 1.9，contracts/src/api.ts 中 workspaces 与 sessions 端点，services/ports/brain.port.ts。
 任务：实现 backend/src/services/session.ts、workspace.ts 与 routes/http/{workspaces,sessions}.routes.ts。
 要点：
-- 创建会话：isolated_home 模式下 accountName 取请求值或默认账号；credential_snapshot 模式下置 null
+- 创建会话：accountName 置 null；运行开始时由 run-supervisor 写入当时的 live 账号（仅用于展示）
 - send(sessionId, {text, attachmentIds, model?, effort?, mode?})：发布 user.message（附件对象从 repo 查出）→ supervisor.start（带上会话绑定的账号）→ 返回 runId；实现 1.8 中定义的 sessionService 接口
 - 监听 supervisor：首次拿到 conversationId 时回填；运行开始与结束时更新状态并 publishGlobal(session.upserted)
 - 标题默认取首条消息前 50 字符
 - DELETE：运行中返回 SESSION_BUSY；purge=true 时通过 BrainPort.purgeConversation 清理（包括子会话）
-- import：通过 BrainPort 列出各数据根（isolated_home 模式下是每个账号的 home）中未导入的会话，把 transcript 转成事件写入，source='imported'，并设置 accountName
+- import：通过 BrainPort 列出数据根中未导入的会话，把 transcript 转成事件写入，source='imported'，accountName 置 null
 - 工作区：校验路径存在且为目录，判断 isGitRepo
 - 路由用 zod 校验，错误按 ERROR_HTTP_STATUS 返回
 约束：只改上述文件和对应测试；不要修改 contracts/。
@@ -893,73 +902,61 @@ git push -u origin main
 ### 派工 1.14 🔴
 
 ```text
-你是执行工程师。阅读 docs/ARCHITECTURE.md §2.6 账号模型与租约、模块 1.14 的全部潜在死穴，services/ports/{credential,home-isolation}.port.ts，backend/agy-profile.json 的 credentials 部分，docs/VERIFY.md 的 V7、V8。
+你是执行工程师。阅读 docs/ARCHITECTURE.md §2.6 账号模型与租约、模块 1.14 的全部潜在死穴，services/ports/credential.port.ts，backend/agy-profile.json 的 credentials 部分，docs/VERIFY.md 的 V7。V7 没有本机探测结论时先停下来告诉我，不要猜条目名或格式。
 任务：
-1. integrations/agy/home-isolation.ts：createHome(accountName) 在 DATA_DIR/profiles/<name>/home 下建立目录结构；envFor(accountName) 按 profile.credentials.homeEnvVars 返回环境变量
+1. （已删除：home 隔离不在本期实现）
 2. integrations/agy/dpapi.ts：用 Windows DPAPI（CurrentUser 范围）加密与解密 Buffer；非 Windows 平台抛出明确错误
 3. integrations/agy/credential-store.ts：按 profile.credentials 的凭据条目模式（用 @napi-rs/keyring 读写）与凭据文件列表实现 snapshot() / restore(snapshot) / clear() / isPresent()；快照用 dpapi 加密后写入 DATA_DIR/credentials/<name>/
-4. services/account/lease-lock.ts：基于 utils/rw-lock；isolated_home 模式按账号分锁，credential_snapshot 模式全局一把锁
-5. services/account/account.ts：list、setDefault、delete、whoami、acquireLease(accountName)（返回租约与该账号的环境变量）；credential_snapshot 模式下 switch 流程：tryWrite（失败返回 ACCOUNT_BUSY 或 ACCOUNT_SWITCH_IN_PROGRESS）→ 备份当前 live → restore 目标 → 校验 → 删除备份；任一步失败用备份恢复；运行结束释放租约时，把 live 凭据回写到该账号的快照；成功后 publishGlobal(account.changed)
+4. services/account/lease-lock.ts：基于 utils/rw-lock，全局一把锁
+5. services/account/account.ts：list、setDefault、delete、whoami、acquireLease()（返回租约）；switch 流程：tryWrite（失败返回 ACCOUNT_BUSY 或 ACCOUNT_SWITCH_IN_PROGRESS）→ 备份当前 live → restore 目标 → 校验 → 删除备份；任一步失败用备份恢复；运行结束释放租约时，把 live 凭据回写到该账号的快照；成功后 publishGlobal(account.changed)
 6. routes/http/accounts.routes.ts（登录相关端点由 1.15 实现，这里先注册 list / save / switch / delete）
 约束：只改上述文件和对应测试；凭据内容绝不进入日志、数据库、API 响应；不要修改 contracts/。
 验收：锁的并发测试（切换与切换、切换与运行、运行结束释放）；模拟 restore 失败时恢复原凭据；测试日志中搜不到凭据内容。
 ⚠️ 高危模块：完成后先不要提交，告诉我"请呼叫 Opus 复审模块 1.14"。
-复审通过后执行：git add . && git commit -m "feat: 完成模块 1.14 凭据存储与账号服务"
+复审通过后执行：git add <本模块的具体文件路径> && git commit -m "feat: 完成模块 1.14 凭据快照与账号服务"
 ```
 
-### 派工 1.15 🔴
+### 派工 1.15 🟡
 
 ```text
-你是执行工程师。阅读 docs/ARCHITECTURE.md 模块 1.15 的潜在死穴，contracts/src/domain.ts 的 AccountLoginSession，services/ports/login.port.ts，backend/agy-profile.json 的 login 部分，fixtures/agy/pty/ 中的登录录屏，以及已完成的 services/account/account.ts。
+你是执行工程师。阅读 docs/ARCHITECTURE.md §2.6、模块 1.15 的潜在死穴，contracts/src/domain.ts 的 AccountLoginSession，services/ports/login.port.ts，backend/agy-profile.json 的 login 部分，docs/VERIFY.md 的 V10，以及已完成的 services/account/account.ts 与 credential-store.ts。V10 没有本机探测结论时先停下来告诉我。
 任务：
-1. integrations/agy/pty.ts：node-pty 封装：spawn(argv, {cwd, env, cols, rows})、write()、去 ANSI 后的文本流、waitFor(pattern, timeoutMs)、kill()（终止进程树）
-2. integrations/agy/login-pty.ts：实现 LoginPort：按 profile.login.argv 启动；匹配 authUrlPattern 产出授权链接；匹配 successPatterns / failurePatterns 产出结果
-3. 在 account.ts 中实现登录编排与 POST/GET/DELETE /api/accounts/login 路由：
-   · 状态机 pending → awaiting_browser → completed / failed / cancelled
-   · isolated_home：在新账号的 home 中登录，成功后记录账号
-   · credential_snapshot：持写锁 → 备份 live → clear → 登录 → 成功则 snapshot 为新账号 → 按请求决定恢复原账号或保持新账号
-   · 5 分钟超时自动取消；同一时间只允许一个登录流程
-   · 成功、失败、取消、超时、服务关闭五条结束路径都在同一个 finally 中执行恢复与进程清理
-约束：只改上述文件和对应测试；不要修改 contracts/。
-验收：用 fake-agy（FAKE_AGY_LOGIN=success|fail|hang）覆盖成功、失败、超时、取消；每条路径结束后 live 凭据状态正确、无残留进程、写锁已释放。
-⚠️ 高危模块：完成后先不要提交，告诉我"请呼叫 Opus 复审模块 1.15"。
-复审通过后执行：git add . && git commit -m "feat: 完成模块 1.15 伪终端登录流程"
+1. integrations/agy/login-terminal.ts：实现 LoginPort：open() 用 profile.login.argv 在新的系统终端窗口中启动 agy（Windows 用 `cmd /c start "" ...`），返回可关闭的句柄；服务端不读取、不解析终端输出；启动器可注入以便测试
+2. 在 account.ts 中实现登录编排与 POST/GET/DELETE /api/accounts/login 路由：
+   · 状态机 pending → awaiting_browser（终端已弹出，authUrl 为 null）→ completed / failed / cancelled
+   · 持写锁 → 备份 live → clear → 弹出终端 → 每 2 秒用 credential-store.isPresent() 检查；检测到后再等 2 秒、两次读取一致才 snapshot 为新账号 → 按请求决定恢复原账号或保持新账号
+   · 10 分钟超时自动取消；同一时间只允许一个登录流程
+   · 成功、取消、超时、服务关闭四条结束路径都在同一个 finally 中执行恢复并释放写锁
+约束：只改上述文件和对应测试；不要修改 contracts/；不要实现任何 OAuth 流程或打开授权链接，登录完全交给 agy 自己。
+验收：用假终端启动器与假凭据存储覆盖成功、取消、超时、服务关闭；每条路径结束后 live 凭据状态正确、写锁已释放。
+完成后提示我执行：git add <本模块的具体文件路径> && git commit -m "feat: 完成模块 1.15 终端窗口登录"
 ```
 
-### 派工 1.16 🟡
+### 派工 1.16（已取消）
 
-```text
-你是执行工程师。阅读 docs/ARCHITECTURE.md §1.5、§2.7、模块 1.16，services/ports/{statusline-parser,settings}.port.ts，backend/agy-profile.json 的 settings.statusline 与 quota 部分，fixtures/agy/statusline/。
-任务：
-1. tools/statusline-bridge/：可执行脚本（Windows 提供 .cmd）；读取 stdin 全部内容 → 从 DATA_DIR/internal.token 读取令牌 → POST 到 http://127.0.0.1:<PORT>/internal/statusline，附带环境变量中的账号名（AGY_STUDIO_ACCOUNT），500ms 超时，任何失败都静默 → 如果环境变量 AGY_STUDIO_ORIGINAL_STATUSLINE 存在则转调该命令并原样输出，否则输出一行简短状态（模型与剩余额度）
-2. integrations/agy/statusline.ts：解析 JSON → { email, planTier, quota groups/buckets, contextUsage }，字段映射依据 fixtures
-3. 在 integrations/agy/settings.ts 中增加 installStatusline(homeDir?) 与 uninstallStatusline(homeDir?)：保存用户原配置到 DATA_DIR/statusline-backup.json，安装时把原命令写入桥接的环境变量
-4. routes/internal/statusline.routes.ts：只接受回环地址来源，校验令牌，解析后交给注入的 quotaService.ingestStatusline(accountName, parsed)
-5. 服务启动时若 internal.token 不存在则生成 32 字节随机令牌
-约束：只改上述文件和对应测试；不要修改 contracts/。
-验收：后端未启动时桥接脚本 500ms 内退出且退出码为 0；非回环或令牌错误返回 401；解析器对 fixtures 快照测试。
-完成后提示我执行：git add . && git commit -m "feat: 完成模块 1.16 statusline 桥接与接收"
-```
+额度改由 1.17 查询额度接口，本模块不再派工。
 
 ### 派工 1.17 🔴
 
 ```text
-你是执行工程师。阅读 docs/ARCHITECTURE.md §2.7、模块 1.17 的潜在死穴，contracts/src/domain.ts 的 QuotaSnapshot，services/ports/quota-probe.port.ts，backend/agy-profile.json 的 quota 部分，fixtures/agy/pty/ 中 /usage 与 /credits 的录屏。
+你是执行工程师。阅读 docs/ARCHITECTURE.md §2.7、模块 1.17 的潜在死穴，contracts/src/domain.ts 的 QuotaSnapshot 与 QuotaSource，services/ports/quota-probe.port.ts，backend/agy-profile.json 的 quota 部分，docs/VERIFY.md 的 V7 与 V12，fixtures/agy/quota/ 中脱敏后的接口响应。V12 没有本机探测结论或没有 fixtures 时先停下来告诉我，不要按记忆编写接口格式。
 任务：
-1. integrations/agy/usage-parser.ts：纯函数，去 ANSI 后的文本 → { groups, credits } | null；对所有录屏 fixtures 做快照测试；只要有任何一个必需字段解析失败就返回 null，不输出部分结果
-2. integrations/agy/usage-pty.ts：实现 QuotaProbePort.probe(accountName, env)：用 pty.ts 启动 agy → 等待就绪 → 发送 profile.quota.usageCommand → 输出连续 800ms 无变化视为稳定 → 解析 → 可选再执行 creditsCommand → 退出；30 秒硬超时并终止进程树
+1. integrations/agy/oauth-client.ts：按 profile.quota 中记录的规则从 agy 程序中读取 OAuth 客户端标识；只缓存在内存，不写盘、不写日志；读取失败返回 null
+2. integrations/agy/quota-api.ts：实现 QuotaProbePort.probe(accountName)：
+   · 通过 credential-store 读取 live 凭据中的 refresh token → 向 profile.quota.tokenUrl 换取 access token（内存缓存，过期前 60 秒刷新）→ 调用 profile.quota 中的额度接口 → 解析成 { groups } | null
+   · 解析为纯函数，对 fixtures 做快照测试；任何必需字段缺失就返回 null，不输出部分结果
+   · 10 秒请求超时；错误信息里去掉 token 与请求头
 3. services/quota.ts：
-   · get(accountName?, refresh?)：返回聚合后的 QuotaSnapshot（statusline 与探针取 fetchedAt 较新者），写入 quota_cache
-   · 探针调用前申请该账号的读锁；拿不到就返回缓存并标 stale
-   · 每账号 2 分钟限流；同一账号并发请求合并为一次
-   · 失败保留旧数据并标 stale；两个来源都没有时 source='unavailable'
-   · ingestStatusline(accountName, parsed)：更新缓存并 publishGlobal(quota.updated)
-   · 收到 account.changed 时作废相关缓存；探针返回时若请求账号的缓存已被作废，丢弃结果
+   · get(accountName?, refresh?)：返回 QuotaSnapshot（source='quota_api'），写入 quota_cache
+   · 读取 live 凭据前申请读锁；拿不到就返回缓存并标 stale
+   · 每账号 1 分钟限流；同一账号并发请求合并为一次
+   · 失败保留旧数据并标 stale；从未成功过时 source='unavailable'、groups 为空
+   · 收到 account.changed 时作废相关缓存；查询返回时若请求账号的缓存已被作废，丢弃结果；成功后 publishGlobal(quota.updated)
 4. routes/http/quota.routes.ts
-约束：只改上述文件和对应测试；不要修改 contracts/。
-验收：解析器快照测试；限流、合并、stale、作废后丢弃迟到结果、读锁获取失败都有测试；fake-agy 的 pty 模式跑通一次真实探针。
+约束：只改上述文件和对应测试；不要修改 contracts/；除 profile.quota 中列出的 token 与额度接口外不调用任何其他私有接口；token、客户端标识不进入日志、数据库、API 响应。
+验收：解析器快照测试；限流、合并、stale、unavailable、作废后丢弃迟到结果、读锁获取失败都有测试；测试日志中搜不到 token；用本机真实账号手动跑一次并确认面板数据与官方客户端一致。
 ⚠️ 高危模块：完成后先不要提交，告诉我"请呼叫 Opus 复审模块 1.17"。
-复审通过后执行：git add . && git commit -m "feat: 完成模块 1.17 额度探针与聚合"
+复审通过后执行：git add <本模块的具体文件路径> && git commit -m "feat: 完成模块 1.17 额度接口与缓存"
 ```
 
 ### 派工 1.18 🟡
@@ -1119,9 +1116,9 @@ git push -u origin main
 任务：实现 frontend/src/components/inbox/ 下的 InboxList、InboxItem、WorkspaceSwitcher、AddWorkspaceDialog、NewSessionButton、ImportSessionsButton，并挂到左栏与顶栏。
 要点：
 - InboxList 分组：运行中、待查看（运行已结束但已读 lastSeq 小于会话 lastSeq）、已完成
-- InboxItem：标题、相对时间、状态点、所属账号（isolated_home 模式下显示）
+- InboxItem：标题、相对时间、状态点
 - AddWorkspaceDialog：输入绝对路径，显示后端错误
-- NewSessionButton：isolated_home 模式下弹出账号选择（默认当前默认账号），否则直接创建
+- NewSessionButton：直接创建
 约束：只改 components/inbox/ 与挂载点；不要修改 contracts/。
 验收：session.upserted 时列表实时更新；npm run build -w frontend 通过。
 完成后提示我执行：git add . && git commit -m "feat: 完成模块 2.9 收件箱与工作区"
@@ -1150,9 +1147,9 @@ git push -u origin main
 任务：实现 components/quota/（QuotaRing、QuotaPanel）、components/account/（AccountMenu）与 views/AccountsView.tsx。
 要点：
 - QuotaRing：所有未 disabled 桶中 remainingFraction 最小者，>50% 绿、20–50% 黄、<20% 红；source='unavailable' 时显示灰色问号
-- QuotaPanel：标题与说明、分组、每个桶的名称、进度条、百分比、重置倒计时；disabled 置灰；stale 显示"数据可能过期"；底部显示数据来源（statusline / CLI 探针）与获取时间；刷新按钮
-- AccountMenu：当前默认账号；列表中显示每个账号的运行数；credential_snapshot 模式下切换遇到 ACCOUNT_BUSY 时提示"有任务正在运行"；isolated_home 模式下"切换"文案改为"设为默认"
-- AccountsView：账号表格（名称、邮箱、类型、隔离模式、备注、保存时间、删除）；"登录新账号"：输入名称 → 调用 login → 显示授权链接（新窗口打开）→ 每 2 秒轮询 → 完成或失败后刷新；支持取消
+- QuotaPanel：标题与说明、分组、每个桶的名称、进度条、百分比、重置倒计时；disabled 置灰；stale 显示"数据可能过期"；底部显示获取时间；source 为 unavailable 时整块显示"额度暂不可用"，不影响其他功能；刷新按钮（后端每账号 1 分钟限流，前端在冷却期内置灰）
+- AccountMenu：当前默认账号；列表中显示每个账号的运行数；切换遇到 ACCOUNT_BUSY 时提示"有任务正在运行"；"添加账号"会弹出一个终端窗口，界面提示"请在弹出的终端中完成登录"并显示等待状态与取消按钮
+- AccountsView：账号表格（名称、邮箱、类型、备注、保存时间、删除）；"登录新账号"：输入名称 → 调用 login → 提示"请在弹出的终端窗口中完成登录" → 每 2 秒轮询 → 完成或失败后刷新；支持取消；10 分钟无结果显示超时
 约束：只改上述文件与顶栏挂载点；不要修改 contracts/。
 验收：/playground 展示 QuotaPanel 各种状态；npm run build -w frontend 通过。
 完成后提示我执行：git add . && git commit -m "feat: 完成模块 2.11 额度与账号界面"
@@ -1198,7 +1195,7 @@ git push -u origin main
 任务：新增 e2e/，用 Playwright 编写端到端测试，并在根 package.json 加 e2e 脚本。
 要点：
 - global-setup：AGY_BIN=fake-agy、临时 DATA_DIR 与 FAKE_AGY_HOME 启动后端（托管 build 后的前端）
-- 用例：新建工作区与会话并发送 → 思考块、工具卡片、正文、分隔条；展开子 agent；运行中停止；刷新后时间线完整；setOffline 断网恢复后事件补齐且不重复；上传图片后发送；回滚；网页登录新账号（FAKE_AGY_LOGIN=success）；额度面板显示数据
+- 用例：新建工作区与会话并发送 → 思考块、工具卡片、正文、分隔条；展开子 agent；运行中停止；刷新后时间线完整；setOffline 断网恢复后事件补齐且不重复；上传图片后发送；回滚；添加账号（后端注入假终端启动器）；额度面板显示数据
 - 每个用例独立会话
 约束：只新增 e2e/ 与根脚本；发现产品 bug 记录到 e2e/BUGS.md 并告诉我，不要改业务代码。
 验收：npm run e2e 连续 3 次全部通过。
@@ -1232,14 +1229,14 @@ git push -u origin main
 | 运行会不会永远停在 running？ | 只完成一次守卫 + 看门狗 + 启动时清理孤儿，三条路径都收口到终止态 |
 | 账号租约会不会泄漏导致永远无法切换？ | 租约在"只完成一次"守卫的同一位置释放（1.6）；读写锁不排队，不会死锁（1.1） |
 | 登录中途失败会不会让 live 凭据处于被清空状态？ | 五条结束路径共用一个 finally 恢复（1.15） |
-| 额度探针会不会拖垮系统？ | 每账号 2 分钟限流、请求合并、30 秒硬超时、持读锁（1.17） |
+| 额度查询会不会拖垮系统或触发风控？ | 每账号 1 分钟限流、请求合并、10 秒请求超时、只在有页面查看时查询（1.17） |
 | 服务崩溃后会不会留下僵尸进程？ | pid 入库，启动时终止进程树（1.6） |
 
 ### 上下文体积
 
 | 检查项 | 结论 |
 |---|---|
-| 单个派工单是否足够小？ | 每个模块 1–5 个源文件；原来最重的账号模块已拆成凭据与账号（1.14）、登录（1.15）、statusline（1.16）、探针与聚合（1.17）四块 |
+| 单个派工单是否足够小？ | 每个模块 1–5 个源文件；账号相关只剩凭据与账号（1.14）、终端登录（1.15）、额度接口（1.17）三块，statusline 桥接（1.16）已取消 |
 | 执行模型需要读多少上下文？ | 每个 Prompt 只列需要读的章节、契约、端口与 profile 片段 |
 | 前端长会话会不会卡？ | 虚拟滚动、delta 合并、子 agent 懒加载与截断 |
 
@@ -1260,5 +1257,5 @@ git push -u origin main
 | 官方没有文档的行为探测不到 | 每项探测都有降级方案（阶段 0 表格）；最坏情况下仍可用"只靠 CLI 参数 + stdout 事件"跑通核心对话 |
 | 自动同意导致破坏性操作 | 影子 git 检查点一键回滚；默认只监听本机；非本机访问强制 token |
 | 凭据泄露 | 不入库、DPAPI 加密快照、日志脱敏、API 不返回、internal 接口只收回环地址并校验令牌 |
-| 服务条款风险 | 不调用私有接口、不提取内置凭据，额度只来自官方的 statusline 和 `/usage`；不做自动换号 |
+| 服务条款风险 | 登录只走 agy 自己的流程；私有接口只调用额度查询一个（与官方客户端相同的请求，每账号 1 分钟限流）；OAuth 客户端标识只在内存中使用；不做自动换号 |
 | 许可证 | 全部自研；CloudCLI（AGPL）只读架构文档，不看不抄源码 |

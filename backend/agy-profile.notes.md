@@ -64,9 +64,9 @@
 - **homeEnvVars**:
   - `["USERPROFILE", "HOME", "APPDATA", "LOCALAPPDATA"]`
 - **wincredTargetPatterns**:
-  - `["LegacyGeneric:target=gemini:antigravity"]`：Windows 凭据管理器通用条目目标。
+  - `["gemini:antigravity"]`：Windows 凭据管理器通用条目的真实 TargetName（UserName 为 `antigravity`，数据为 UTF-8 JSON）。`cmdkey /list` 显示的 `LegacyGeneric:target=` 前缀不属于 TargetName。依据 VERIFY.md V7 实录。
 - **credentialFiles**:
-  - `["%USERPROFILE%\\.antigravity\\credentials.json"]`：降级文件快照路径。
+  - `[]`：agy 不使用凭据文件。`~/.gemini/oauth_creds.json` 属于其他程序，不得纳入快照（VERIFY.md V7）。
 
 ---
 

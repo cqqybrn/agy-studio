@@ -1,0 +1,200 @@
+{
+  "added": [
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\annotations\\2bc3ff47-8256-4f2c-9966-b909f2af6e5f.pbtxt",
+      "size": 36,
+      "mtimeMs": 1790590397824.37
+    },
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\brain\\2bc3ff47-8256-4f2c-9966-b909f2af6e5f\\.system_generated\\logs\\chunks\\transcript\\00000000.jsonl",
+      "size": 15054,
+      "mtimeMs": 1790590428566.2463
+    },
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\brain\\2bc3ff47-8256-4f2c-9966-b909f2af6e5f\\.system_generated\\logs\\chunks\\transcript_full\\00000000.jsonl",
+      "size": 15114,
+      "mtimeMs": 1790590428566.772
+    },
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\brain\\2bc3ff47-8256-4f2c-9966-b909f2af6e5f\\.system_generated\\logs\\transcript.jsonl",
+      "size": 15054,
+      "mtimeMs": 1790590428565.7363
+    },
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\brain\\2bc3ff47-8256-4f2c-9966-b909f2af6e5f\\.system_generated\\logs\\transcript_full.jsonl",
+      "size": 15114,
+      "mtimeMs": 1790590428566.772
+    },
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\brain\\2bc3ff47-8256-4f2c-9966-b909f2af6e5f\\.system_generated\\steps\\10\\output.txt",
+      "size": 48,
+      "mtimeMs": 1790590417974.207
+    },
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\brain\\2bc3ff47-8256-4f2c-9966-b909f2af6e5f\\.system_generated\\steps\\12\\output.txt",
+      "size": 257,
+      "mtimeMs": 1790590421777.1338
+    },
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\brain\\2bc3ff47-8256-4f2c-9966-b909f2af6e5f\\.system_generated\\steps\\14\\output.txt",
+      "size": 42,
+      "mtimeMs": 1790590426004.4507
+    },
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\brain\\2bc3ff47-8256-4f2c-9966-b909f2af6e5f\\.system_generated\\steps\\2\\output.txt",
+      "size": 265,
+      "mtimeMs": 1790590404867.673
+    },
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\brain\\2bc3ff47-8256-4f2c-9966-b909f2af6e5f\\.system_generated\\steps\\4\\output.txt",
+      "size": 42,
+      "mtimeMs": 1790590407791.1077
+    },
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\brain\\2bc3ff47-8256-4f2c-9966-b909f2af6e5f\\.system_generated\\steps\\8\\output.txt",
+      "size": 180,
+      "mtimeMs": 1790590414867.566
+    },
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\brain\\2bc3ff47-8256-4f2c-9966-b909f2af6e5f\\implementation_plan.md",
+      "size": 1649,
+      "mtimeMs": 1790590404865.598
+    },
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\brain\\2bc3ff47-8256-4f2c-9966-b909f2af6e5f\\implementation_plan.md.metadata.json",
+      "size": 193,
+      "mtimeMs": 1790590404866.6382
+    },
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\brain\\2bc3ff47-8256-4f2c-9966-b909f2af6e5f\\walkthrough.md",
+      "size": 672,
+      "mtimeMs": 1790590421775.5637
+    },
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\brain\\2bc3ff47-8256-4f2c-9966-b909f2af6e5f\\walkthrough.md.metadata.json",
+      "size": 166,
+      "mtimeMs": 1790590421776.0962
+    },
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\conversations\\2bc3ff47-8256-4f2c-9966-b909f2af6e5f.db",
+      "size": 266240,
+      "mtimeMs": 1790590428584.8784
+    },
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\crashes\\crash_2436_4e7b6908-ef87-41be-b74f-a43063d0d846.log",
+      "size": 0,
+      "mtimeMs": 1790590389535.8345
+    },
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\log\\cli-20260928_181309.log",
+      "size": 25234,
+      "mtimeMs": 1790590428595.8208
+    },
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\presence\\2bc3ff47-8256-4f2c-9966-b909f2af6e5f.lock",
+      "size": 0,
+      "mtimeMs": 1790590395807.6953
+    },
+    {
+      "path": "G:\\agy-rec-sandbox\\hello.js",
+      "size": 22,
+      "mtimeMs": 1790590414866.5315
+    },
+    {
+      "path": "G:\\agy-rec-sandbox\\snap-before.json",
+      "size": 192091,
+      "mtimeMs": 1790590389371.04
+    }
+  ],
+  "modified": [
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\bin\\agentapi.bat",
+      "before": {
+        "size": 77,
+        "mtimeMs": 1790584260388.0286
+      },
+      "after": {
+        "size": 77,
+        "mtimeMs": 1790590417258.921
+      }
+    },
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\cache\\last_conversations.json",
+      "before": {
+        "size": 646,
+        "mtimeMs": 1790584293071.621
+      },
+      "after": {
+        "size": 646,
+        "mtimeMs": 1790590428581.7644
+      }
+    },
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\cache\\onboarding.json",
+      "before": {
+        "size": 113,
+        "mtimeMs": 1790590321663.8398
+      },
+      "after": {
+        "size": 113,
+        "mtimeMs": 1790590390446.9478
+      }
+    },
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\cli.log",
+      "before": {
+        "size": 15754,
+        "mtimeMs": 1790590327123.1426
+      },
+      "after": {
+        "size": 25234,
+        "mtimeMs": 1790590428595.8208
+      }
+    },
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\conversation_summaries.db",
+      "before": {
+        "size": 77824,
+        "mtimeMs": 1790584293730.9653
+      },
+      "after": {
+        "size": 77824,
+        "mtimeMs": 1790590428594.261
+      }
+    },
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\jetbox_summaries_proto.pb",
+      "before": {
+        "size": 33207,
+        "mtimeMs": 1790584293082.5063
+      },
+      "after": {
+        "size": 33611,
+        "mtimeMs": 1790590428588.5242
+      }
+    }
+  ],
+  "deleted": [
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\conversation_summaries.db-shm",
+      "size": 32768,
+      "mtimeMs": 1790590321644.9688
+    },
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\conversation_summaries.db-wal",
+      "size": 24752,
+      "mtimeMs": 1790590321650.6875
+    },
+    {
+      "path": "%USERPROFILE%\\.gemini\\antigravity-cli\\crashes\\crash_22368_c73421ca-8fca-408a-9b78-8149afaaa94a.log",
+      "size": 0,
+      "mtimeMs": 1790590320839.4292
+    }
+  ],
+  "summary": {
+    "addedCount": 21,
+    "modifiedCount": 6,
+    "deletedCount": 3,
+    "totalChanges": 30
+  }
+}

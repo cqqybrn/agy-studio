@@ -51,7 +51,7 @@
       "LOCALAPPDATA"
     ],
     "wincredTargetPatterns": [
-      "LegacyGeneric:target=gemini:antigravity"
+      "gemini:antigravity"
     ],
     "credentialFiles": []
   },

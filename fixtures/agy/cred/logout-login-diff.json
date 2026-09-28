@@ -1,0 +1,56 @@
+{
+  "probedAt": "2026-09-28T23:35:00+08:00",
+  "agyVersion": "1.2.12",
+  "method": "伪终端（@lydell/node-pty + @xterm/headless）驱动交互式 agy：完成首次引导 → /logout → 选择 Google OAuth → 用户在浏览器授权并提供授权码 → 粘贴授权码。每一步前后执行 cred-diff snapshot、fs-diff snapshot（根目录 %USERPROFILE%\\.gemini、%APPDATA%\\Antigravity、%LOCALAPPDATA%\\agy、%LOCALAPPDATA%\\antigravity）与 CredRead 元数据读取。Antigravity IDE 在登出前（23:30 前后）已退出，全程未运行。",
+  "logout": {
+    "credentialManager": {
+      "added": [],
+      "removed": ["LegacyGeneric:target=gemini:antigravity"]
+    },
+    "entryPresentAfter": false,
+    "files": {
+      "added": ["%USERPROFILE%\\.gemini\\antigravity-cli\\history.jsonl（输入历史，非凭据）"],
+      "modified": ["%USERPROFILE%\\.gemini\\antigravity-cli\\cli.log", "%USERPROFILE%\\.gemini\\antigravity-cli\\log\\cli-<时间>.log"],
+      "deleted": []
+    },
+    "oauthCredsJsonTouched": false,
+    "confirmationPrompt": "未出现；在补全菜单中选中 /logout 回车后立即登出",
+    "screenAfter": "Welcome to the Antigravity CLI. You are currently not signed in. / Select login method: 1. Google OAuth  2. Use a Google Cloud project",
+    "cliLogAfter": "error getting token source: You are not logged into Antigravity."
+  },
+  "login": {
+    "credentialManager": {
+      "added": ["LegacyGeneric:target=gemini:antigravity"],
+      "removed": []
+    },
+    "entry": {
+      "targetName": "gemini:antigravity",
+      "userName": "antigravity",
+      "type": "CRED_TYPE_GENERIC (1)",
+      "persist": "CRED_PERSIST_LOCAL_MACHINE (2)",
+      "attributeCount": 0,
+      "blobSizeBytes": 1627,
+      "encoding": "UTF-8 JSON，无 NUL 字节",
+      "schema": {
+        "token": ["access_token", "token_type", "refresh_token", "expiry"],
+        "auth_method": "consumer",
+        "id_token_claims": ["iss", "azp", "aud", "sub", "email", "email_verified", "at_hash", "name", "picture", "given_name", "iat", "exp"]
+      },
+      "notes": [
+        "与登出前的条目结构相同；id_token 多了 name、picture、given_name 声明，因此大小从 1430 变为 1627，声明集合不固定，不得依赖可选声明",
+        "本次登录的 Google 账号与登出前不同（id_token.sub 不同），与 %USERPROFILE%\\.gemini\\oauth_creds.json 的账号相同"
+      ]
+    },
+    "files": {
+      "added": [],
+      "modified": ["%USERPROFILE%\\.gemini\\antigravity-cli\\cli.log", "%USERPROFILE%\\.gemini\\antigravity-cli\\log\\cli-<时间>.log"],
+      "deleted": []
+    },
+    "oauthCredsJsonTouched": false
+  },
+  "conclusions": [
+    "登录只新建 keyring 条目 gemini:antigravity，登出只删除该条目；两次都没有任何凭据文件被创建、修改或删除",
+    "keyring 正常可用时 agy 不写文件回退；credentialFiles 保持为空是正确的",
+    "isPresent() 以该条目是否存在为准即可（正常 keyring 环境下）"
+  ]
+}

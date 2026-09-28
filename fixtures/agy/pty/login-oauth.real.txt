@@ -1,0 +1,81 @@
+# 实录：agy 1.2.12 交互模式登录流程（2026-09-28，Windows，伪终端 140x45）
+# 由 @xterm/headless 渲染后的屏幕文本整理；Logo 字符画省略；邮箱、state、code_challenge、授权码已脱敏。
+
+## 1. 首次启动引导（~/.gemini/antigravity-cli/cache/onboarding.json 的 onboardingComplete 为 false 时出现）
+
+Welcome to Antigravity CLI!
+Choose your color scheme:
+  > terminal
+    light
+    solarized light
+    colorblind-friendly light
+    dark
+    solarized dark
+    colorblind-friendly dark
+    tokyo night
+    [Next]
+  ↑/↓ Navigate · enter Confirm
+
+Terms of Service & Data Use
+AI coding agents are known to have certain security risks, including autonomous code execution, data exfiltration, prompt injection and
+supply chain risks. Ensure that you monitor and verify all actions taken by the agent.
+  > [x] Yes, I agree to help improve Antigravity CLI by allowing
+      Google to collect and use my Interactions data,
+      subject to the Google Antigravity CLI Terms of Service
+      and Google Privacy Policy. I understand I can
+      choose to opt out later whenever I want via my
+      settings.
+      Links:
+      - Terms of Service: https://antigravity.google/terms
+      - Privacy Policy: https://policies.google.com/privacy
+    [Previous]      [Done]
+  ↑/↓ Navigate · enter Toggle
+
+Accessing workspace:
+<工作目录>
+Do you trust the contents of this project?
+Antigravity CLI requires permission to read, edit, and execute files here.
+> Yes, I trust this folder
+  No, exit
+  ↑/↓ Navigate · enter Confirm
+
+## 2. 已登录主界面
+
+Antigravity CLI 1.2.12
+<REDACTED_EMAIL> (Google AI Pro)
+Gemini 3.8 Flash (High)
+<工作目录>
+>
+? for shortcuts
+
+## 3. 输入 /logout 时的补全菜单（回车后立即登出，无确认提示）
+
+> /logout
+> /logout  Log out
+  ↑/↓ Navigate · enter Select · tab Complete
+esc to cancel
+
+## 4. 未登录界面（登出后，或启动时无凭据）
+
+Welcome to the Antigravity CLI. You are currently not signed in.
+Select login method:
+> 1. Google OAuth
+  2. Use a Google Cloud project
+  ↑/↓ Navigate · enter Select
+
+## 5. 选择 Google OAuth 后
+
+Your browser should open automatically. If not:
+https://accounts.google.com/o/oauth2/auth?access_type=offline&client_id=1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com&code_challenge=<REDACTED>&code_challenge_method=S256&prompt=consent&redirect_uri=https%3A%2F%2Fantigravity.google%2Foauth-callback&response_type=code&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloud-platform+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcclog+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fexperimentsandconfigs+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Faicode+openid&state=<REDACTED>
+If you aren't automatically redirected, paste the authorization code below:
+authorization code...
+  shift+up/down Navigate
+
+# 注意：URL 在 140 列终端中被硬换行成多行，解析时需先拼接。
+# redirect_uri 是 https://antigravity.google/oauth-callback（不是 localhost 回调）；浏览器授权后该页面显示授权码，形如 4/0AX...（约 70 字符）。
+# 本次实录中未发生自动跳转，由用户复制授权码粘贴到上面的输入框后回车。
+
+## 6. 粘贴授权码并回车后（约 10 秒内）
+
+直接回到第 2 节的已登录主界面；本次渲染的屏幕上未观察到 "Logged in as" 之类的提示行（二进制中有 "Authentication successful!" 字符串，可能一闪而过）。
+凭据管理器中同时出现 gemini:antigravity 条目。
