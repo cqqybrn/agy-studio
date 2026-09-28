@@ -1,0 +1,3146 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`stream-adapter > fixtures snapshot tests > matches snapshot for scenario: abort-midway 1`] = `
+[
+  {
+    "conversationId": "964e916b-545d-465d-9843-820b93e06523",
+    "events": [],
+    "permissionRequest": undefined,
+  },
+  {
+    "conversationId": "964e916b-545d-465d-9843-820b93e06523",
+    "events": [],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "964e916b-545d-465d-9843-820b93e06523",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 13066,
+          "outputTokens": 1333,
+          "thinkingTokens": 1266,
+          "totalTokens": 14399,
+        },
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 13066,
+      "outputTokens": 1333,
+      "thinkingTokens": 1266,
+      "totalTokens": 14399,
+    },
+  },
+  {
+    "conversationId": "964e916b-545d-465d-9843-820b93e06523",
+    "events": [
+      {
+        "tool": {
+          "endedAt": null,
+          "error": null,
+          "fileChanges": [],
+          "input": {
+            "CommandLine": "Get-ChildItem -Path .",
+          },
+          "kind": "run_command",
+          "name": "run_command",
+          "output": null,
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "running",
+          "toolCallId": "tool-run-test-123-2",
+        },
+        "type": "tool.started",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "964e916b-545d-465d-9843-820b93e06523",
+    "events": [
+      {
+        "tool": {
+          "endedAt": "2026-09-28T12:00:00.000Z",
+          "error": null,
+          "fileChanges": [],
+          "input": {
+            "CommandLine": "Get-ChildItem -Path .",
+          },
+          "kind": "run_command",
+          "name": "run_command",
+          "output": "
+
+    Ŀ¼: G:\\agy-rec-sandbox
+
+
+Mode                 LastWriteTime         Length Name                                                                 
+----                 -------------         ------ ----                                                                 
+d-----         2026/9/28     16:28                docs                                                                 
+-a----         2026/9/28     16:28             58 image-block.txt                                                      
+-a----         2026/9/28     16:28            111 multi-turn.txt                                                       
+-a----         2026/9/28     14:30            718 package.json                                                         
+-a----         2026/9/28     16:28           1634 run-all.ps1                                                          
+
+
+",
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "succeeded",
+          "toolCallId": "tool-run-test-123-2",
+        },
+        "type": "tool.finished",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "964e916b-545d-465d-9843-820b93e06523",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 14666,
+          "outputTokens": 142,
+          "thinkingTokens": 75,
+          "totalTokens": 14808,
+        },
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 14666,
+      "outputTokens": 142,
+      "thinkingTokens": 75,
+      "totalTokens": 14808,
+    },
+  },
+  {
+    "conversationId": "964e916b-545d-465d-9843-820b93e06523",
+    "events": [
+      {
+        "tool": {
+          "endedAt": null,
+          "error": null,
+          "fileChanges": [],
+          "input": {
+            "CommandLine": "Get-ChildItem -Path docs",
+          },
+          "kind": "run_command",
+          "name": "run_command",
+          "output": null,
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "running",
+          "toolCallId": "tool-run-test-123-4",
+        },
+        "type": "tool.started",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "964e916b-545d-465d-9843-820b93e06523",
+    "events": [
+      {
+        "tool": {
+          "endedAt": "2026-09-28T12:00:00.000Z",
+          "error": null,
+          "fileChanges": [],
+          "input": {
+            "CommandLine": "Get-ChildItem -Path docs",
+          },
+          "kind": "run_command",
+          "name": "run_command",
+          "output": "
+
+    Ŀ¼: G:\\agy-rec-sandbox\\docs
+
+
+Mode                 LastWriteTime         Length Name                                                                 
+----                 -------------         ------ ----                                                                 
+-a----         2026/9/28     16:28            411 example.png                                                          
+
+
+",
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "succeeded",
+          "toolCallId": "tool-run-test-123-4",
+        },
+        "type": "tool.finished",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+]
+`;
+
+exports[`stream-adapter > fixtures snapshot tests > matches snapshot for scenario: command-exec 1`] = `
+[
+  {
+    "conversationId": "a272e8d3-218f-4d67-a933-a1456a372496",
+    "events": [],
+    "permissionRequest": undefined,
+  },
+  {
+    "conversationId": "a272e8d3-218f-4d67-a933-a1456a372496",
+    "events": [],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "a272e8d3-218f-4d67-a933-a1456a372496",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 13050,
+          "outputTokens": 230,
+          "thinkingTokens": 166,
+          "totalTokens": 13280,
+        },
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 13050,
+      "outputTokens": 230,
+      "thinkingTokens": 166,
+      "totalTokens": 13280,
+    },
+  },
+  {
+    "conversationId": "a272e8d3-218f-4d67-a933-a1456a372496",
+    "events": [
+      {
+        "tool": {
+          "endedAt": null,
+          "error": null,
+          "fileChanges": [],
+          "input": {
+            "CommandLine": "git --version",
+          },
+          "kind": "run_command",
+          "name": "run_command",
+          "output": null,
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "running",
+          "toolCallId": "tool-run-test-123-2",
+        },
+        "type": "tool.started",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "a272e8d3-218f-4d67-a933-a1456a372496",
+    "events": [
+      {
+        "tool": {
+          "endedAt": "2026-09-28T12:00:00.000Z",
+          "error": null,
+          "fileChanges": [],
+          "input": {
+            "CommandLine": "git --version",
+          },
+          "kind": "run_command",
+          "name": "run_command",
+          "output": "git version 2.55.0.windows.2
+",
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "succeeded",
+          "toolCallId": "tool-run-test-123-2",
+        },
+        "type": "tool.finished",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "a272e8d3-218f-4d67-a933-a1456a372496",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "执行 \`git --version\` ",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "a272e8d3-218f-4d67-a933-a1456a372496",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 13379,
+          "outputTokens": 74,
+          "thinkingTokens": 45,
+          "totalTokens": 13453,
+        },
+      },
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "的结果为：
+
+\`\`\`text
+git version 2.55.0.windows.2
+\`\`\`
+",
+        "type": "message.delta",
+      },
+      {
+        "messageId": "msg-run-test-123-3",
+        "type": "message.done",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 13379,
+      "outputTokens": 74,
+      "thinkingTokens": 45,
+      "totalTokens": 13453,
+    },
+  },
+  {
+    "conversationId": "a272e8d3-218f-4d67-a933-a1456a372496",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 26429,
+          "outputTokens": 304,
+          "thinkingTokens": 211,
+          "totalTokens": 26733,
+        },
+      },
+    ],
+    "permissionRequest": undefined,
+    "terminal": {
+      "status": "completed",
+    },
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 26429,
+      "outputTokens": 304,
+      "thinkingTokens": 211,
+      "totalTokens": 26733,
+    },
+  },
+]
+`;
+
+exports[`stream-adapter > fixtures snapshot tests > matches snapshot for scenario: file-ops 1`] = `
+[
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [],
+    "permissionRequest": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-1",
+        "text": "准备在当前工作目录创建 \`t",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-1",
+        "text": "est-hello.txt\` 文件并",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-1",
+        "text": "写入内容。",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 13062,
+          "outputTokens": 547,
+          "thinkingTokens": 449,
+          "totalTokens": 13609,
+        },
+      },
+      {
+        "messageId": "msg-run-test-123-1",
+        "text": "
+",
+        "type": "message.delta",
+      },
+      {
+        "messageId": "msg-run-test-123-1",
+        "type": "message.done",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 13062,
+      "outputTokens": 547,
+      "thinkingTokens": 449,
+      "totalTokens": 13609,
+    },
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "tool": {
+          "endedAt": null,
+          "error": null,
+          "fileChanges": [
+            {
+              "additions": null,
+              "changeType": "created",
+              "deletions": null,
+              "path": "G:\\agy-rec-sandbox\\test-hello.txt",
+            },
+          ],
+          "input": {
+            "TargetFile": "G:\\agy-rec-sandbox\\test-hello.txt",
+          },
+          "kind": "write_file",
+          "name": "write_to_file",
+          "output": null,
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "running",
+          "toolCallId": "tool-run-test-123-2",
+        },
+        "type": "tool.started",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "tool": {
+          "endedAt": "2026-09-28T12:00:00.000Z",
+          "error": null,
+          "fileChanges": [
+            {
+              "additions": null,
+              "changeType": "created",
+              "deletions": null,
+              "path": "G:\\agy-rec-sandbox\\test-hello.txt",
+            },
+          ],
+          "input": {
+            "TargetFile": "G:\\agy-rec-sandbox\\test-hello.txt",
+          },
+          "kind": "write_file",
+          "name": "write_to_file",
+          "output": null,
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "succeeded",
+          "toolCallId": "tool-run-test-123-2",
+        },
+        "type": "tool.finished",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "文件已创建成功，",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "正在读取",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "其内容。",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 13728,
+          "outputTokens": 79,
+          "thinkingTokens": 21,
+          "totalTokens": 13807,
+        },
+      },
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "
+",
+        "type": "message.delta",
+      },
+      {
+        "messageId": "msg-run-test-123-3",
+        "type": "message.done",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 13728,
+      "outputTokens": 79,
+      "thinkingTokens": 21,
+      "totalTokens": 13807,
+    },
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "tool": {
+          "endedAt": null,
+          "error": null,
+          "fileChanges": [],
+          "input": {
+            "AbsolutePath": "G:\\agy-rec-sandbox\\test-hello.txt",
+          },
+          "kind": "view_file",
+          "name": "view_file",
+          "output": null,
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "running",
+          "toolCallId": "tool-run-test-123-4",
+        },
+        "type": "tool.started",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "tool": {
+          "endedAt": "2026-09-28T12:00:00.000Z",
+          "error": null,
+          "fileChanges": [],
+          "input": {
+            "AbsolutePath": "G:\\agy-rec-sandbox\\test-hello.txt",
+          },
+          "kind": "view_file",
+          "name": "view_file",
+          "output": "2 lines, 10 bytes",
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "succeeded",
+          "toolCallId": "tool-run-test-123-4",
+        },
+        "type": "tool.finished",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-5",
+        "text": "读取完成，内容为：
+\`\`\`text
+",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-5",
+        "text": "hello",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-5",
+        "text": " agy
+\`\`\`
+
+接下来执",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-5",
+        "text": "行删除操作。",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 13999,
+          "outputTokens": 167,
+          "thinkingTokens": 63,
+          "totalTokens": 14166,
+        },
+      },
+      {
+        "messageId": "msg-run-test-123-5",
+        "text": "
+",
+        "type": "message.delta",
+      },
+      {
+        "messageId": "msg-run-test-123-5",
+        "type": "message.done",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 13999,
+      "outputTokens": 167,
+      "thinkingTokens": 63,
+      "totalTokens": 14166,
+    },
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "tool": {
+          "endedAt": null,
+          "error": null,
+          "fileChanges": [],
+          "input": {
+            "CommandLine": "Remove-Item -Force "G:\\agy-rec-sandbox\\test-hello.txt"",
+          },
+          "kind": "run_command",
+          "name": "run_command",
+          "output": null,
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "running",
+          "toolCallId": "tool-run-test-123-6",
+        },
+        "type": "tool.started",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "tool": {
+          "endedAt": "2026-09-28T12:00:00.000Z",
+          "error": null,
+          "fileChanges": [],
+          "input": {
+            "CommandLine": "Remove-Item -Force "G:\\agy-rec-sandbox\\test-hello.txt"",
+          },
+          "kind": "run_command",
+          "name": "run_command",
+          "output": null,
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "succeeded",
+          "toolCallId": "tool-run-test-123-6",
+        },
+        "type": "tool.finished",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 14254,
+          "outputTokens": 85,
+          "thinkingTokens": 52,
+          "totalTokens": 14339,
+        },
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 14254,
+      "outputTokens": 85,
+      "thinkingTokens": 52,
+      "totalTokens": 14339,
+    },
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "tool": {
+          "endedAt": null,
+          "error": null,
+          "fileChanges": [],
+          "input": {
+            "Action": "list",
+          },
+          "kind": "other",
+          "name": "manage_task",
+          "output": null,
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "running",
+          "toolCallId": "tool-run-test-123-8",
+        },
+        "type": "tool.started",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "tool": {
+          "endedAt": "2026-09-28T12:00:00.000Z",
+          "error": null,
+          "fileChanges": [],
+          "input": {
+            "Action": "list",
+          },
+          "kind": "other",
+          "name": "manage_task",
+          "output": "No background tasks are currently running.",
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "succeeded",
+          "toolCallId": "tool-run-test-123-8",
+        },
+        "type": "tool.finished",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-9",
+        "text": "已完成全部操作：",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-9",
+        "text": "
+
+1. **创建文件**",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-9",
+        "text": "：在当前目录下创",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-9",
+        "text": "建了 \`test-hello.txt\` 并写入 \`h",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-9",
+        "text": "ello agy\`。
+2. **读取内容**：读取到的",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-9",
+        "text": "内容为：
+   \`\`\`text
+   hello agy",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 14419,
+          "outputTokens": 105,
+          "thinkingTokens": 24,
+          "totalTokens": 14524,
+        },
+      },
+      {
+        "messageId": "msg-run-test-123-9",
+        "text": "
+   \`\`\`
+3. **删除文件**：已成功将 \`test-hello.txt\` 从目录中删除。
+",
+        "type": "message.delta",
+      },
+      {
+        "messageId": "msg-run-test-123-9",
+        "type": "message.done",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 14419,
+      "outputTokens": 105,
+      "thinkingTokens": 24,
+      "totalTokens": 14524,
+    },
+  },
+  {
+    "conversationId": "6addddf8-107d-40a5-8e76-2c3b8eb1b71a",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 69462,
+          "outputTokens": 983,
+          "thinkingTokens": 609,
+          "totalTokens": 70445,
+        },
+      },
+    ],
+    "permissionRequest": undefined,
+    "terminal": {
+      "status": "completed",
+    },
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 69462,
+      "outputTokens": 983,
+      "thinkingTokens": 609,
+      "totalTokens": 70445,
+    },
+  },
+]
+`;
+
+exports[`stream-adapter > fixtures snapshot tests > matches snapshot for scenario: image-block-fail 1`] = `
+[
+  {
+    "conversationId": "e19fd46d-2941-4dcc-882d-07397e63425d",
+    "events": [],
+    "permissionRequest": undefined,
+  },
+  {
+    "conversationId": "e19fd46d-2941-4dcc-882d-07397e63425d",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "thinkingTokens": 0,
+          "totalTokens": 0,
+        },
+      },
+    ],
+    "permissionRequest": undefined,
+    "terminal": {
+      "error": {
+        "code": "BAD_REQUEST",
+        "message": "stream input content block type "image" is not supported (only "text")",
+        "retryable": false,
+      },
+      "status": "failed",
+    },
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "thinkingTokens": 0,
+      "totalTokens": 0,
+    },
+  },
+]
+`;
+
+exports[`stream-adapter > fixtures snapshot tests > matches snapshot for scenario: image-path 1`] = `
+[
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [],
+    "permissionRequest": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 13055,
+          "outputTokens": 429,
+          "thinkingTokens": 383,
+          "totalTokens": 13484,
+        },
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 13055,
+      "outputTokens": 429,
+      "thinkingTokens": 383,
+      "totalTokens": 13484,
+    },
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "tool": {
+          "endedAt": null,
+          "error": null,
+          "fileChanges": [],
+          "input": {
+            "AbsolutePath": "G:\\agy-rec-sandbox\\docs\\example.png",
+          },
+          "kind": "view_file",
+          "name": "view_file",
+          "output": null,
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "running",
+          "toolCallId": "tool-run-test-123-2",
+        },
+        "type": "tool.started",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "tool": {
+          "endedAt": "2026-09-28T12:00:00.000Z",
+          "error": null,
+          "fileChanges": [],
+          "input": {
+            "AbsolutePath": "G:\\agy-rec-sandbox\\docs\\example.png",
+          },
+          "kind": "view_file",
+          "name": "view_file",
+          "output": null,
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "succeeded",
+          "toolCallId": "tool-run-test-123-2",
+        },
+        "type": "tool.finished",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "已查看图片 [example.png](file:/",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "//G",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": ":/agy-rec-sandbox/docs/e",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "xample.png)，其主要",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "内容与特征如下：",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "
+
+1. **构",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "图与元素",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "**：
+   - **背景**：纯天蓝色",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "/中蓝色背景。
+  ",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": " - **",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "主体**：正中略偏左位置有",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "一个实心",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "金黄色圆形。
+2. **",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "视觉风格",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "**：
+   - 图标",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "分辨率较低，圆形",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "的边缘呈现出明显",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "的像素锯",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "齿效果（像素风格",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "/低分辨率）。
+3. **象征意义**：
+   ",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "- 该图案与**帕劳共和国国",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "旗（Flag of Palau）**的设计特征完全一",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 14659,
+          "outputTokens": 425,
+          "thinkingTokens": 263,
+          "totalTokens": 15084,
+        },
+      },
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "致（蓝色底象征太平洋，金黄色圆盘象征满月且传统上略偏向旗杆侧）。
+",
+        "type": "message.delta",
+      },
+      {
+        "messageId": "msg-run-test-123-3",
+        "type": "message.done",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 14659,
+      "outputTokens": 425,
+      "thinkingTokens": 263,
+      "totalTokens": 15084,
+    },
+  },
+  {
+    "conversationId": "8f483731-b9c1-4d45-9b16-a9d4a5c2aee1",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 27714,
+          "outputTokens": 854,
+          "thinkingTokens": 646,
+          "totalTokens": 28568,
+        },
+      },
+    ],
+    "permissionRequest": undefined,
+    "terminal": {
+      "status": "completed",
+    },
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 27714,
+      "outputTokens": 854,
+      "thinkingTokens": 646,
+      "totalTokens": 28568,
+    },
+  },
+]
+`;
+
+exports[`stream-adapter > fixtures snapshot tests > matches snapshot for scenario: multi-turn 1`] = `
+[
+  {
+    "conversationId": "61cf70f7-2ba9-4cc4-93bf-123bde8e8882",
+    "events": [],
+    "permissionRequest": undefined,
+  },
+  {
+    "conversationId": "61cf70f7-2ba9-4cc4-93bf-123bde8e8882",
+    "events": [],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "61cf70f7-2ba9-4cc4-93bf-123bde8e8882",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-1",
+        "text": "收到",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "61cf70f7-2ba9-4cc4-93bf-123bde8e8882",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 13051,
+          "outputTokens": 226,
+          "thinkingTokens": 225,
+          "totalTokens": 13277,
+        },
+      },
+      {
+        "messageId": "msg-run-test-123-1",
+        "text": "
+",
+        "type": "message.delta",
+      },
+      {
+        "messageId": "msg-run-test-123-1",
+        "type": "message.done",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 13051,
+      "outputTokens": 226,
+      "thinkingTokens": 225,
+      "totalTokens": 13277,
+    },
+  },
+  {
+    "conversationId": "61cf70f7-2ba9-4cc4-93bf-123bde8e8882",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 13051,
+          "outputTokens": 226,
+          "thinkingTokens": 225,
+          "totalTokens": 13277,
+        },
+      },
+    ],
+    "permissionRequest": undefined,
+    "terminal": {
+      "status": "completed",
+    },
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 13051,
+      "outputTokens": 226,
+      "thinkingTokens": 225,
+      "totalTokens": 13277,
+    },
+  },
+  {
+    "conversationId": "61cf70f7-2ba9-4cc4-93bf-123bde8e8882",
+    "events": [],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "61cf70f7-2ba9-4cc4-93bf-123bde8e8882",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "刚才让你记住的数",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "61cf70f7-2ba9-4cc4-93bf-123bde8e8882",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "字是 9527。",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "61cf70f7-2ba9-4cc4-93bf-123bde8e8882",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 13350,
+          "outputTokens": 128,
+          "thinkingTokens": 116,
+          "totalTokens": 13478,
+        },
+      },
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "
+",
+        "type": "message.delta",
+      },
+      {
+        "messageId": "msg-run-test-123-3",
+        "type": "message.done",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 13350,
+      "outputTokens": 128,
+      "thinkingTokens": 116,
+      "totalTokens": 13478,
+    },
+  },
+  {
+    "conversationId": "61cf70f7-2ba9-4cc4-93bf-123bde8e8882",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 26401,
+          "outputTokens": 354,
+          "thinkingTokens": 341,
+          "totalTokens": 26755,
+        },
+      },
+    ],
+    "permissionRequest": undefined,
+    "terminal": {
+      "status": "completed",
+    },
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 26401,
+      "outputTokens": 354,
+      "thinkingTokens": 341,
+      "totalTokens": 26755,
+    },
+  },
+]
+`;
+
+exports[`stream-adapter > fixtures snapshot tests > matches snapshot for scenario: outside-workspace 1`] = `
+[
+  {
+    "conversationId": "63e64a6f-1695-4ff0-a82c-e31948ac577e",
+    "events": [],
+    "permissionRequest": undefined,
+  },
+  {
+    "conversationId": "63e64a6f-1695-4ff0-a82c-e31948ac577e",
+    "events": [],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "63e64a6f-1695-4ff0-a82c-e31948ac577e",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 13053,
+          "outputTokens": 353,
+          "thinkingTokens": 296,
+          "totalTokens": 13406,
+        },
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 13053,
+      "outputTokens": 353,
+      "thinkingTokens": 296,
+      "totalTokens": 13406,
+    },
+  },
+  {
+    "conversationId": "63e64a6f-1695-4ff0-a82c-e31948ac577e",
+    "events": [
+      {
+        "tool": {
+          "endedAt": null,
+          "error": null,
+          "fileChanges": [],
+          "input": {
+            "AbsolutePath": "C:\\Windows\\win.ini",
+          },
+          "kind": "view_file",
+          "name": "view_file",
+          "output": null,
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "running",
+          "toolCallId": "tool-run-test-123-2",
+        },
+        "type": "tool.started",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "63e64a6f-1695-4ff0-a82c-e31948ac577e",
+    "events": [
+      {
+        "tool": {
+          "endedAt": "2026-09-28T12:00:00.000Z",
+          "error": null,
+          "fileChanges": [],
+          "input": {
+            "AbsolutePath": "C:\\Windows\\win.ini",
+          },
+          "kind": "view_file",
+          "name": "view_file",
+          "output": "8 lines, 92 bytes",
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "succeeded",
+          "toolCallId": "tool-run-test-123-2",
+        },
+        "type": "tool.finished",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "63e64a6f-1695-4ff0-a82c-e31948ac577e",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "文件",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "63e64a6f-1695-4ff0-a82c-e31948ac577e",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": " [win.ini](file:///C:/Windows/win.in",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "63e64a6f-1695-4ff0-a82c-e31948ac577e",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "i) 的首行内容为：
+
+\`\`\`ini
+; for 16-bit app support
+\`\`\`",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "63e64a6f-1695-4ff0-a82c-e31948ac577e",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 13618,
+          "outputTokens": 100,
+          "thinkingTokens": 63,
+          "totalTokens": 13718,
+        },
+      },
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "
+",
+        "type": "message.delta",
+      },
+      {
+        "messageId": "msg-run-test-123-3",
+        "type": "message.done",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 13618,
+      "outputTokens": 100,
+      "thinkingTokens": 63,
+      "totalTokens": 13718,
+    },
+  },
+  {
+    "conversationId": "63e64a6f-1695-4ff0-a82c-e31948ac577e",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 26671,
+          "outputTokens": 453,
+          "thinkingTokens": 359,
+          "totalTokens": 27124,
+        },
+      },
+    ],
+    "permissionRequest": undefined,
+    "terminal": {
+      "status": "completed",
+    },
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 26671,
+      "outputTokens": 453,
+      "thinkingTokens": 359,
+      "totalTokens": 27124,
+    },
+  },
+]
+`;
+
+exports[`stream-adapter > fixtures snapshot tests > matches snapshot for scenario: quota-exhausted 1`] = `
+[
+  {
+    "conversationId": undefined,
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "thinkingTokens": 0,
+          "totalTokens": 0,
+        },
+      },
+    ],
+    "permissionRequest": undefined,
+    "terminal": {
+      "error": {
+        "code": "BAD_REQUEST",
+        "message": "invalid model selection (--model "invalid-model-test-xyz" --effort ""): model invalid-model-test-xyz is not recognized as a known model or custom model in settings
+Available models:
+  Gemini 3.8 Flash (High)
+  Gemini 3.8 Flash (Medium)
+  Gemini 3.8 Flash (Low)
+  Gemini 3.7 Flash (High)
+  Gemini 3.7 Flash (Medium)
+  Gemini 3.7 Flash (Low)
+  Gemini 3.6 Flash (High)
+  Gemini 3.6 Flash (Medium)
+  Gemini 3.6 Flash (Low)
+  Gemini 3.1 Pro (High)
+  Gemini 3.1 Pro (Low)
+  Claude Sonnet 4.6 (Thinking)
+  Claude Opus 4.6 (Thinking)
+  GPT-OSS 120B (Medium)",
+        "retryable": false,
+      },
+      "status": "failed",
+    },
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "thinkingTokens": 0,
+      "totalTokens": 0,
+    },
+  },
+]
+`;
+
+exports[`stream-adapter > fixtures snapshot tests > matches snapshot for scenario: simple-chat 1`] = `
+[
+  {
+    "conversationId": "26de9abb-2ebe-46f5-9185-ee0a07a49475",
+    "events": [],
+    "permissionRequest": undefined,
+  },
+  {
+    "conversationId": "26de9abb-2ebe-46f5-9185-ee0a07a49475",
+    "events": [],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "26de9abb-2ebe-46f5-9185-ee0a07a49475",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-1",
+        "text": "你好！我是 Antigravity，由 Go",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "26de9abb-2ebe-46f5-9185-ee0a07a49475",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-1",
+        "text": "ogle DeepMind 打造的智能编程助手，随",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "26de9abb-2ebe-46f5-9185-ee0a07a49475",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-1",
+        "text": "时准备协助你进行代码编写",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "26de9abb-2ebe-46f5-9185-ee0a07a49475",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-1",
+        "text": "、调试与工程开发",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "26de9abb-2ebe-46f5-9185-ee0a07a49475",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 13039,
+          "outputTokens": 438,
+          "thinkingTokens": 407,
+          "totalTokens": 13477,
+        },
+      },
+      {
+        "messageId": "msg-run-test-123-1",
+        "text": "。
+",
+        "type": "message.delta",
+      },
+      {
+        "messageId": "msg-run-test-123-1",
+        "type": "message.done",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 13039,
+      "outputTokens": 438,
+      "thinkingTokens": 407,
+      "totalTokens": 13477,
+    },
+  },
+  {
+    "conversationId": "26de9abb-2ebe-46f5-9185-ee0a07a49475",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 13039,
+          "outputTokens": 438,
+          "thinkingTokens": 407,
+          "totalTokens": 13477,
+        },
+      },
+    ],
+    "permissionRequest": undefined,
+    "terminal": {
+      "status": "completed",
+    },
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 13039,
+      "outputTokens": 438,
+      "thinkingTokens": 407,
+      "totalTokens": 13477,
+    },
+  },
+]
+`;
+
+exports[`stream-adapter > fixtures snapshot tests > matches snapshot for scenario: subagent 1`] = `
+[
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [],
+    "permissionRequest": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-1",
+        "text": "准备启动一个研究型子 Agent（\`research",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-1",
+        "text": "\`）来读",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-1",
+        "text": "取并调查当前工作",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-1",
+        "text": "区目录下的 \`package",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-1",
+        "text": ".json",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-1",
+        "text": "\` 文件，分析其主要依赖和",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-1",
+        "text": "开发依赖项。",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 13058,
+          "outputTokens": 555,
+          "thinkingTokens": 393,
+          "totalTokens": 13613,
+        },
+      },
+      {
+        "messageId": "msg-run-test-123-1",
+        "text": "
+",
+        "type": "message.delta",
+      },
+      {
+        "messageId": "msg-run-test-123-1",
+        "type": "message.done",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 13058,
+      "outputTokens": 555,
+      "thinkingTokens": 393,
+      "totalTokens": 13613,
+    },
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "tool": {
+          "endedAt": null,
+          "error": null,
+          "fileChanges": [],
+          "input": {},
+          "kind": "subagent",
+          "name": "invoke_subagent",
+          "output": null,
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "running",
+          "toolCallId": "tool-run-test-123-2",
+        },
+        "type": "tool.started",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "tool": {
+          "endedAt": "2026-09-28T12:00:00.000Z",
+          "error": null,
+          "fileChanges": [],
+          "input": {},
+          "kind": "subagent",
+          "name": "invoke_subagent",
+          "output": null,
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "succeeded",
+          "toolCallId": "tool-run-test-123-2",
+        },
+        "type": "tool.finished",
+      },
+      {
+        "parentToolCallId": "tool-run-test-123-2",
+        "subagent": {
+          "conversationId": "e33a7c24-f1e3-4792-ac80-d602ef34dabb",
+          "initialPrompt": "请读取并调查当前工作区根目录（G:\\agy-rec-sandbox）下的 package.json 文件。检查该文件是否存在，如果存在，请提取并详细总结其 dependencies 和 devDependencies（包含包名、版本及各自的主要用途），然后把结果汇总回复给我。",
+          "role": "Dependency Analyzer",
+          "status": "running",
+          "typeName": "research",
+        },
+        "type": "subagent.spawned",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "子 Agent（Dependency A",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "nalyzer）已启动，正在后台读取与分析 [package.json](file:",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 13861,
+          "outputTokens": 218,
+          "thinkingTokens": 177,
+          "totalTokens": 14079,
+        },
+      },
+      {
+        "messageId": "msg-run-test-123-3",
+        "text": "///G:/agy-rec-sandbox/package.json)。等待其分析完成并返回结果。
+",
+        "type": "message.delta",
+      },
+      {
+        "messageId": "msg-run-test-123-3",
+        "type": "message.done",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 13861,
+      "outputTokens": 218,
+      "thinkingTokens": 177,
+      "totalTokens": 14079,
+    },
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 14732,
+          "outputTokens": 228,
+          "thinkingTokens": 191,
+          "totalTokens": 14960,
+        },
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 14732,
+      "outputTokens": 228,
+      "thinkingTokens": 191,
+      "totalTokens": 14960,
+    },
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "tool": {
+          "endedAt": null,
+          "error": null,
+          "fileChanges": [],
+          "input": {
+            "Action": "list",
+          },
+          "kind": "subagent",
+          "name": "manage_subagents",
+          "output": null,
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "running",
+          "toolCallId": "tool-run-test-123-6",
+        },
+        "type": "tool.started",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "tool": {
+          "endedAt": "2026-09-28T12:00:00.000Z",
+          "error": null,
+          "fileChanges": [],
+          "input": {
+            "Action": "list",
+          },
+          "kind": "subagent",
+          "name": "manage_subagents",
+          "output": "You have 1 active subagent(s):
+[{"role":"Dependency Analyzer","type":"research","conversationId":"e33a7c24-f1e3-4792-ac80-d602ef34dabb","transcript":"file:///<HOME>/.gemini/antigravity-cli/brain/e33a7c24-f1e3-4792-ac80-d602ef34dabb/.system_generated/logs/transcript.jsonl","state":"idle"}]",
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "succeeded",
+          "toolCallId": "tool-run-test-123-6",
+        },
+        "type": "tool.finished",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 15162,
+          "outputTokens": 97,
+          "thinkingTokens": 57,
+          "totalTokens": 15259,
+        },
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 15162,
+      "outputTokens": 97,
+      "thinkingTokens": 57,
+      "totalTokens": 15259,
+    },
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "tool": {
+          "endedAt": null,
+          "error": null,
+          "fileChanges": [],
+          "input": {
+            "Action": "kill_all",
+          },
+          "kind": "subagent",
+          "name": "manage_subagents",
+          "output": null,
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "running",
+          "toolCallId": "tool-run-test-123-8",
+        },
+        "type": "tool.started",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "tool": {
+          "endedAt": "2026-09-28T12:00:00.000Z",
+          "error": null,
+          "fileChanges": [],
+          "input": {
+            "Action": "kill_all",
+          },
+          "kind": "subagent",
+          "name": "manage_subagents",
+          "output": "Successfully killed 1 subagent(s) and their descendants.
+Killed roles: Dependency Analyzer",
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "succeeded",
+          "toolCallId": "tool-run-test-123-8",
+        },
+        "type": "tool.finished",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 15353,
+          "outputTokens": 42,
+          "thinkingTokens": 7,
+          "totalTokens": 15395,
+        },
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 15353,
+      "outputTokens": 42,
+      "thinkingTokens": 7,
+      "totalTokens": 15395,
+    },
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "tool": {
+          "endedAt": null,
+          "error": null,
+          "fileChanges": [],
+          "input": {
+            "Action": "list",
+          },
+          "kind": "other",
+          "name": "manage_task",
+          "output": null,
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "running",
+          "toolCallId": "tool-run-test-123-10",
+        },
+        "type": "tool.started",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "tool": {
+          "endedAt": "2026-09-28T12:00:00.000Z",
+          "error": null,
+          "fileChanges": [],
+          "input": {
+            "Action": "list",
+          },
+          "kind": "other",
+          "name": "manage_task",
+          "output": "No background tasks are currently running.",
+          "startedAt": "2026-09-28T12:00:00.000Z",
+          "status": "succeeded",
+          "toolCallId": "tool-run-test-123-10",
+        },
+        "type": "tool.finished",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "子 Agent（Dependency A",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "nalyzer）已完成调",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "查并返回",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "了详细结果。
+
+当前根目录下的 [pack",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "age.json](fi",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "le:///G:/agy-rec-sandbox",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "/package.json) 属于一",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "个 Monorepo 工作区根配置（",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "项目名 \`"agy-studio"\`",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "，声明了",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": " \`private: true\` 并管",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "理 \`contracts\`、\`backe",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "nd\`、\`frontend\`、\`tools/*\` 等子",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "模块）。依赖项详",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "细总结如",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "下：
+
+---
+
+### 1. 运行时依赖（\`dependen",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "cies\`）
+* *",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "*现状**：未声明任",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "何生产运行时依赖",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "（为空）",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "。
+* **说明**：Mono",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "repo 各子",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "项目（前端、后端、智能合约等",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "）各自在自身目录下维护独立的生产",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "依赖。
+
+-",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "--
+
+### 2. 开发/构建依赖（\`devDependen",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "cies\`）
+根",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "目录统一配置了代",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "码规范、Linting 与类型检查工具套件",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "：
+
+| 依",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "赖包名 | 声明版本",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": " | 主要用途 |
+| :--- | :--- | :-",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "-- |
+| **\`eslint\`** | \`^",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "9.21.0\` | JavaScript / T",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "ypeScript ",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "静态代码检查工具，用于代码质量与",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "规范校验 |
+| **\`@eslint/js\`** | ",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "\`^9.21.0\` | ESLint 官",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "方 JavaScri",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "pt 推荐规则配置包（适配 ESLint 9 扁",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "平配置） |
+| **\`pret",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "tier\`** | \`^",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "3.5.2\` | 代码格式化工具，统一步长、",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "缩进、引号等代码排版风格",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": " |
+| **\`eslint-config-pr",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "ettier\`** | \`^10.0.2\` | ",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "解决 ESLin",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "t 与 Prettier 的规则",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "冲突，关闭所有与格式化重",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "复的 ESLint 规则 |
+|",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": " **\`typescript\`** | \`^5.8.2\` | TypeScript 核心",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "编译器与语言支持，提供静态类型检",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "查 |
+| **\`typescript-es",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "lint\`** | \`^",
+        "type": "message.delta",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": undefined,
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 15475,
+          "outputTokens": 637,
+          "thinkingTokens": 181,
+          "totalTokens": 16112,
+        },
+      },
+      {
+        "messageId": "msg-run-test-123-11",
+        "text": "8.25.0\` | TypeScript 的 ESLint 插件与解析器工具套件，支持 TypeScript 语法检查 |
+
+---
+任务完成后已清理结束子 Agent，无悬挂后台任务。
+",
+        "type": "message.delta",
+      },
+      {
+        "messageId": "msg-run-test-123-11",
+        "type": "message.done",
+      },
+    ],
+    "permissionRequest": undefined,
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 15475,
+      "outputTokens": 637,
+      "thinkingTokens": 181,
+      "totalTokens": 16112,
+    },
+  },
+  {
+    "conversationId": "e6e5854f-2f57-4feb-8685-f41225052012",
+    "events": [
+      {
+        "type": "usage",
+        "usage": {
+          "cacheReadTokens": 0,
+          "inputTokens": 87641,
+          "outputTokens": 1777,
+          "thinkingTokens": 1006,
+          "totalTokens": 89418,
+        },
+      },
+    ],
+    "permissionRequest": undefined,
+    "terminal": {
+      "status": "completed",
+    },
+    "usage": {
+      "cacheReadTokens": 0,
+      "inputTokens": 87641,
+      "outputTokens": 1777,
+      "thinkingTokens": 1006,
+      "totalTokens": 89418,
+    },
+  },
+]
+`;
