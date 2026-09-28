@@ -56,4 +56,12 @@ export interface BrainPort {
    * Enforces strict UUID and directory boundary checks.
    */
   purgeConversation(conversationId: string, dataRoot?: string): Promise<void>;
+
+  /**
+   * Resolves the conversation directory on disk.
+   */
+  resolveConversationDir?(
+    conversationId: string,
+    options?: { dataRoot?: string; homeDir?: string },
+  ): string;
 }
