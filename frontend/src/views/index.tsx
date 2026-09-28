@@ -1,6 +1,13 @@
 import React, { useState } from 'react';
 import type { ToolCall, TranscriptStep } from '@agy-studio/contracts';
 import {
+  AttachmentChip,
+  Composer,
+  EffortPicker,
+  ModelPicker,
+  ModePicker,
+} from '../components/composer';
+import {
   ErrorNotice,
   MessageMarkdown,
   RunDivider,
@@ -1007,6 +1014,79 @@ export function PlaygroundView() {
                 isExpanded={true}
                 error="网络请求超时 (504 Gateway Timeout)，未能获取步骤"
                 onRetry={() => {}}
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* 10. Composer & Sub-pickers */}
+        <section className="space-y-4">
+          <h2 className="text-sm font-semibold tracking-wide text-text-secondary uppercase">
+            10. Composer & 选择器 (模块 2.8 输入框与附件)
+          </h2>
+
+          <div className="space-y-4">
+            {/* Pickers showcase */}
+            <div className="rounded-lg border border-border-default bg-bg-surface/30 p-4 space-y-3">
+              <div className="text-[11px] text-text-tertiary font-medium">独立选择器与附件胶囊组件：</div>
+              <div className="flex flex-wrap items-center gap-3">
+                <ModelPicker value="claude-3-7-sonnet" onChange={() => {}} />
+                <EffortPicker value="high" onChange={() => {}} />
+                <ModePicker value="code" onChange={() => {}} />
+              </div>
+              <div className="flex flex-wrap items-center gap-2 pt-2">
+                <AttachmentChip
+                  attachment={{
+                    id: 'demo-img',
+                    file: new File([''], 'screenshot.png', { type: 'image/png' }),
+                    originalName: 'screenshot.png',
+                    size: 1024 * 420,
+                    mimeType: 'image/png',
+                    status: 'uploaded',
+                    progress: 100,
+                  }}
+                  onDelete={() => {}}
+                />
+                <AttachmentChip
+                  attachment={{
+                    id: 'demo-uploading',
+                    file: new File([''], 'data-table.csv', { type: 'text/csv' }),
+                    originalName: 'data-table.csv',
+                    size: 1024 * 128,
+                    mimeType: 'text/csv',
+                    status: 'uploading',
+                    progress: 72,
+                  }}
+                  onDelete={() => {}}
+                />
+                <AttachmentChip
+                  attachment={{
+                    id: 'demo-error',
+                    file: new File([''], 'huge-archive.zip', { type: 'application/zip' }),
+                    originalName: 'huge-archive.zip',
+                    size: 1024 * 1024 * 35,
+                    mimeType: 'application/zip',
+                    status: 'error',
+                    progress: 0,
+                    error: '文件超出大小限制',
+                  }}
+                  onDelete={() => {}}
+                  onRetry={() => {}}
+                />
+              </div>
+            </div>
+
+            {/* Composer interactive showcase */}
+            <div className="rounded-lg border border-border-default bg-bg-surface/30 p-4 space-y-3">
+              <div className="text-[11px] text-text-tertiary font-medium">
+                Composer 完整输入框（支持自适应高度、Enter 发送、IME 组字保护、拖拽粘贴附件、草稿按 sessionId 存储、运行中变停止按钮）：
+              </div>
+              <Composer
+                sessionId="playground-demo-session"
+                placeholder="尝试在此输入文字（支持 Shift+Enter 换行，Enter 发送，拖拽/粘贴附件）…"
+                onSend={async (content, options) => {
+                  alert(`[Demo onSend 触发]\n内容: ${content}\n附件数: ${options?.attachmentIds?.length ?? 0}\n模型: ${options?.model ?? '默认'}`);
+                }}
               />
             </div>
           </div>
