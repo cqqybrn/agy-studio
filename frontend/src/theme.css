@@ -1,0 +1,62 @@
+/**
+ * Antigravity 风格深色主题变量
+ * 对标 Antigravity 现代 Agent IDE：低对比面板、细边框、科技蓝强调色、等宽终端字体
+ */
+:root {
+  /* 背景层次 */
+  --bg-app: #0b0d11;              /* 整体底色，近黑微蓝 */
+  --bg-panel: #12151b;            /* 面板背景（左栏收件箱、顶栏、右栏） */
+  --bg-surface: #181c24;          /* 悬浮层、卡片、输入框背景 */
+  --bg-surface-hover: #1f242f;    /* 卡片/按钮 hover */
+  --bg-surface-active: #272d3b;   /* 选中态 */
+
+  /* 边框系统 */
+  --border-subtle: #1c212b;       /* 次要微弱分割线 */
+  --border-default: #242a36;      /* 默认边框 */
+  --border-strong: #343c4d;       /* 聚焦/高亮边框 */
+
+  /* 文字系统 */
+  --text-primary: #f0f3f6;        /* 主文字 */
+  --text-secondary: #949daf;      /* 次文字 */
+  --text-tertiary: #5d6677;       /* 弱化提示/占位文字 */
+  --text-inverse: #0b0d11;        /* 反色文字 */
+
+  /* 强调色 (Antigravity 科技蓝 / 靛蓝) */
+  --accent: #2563eb;
+  --accent-hover: #3b82f6;
+  --accent-subtle: rgba(37, 99, 235, 0.15);
+  --accent-foreground: #ffffff;
+
+  /* 状态色 */
+  --color-success: #10b981;
+  --color-success-subtle: rgba(16, 185, 129, 0.15);
+  --color-warning: #f59e0b;
+  --color-warning-subtle: rgba(245, 158, 11, 0.15);
+  --color-error: #ef4444;
+  --color-error-subtle: rgba(239, 68, 68, 0.15);
+
+  /* 等宽字体 */
+  --font-mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* shadcn/ui 兼容语义 HSL 变量 */
+  --background: 220 20% 5%;
+  --foreground: 210 20% 95%;
+  --card: 218 20% 9%;
+  --card-foreground: 210 20% 95%;
+  --popover: 220 20% 12%;
+  --popover-foreground: 210 20% 95%;
+  --primary: 221 83% 53%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 18% 12%;
+  --secondary-foreground: 210 20% 95%;
+  --muted: 220 18% 15%;
+  --muted-foreground: 218 12% 63%;
+  --accent-ui: 220 18% 18%;
+  --accent-ui-foreground: 210 20% 95%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 220 20% 18%;
+  --input: 220 20% 18%;
+  --ring: 221 83% 53%;
+}
