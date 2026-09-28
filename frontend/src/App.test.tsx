@@ -44,6 +44,9 @@ describe('App & Layout Component', () => {
 
     const playgroundHtml = renderToString(<PlaygroundView />);
     expect(playgroundHtml).toContain('PlaygroundView');
+    expect(playgroundHtml).toContain('Timeline Components Showcase');
+    expect(playgroundHtml).toContain('data-testid="markdown-table"');
+    expect(playgroundHtml).toContain('data-testid="code-block"');
   });
 
   it('verifies localStorage interaction logic for right panel settings', () => {

@@ -1,4 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import ReactMarkdown, { type Components } from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { createHighlighter, type Highlighter } from 'shiki';
 import { CheckIcon, CopyIcon } from './icons';
 
 export interface MessageMarkdownProps {
@@ -7,94 +10,91 @@ export interface MessageMarkdownProps {
 }
 
 // ---------------------------------------------------------------------------
-// Syntax Tokenizer for Code Highlighting
+// 链接安全校验：只允许 http:, https:, mailto: 协议
+// 危险协议（如 javascript:, vbscript:, data: 等）严禁渲染到 href 中
 // ---------------------------------------------------------------------------
-interface SyntaxToken {
-  type: 'keyword' | 'string' | 'comment' | 'number' | 'type' | 'text';
-  text: string;
+export function isSafeUrl(url?: string): boolean {
+  if (!url) return false;
+  const trimmed = url.trim();
+  // 只允许 http:, https:, mailto: 协议
+  return /^(https?|mailto):/i.test(trimmed);
 }
 
-function tokenizeLine(line: string, _lang: string): SyntaxToken[] {
-  const tokens: SyntaxToken[] = [];
-  let i = 0;
+// ---------------------------------------------------------------------------
+// Shiki 代码高亮单例管理与高亮服务
+// ---------------------------------------------------------------------------
+let highlighterPromise: Promise<Highlighter> | null = null;
 
-  while (i < line.length) {
-    // Single-line comment // or #
-    if (
-      (line[i] === '/' && line[i + 1] === '/') ||
-      (line[i] === '#' && (i === 0 || /\s/.test(line[i - 1])))
-    ) {
-      tokens.push({ type: 'comment', text: line.slice(i) });
-      break;
-    }
-
-    // Strings: "...", '...', `...`
-    if (line[i] === '"' || line[i] === "'" || line[i] === '`') {
-      const quote = line[i];
-      let str = quote;
-      i++;
-      while (i < line.length && line[i] !== quote) {
-        if (line[i] === '\\' && i + 1 < line.length) {
-          str += line[i] + line[i + 1];
-          i += 2;
-        } else {
-          str += line[i];
-          i++;
-        }
-      }
-      if (i < line.length && line[i] === quote) {
-        str += quote;
-        i++;
-      }
-      tokens.push({ type: 'string', text: str });
-      continue;
-    }
-
-    // Numbers:
-    const numMatch = line.slice(i).match(/^\b(\d+(\.\d+)?)\b/);
-    if (numMatch) {
-      tokens.push({ type: 'number', text: numMatch[0] });
-      i += numMatch[0].length;
-      continue;
-    }
-
-    // Word tokens (keywords, types, identifiers)
-    const wordMatch = line.slice(i).match(/^[a-zA-Z_$][a-zA-Z0-9_$]*/);
-    if (wordMatch) {
-      const word = wordMatch[0];
-      const keywords = new Set([
-        'import', 'from', 'export', 'default', 'const', 'let', 'var',
-        'function', 'return', 'if', 'else', 'for', 'while', 'switch',
-        'case', 'break', 'class', 'extends', 'interface', 'type', 'async',
-        'await', 'try', 'catch', 'throw', 'new', 'typeof', 'instanceof',
-        'true', 'false', 'null', 'undefined', 'def', 'self', 'lambda',
-      ]);
-      const types = new Set([
-        'string', 'number', 'boolean', 'any', 'void', 'never', 'unknown',
-        'Promise', 'Array', 'Record', 'Set', 'Map', 'React',
-      ]);
-
-      if (keywords.has(word)) {
-        tokens.push({ type: 'keyword', text: word });
-      } else if (types.has(word)) {
-        tokens.push({ type: 'type', text: word });
-      } else {
-        tokens.push({ type: 'text', text: word });
-      }
-      i += word.length;
-      continue;
-    }
-
-    // Plain symbol / space
-    tokens.push({ type: 'text', text: line[i] });
-    i++;
+function getHighlighterInstance(): Promise<Highlighter> {
+  if (!highlighterPromise) {
+    highlighterPromise = createHighlighter({
+      themes: ['tokyo-night'],
+      langs: [
+        'typescript',
+        'javascript',
+        'tsx',
+        'jsx',
+        'json',
+        'bash',
+        'shell',
+        'sh',
+        'python',
+        'html',
+        'css',
+        'markdown',
+        'md',
+        'yaml',
+        'yml',
+        'sql',
+      ],
+    });
   }
-
-  return tokens;
+  return highlighterPromise;
 }
 
+export async function highlightCodeWithShiki(code: string, language: string): Promise<string | null> {
+  try {
+    const highlighter = await getHighlighterInstance();
+    const lang = (language || '').toLowerCase().trim() || 'text';
+
+    const loadedLangs = highlighter.getLoadedLanguages();
+    if (lang !== 'text' && !loadedLangs.includes(lang as any)) {
+      try {
+        await highlighter.loadLanguage(lang as any);
+      } catch {
+        // 动态加载失败则降级到 text
+      }
+    }
+
+    const effectiveLang = highlighter.getLoadedLanguages().includes(lang as any) ? lang : 'text';
+    return highlighter.codeToHtml(code, {
+      lang: effectiveLang,
+      theme: 'tokyo-night',
+    });
+  } catch (err) {
+    console.warn('Failed to highlight code with shiki:', err);
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// CodeBlock 组件：带复制按钮、语言标签以及 Shiki 代码高亮
+// ---------------------------------------------------------------------------
 function CodeBlock({ code, language }: { code: string; language: string }) {
+  const [highlightedHtml, setHighlightedHtml] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    highlightCodeWithShiki(code, language).then((html) => {
+      if (isMounted && html) {
+        setHighlightedHtml(html);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [code, language]);
 
   const handleCopy = () => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -103,8 +103,6 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
       setTimeout(() => setCopied(false), 2000);
     }
   };
-
-  const lines = code.replace(/\r\n/g, '\n').split('\n');
 
   return (
     <div
@@ -136,372 +134,243 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
         </button>
       </div>
 
-      <pre className="overflow-x-auto p-3 leading-relaxed text-text-secondary">
-        <code>
-          {lines.map((line, lineIdx) => {
-            const tokens = tokenizeLine(line, language);
-            return (
-              <div key={lineIdx} className="flex">
-                <span className="mr-3 w-6 shrink-0 select-none text-right text-[10px] text-text-tertiary/60">
-                  {lineIdx + 1}
-                </span>
-                <span className="min-w-0 flex-1">
-                  {tokens.map((token, tokIdx) => {
-                    let color = 'text-text-secondary';
-                    if (token.type === 'keyword') color = 'text-[#7aa2f7] font-medium'; // soft blue
-                    else if (token.type === 'string') color = 'text-[#9ece6a]'; // green
-                    else if (token.type === 'comment') color = 'text-[#565f89] italic'; // muted slate
-                    else if (token.type === 'number') color = 'text-[#ff9e64]'; // orange
-                    else if (token.type === 'type') color = 'text-[#2ac3de]'; // cyan
-                    return (
-                      <span key={tokIdx} className={color}>
-                        {token.text}
-                      </span>
-                    );
-                  })}
-                </span>
-              </div>
-            );
-          })}
-        </code>
-      </pre>
+      {highlightedHtml ? (
+        <div
+          className="overflow-x-auto p-3 leading-relaxed [&>pre]:!bg-transparent [&>pre]:!m-0 [&>pre]:!p-0 [&>pre]:!border-0 text-text-secondary font-mono"
+          dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+        />
+      ) : (
+        <pre className="overflow-x-auto p-3 leading-relaxed text-text-secondary font-mono">
+          <code>{code}</code>
+        </pre>
+      )}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Inline Markdown Parser: bold, italic, strikethrough, inline code, links
+// 上下文：用于精准区分 <pre> 内的代码块与普通行内代码
 // ---------------------------------------------------------------------------
-export function renderInlineMarkdown(text: string): React.ReactNode[] {
-  const elements: React.ReactNode[] = [];
-  // Tokenize with regex matching code, bold/italic, strikethrough, links
-  // Pattern:
-  // 1: `code`
-  // 2: **bold** or __bold__
-  // 3: ~~strike~~
-  // 4: *italic* or _italic_
-  // 5: [label](url)
-  const regex = /(`[^`]+`)|(\*\*[^*]+\*\*|__[^_]+__)|(~~[^~]+~~)|(\*[^*]+\*|_[^_]+_)|(\[[^\]]+\]\([^)]+\))/g;
+const InPreContext = React.createContext(false);
 
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
+const markdownComponents: Components = {
+  // 标题 Headings
+  h1: ({ children, ...rest }) => (
+    <h1 className="text-lg font-bold text-text-primary mt-4 mb-2 pb-1 border-b border-border-subtle" {...rest}>
+      {children}
+    </h1>
+  ),
+  h2: ({ children, ...rest }) => (
+    <h2 className="text-base font-semibold text-text-primary mt-3 mb-2" {...rest}>
+      {children}
+    </h2>
+  ),
+  h3: ({ children, ...rest }) => (
+    <h3 className="text-sm font-semibold text-text-primary mt-2 mb-1" {...rest}>
+      {children}
+    </h3>
+  ),
+  h4: ({ children, ...rest }) => (
+    <h4 className="text-xs font-semibold text-text-primary mt-2 mb-1" {...rest}>
+      {children}
+    </h4>
+  ),
+  h5: ({ children, ...rest }) => (
+    <h5 className="text-xs font-medium text-text-secondary mt-1 mb-1" {...rest}>
+      {children}
+    </h5>
+  ),
+  h6: ({ children, ...rest }) => (
+    <h6 className="text-xs font-medium text-text-tertiary mt-1 mb-1" {...rest}>
+      {children}
+    </h6>
+  ),
 
-  while ((match = regex.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      elements.push(text.slice(lastIndex, match.index));
+  // 段落、引用与水平分割线
+  p: ({ children, ...rest }) => (
+    <p className="my-1.5 text-xs leading-relaxed text-text-secondary" {...rest}>
+      {children}
+    </p>
+  ),
+  blockquote: ({ children, ...rest }) => (
+    <blockquote className="my-2 border-l-2 border-accent/60 bg-bg-surface/30 pl-3 py-1 text-xs italic text-text-secondary" {...rest}>
+      {children}
+    </blockquote>
+  ),
+  hr: ({ ...rest }) => (
+    <hr className="my-4 border-t border-border-default" {...rest} />
+  ),
+
+  // 格式化文本
+  strong: ({ children, ...rest }) => (
+    <strong className="font-semibold text-text-primary" {...rest}>
+      {children}
+    </strong>
+  ),
+  em: ({ children, ...rest }) => (
+    <em className="italic text-text-secondary" {...rest}>
+      {children}
+    </em>
+  ),
+  del: ({ children, ...rest }) => (
+    <del className="line-through text-text-tertiary" {...rest}>
+      {children}
+    </del>
+  ),
+
+  // 安全链接校验：只允许 http:, https:, mailto: 协议，危险协议严禁渲染到 href 中
+  a: ({ href, children, ...rest }) => {
+    if (!href || !isSafeUrl(href)) {
+      return <span>{children}</span>;
     }
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-accent hover:text-accent-hover hover:underline transition-colors"
+        {...rest}
+      >
+        {children}
+      </a>
+    );
+  },
 
-    const token = match[0];
-    const key = `${match.index}-${token}`;
+  // 表格 Tables (GFM)
+  table: ({ children, ...rest }) => (
+    <div className="my-3 overflow-x-auto" data-testid="markdown-table">
+      <table className="w-full text-left border-collapse text-xs border border-border-default" {...rest}>
+        {children}
+      </table>
+    </div>
+  ),
+  thead: ({ children, ...rest }) => (
+    <thead className="border-b border-border-default bg-bg-surface/80" {...rest}>
+      {children}
+    </thead>
+  ),
+  tbody: ({ children, ...rest }) => (
+    <tbody className="divide-y divide-border-subtle bg-bg-app/20" {...rest}>
+      {children}
+    </tbody>
+  ),
+  tr: ({ children, ...rest }) => (
+    <tr className="hover:bg-bg-surface/30 transition-colors" {...rest}>
+      {children}
+    </tr>
+  ),
+  th: ({ children, ...rest }) => (
+    <th className="px-3 py-2 font-medium text-text-primary border-r border-border-subtle last:border-r-0" {...rest}>
+      {children}
+    </th>
+  ),
+  td: ({ children, ...rest }) => (
+    <td className="px-3 py-1.5 text-text-secondary border-r border-border-subtle last:border-r-0" {...rest}>
+      {children}
+    </td>
+  ),
 
-    if (token.startsWith('`') && token.endsWith('`')) {
-      elements.push(
-        <code
-          key={key}
-          className="rounded bg-bg-surface-active px-1.5 py-0.5 font-mono text-[11px] text-accent border border-border-default select-text"
-        >
-          {token.slice(1, -1)}
-        </code>
+  // 列表 Lists & 复选框 Checkboxes
+  ul: ({ children, className, ...rest }) => {
+    const isTaskList = className?.includes('contains-task-list');
+    return (
+      <ul
+        className={`my-2 space-y-1 text-xs text-text-secondary ${
+          isTaskList ? 'list-none pl-0' : 'list-disc pl-5'
+        } ${className || ''}`}
+        {...rest}
+      >
+        {children}
+      </ul>
+    );
+  },
+  ol: ({ children, className, ...rest }) => (
+    <ol
+      className={`my-2 space-y-1 text-xs text-text-secondary list-decimal pl-5 ${className || ''}`}
+      {...rest}
+    >
+      {children}
+    </ol>
+  ),
+  li: ({ children, className, ...rest }) => {
+    const isTaskItem = className?.includes('task-list-item');
+    return (
+      <li
+        className={`leading-relaxed ${
+          isTaskItem ? 'flex items-start gap-2 list-none' : ''
+        } ${className || ''}`}
+        {...rest}
+      >
+        {children}
+      </li>
+    );
+  },
+  input: (props) => {
+    if (props.type === 'checkbox') {
+      return (
+        <input
+          type="checkbox"
+          checked={props.checked}
+          disabled
+          readOnly
+          className="mt-0.5 h-3.5 w-3.5 rounded border-border-default bg-bg-surface text-accent cursor-default shrink-0"
+        />
       );
-    } else if (
-      (token.startsWith('**') && token.endsWith('**')) ||
-      (token.startsWith('__') && token.endsWith('__'))
-    ) {
-      elements.push(
-        <strong key={key} className="font-semibold text-text-primary">
-          {token.slice(2, -2)}
-        </strong>
-      );
-    } else if (token.startsWith('~~') && token.endsWith('~~')) {
-      elements.push(
-        <del key={key} className="line-through text-text-tertiary">
-          {token.slice(2, -2)}
-        </del>
-      );
-    } else if (
-      (token.startsWith('*') && token.endsWith('*')) ||
-      (token.startsWith('_') && token.endsWith('_'))
-    ) {
-      elements.push(
-        <em key={key} className="italic text-text-secondary">
-          {token.slice(1, -1)}
-        </em>
-      );
-    } else if (token.startsWith('[') && token.includes('](') && token.endsWith(')')) {
-      const linkMatch = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-      if (linkMatch) {
-        elements.push(
-          <a
-            key={key}
-            href={linkMatch[2]}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-accent hover:text-accent-hover hover:underline transition-colors"
-          >
-            {linkMatch[1]}
-          </a>
-        );
-      } else {
-        elements.push(token);
-      }
-    } else {
-      elements.push(token);
     }
+    return <input {...props} />;
+  },
 
-    lastIndex = regex.lastIndex;
-  }
-
-  if (lastIndex < text.length) {
-    elements.push(text.slice(lastIndex));
-  }
-
-  return elements.length > 0 ? elements : [text];
-}
+  // 代码块与行内代码
+  pre: ({ children }) => (
+    <InPreContext.Provider value={true}>
+      {children}
+    </InPreContext.Provider>
+  ),
+  code: ({ className, children, ...rest }) => {
+    const isInsidePre = React.useContext(InPreContext);
+    if (isInsidePre) {
+      const match = /language-(\w+)/.exec(className || '');
+      const language = match ? match[1] : '';
+      const codeString = String(children).replace(/\n$/, '');
+      return <CodeBlock code={codeString} language={language} />;
+    }
+    return (
+      <code
+        className="rounded bg-bg-surface-active px-1.5 py-0.5 font-mono text-[11px] text-accent border border-border-default select-text"
+        {...rest}
+      >
+        {children}
+      </code>
+    );
+  },
+};
 
 // ---------------------------------------------------------------------------
-// Block Level Markdown Parser
+// 纯展示无状态 MessageMarkdown 组件
 // ---------------------------------------------------------------------------
 export function MessageMarkdown({ content, className = '' }: MessageMarkdownProps) {
   if (!content) return null;
-
-  const rawLines = content.replace(/\r\n/g, '\n').split('\n');
-  const blocks: React.ReactNode[] = [];
-  let i = 0;
-
-  while (i < rawLines.length) {
-    const line = rawLines[i];
-
-    // Fenced code block: ```lang
-    if (line.trim().startsWith('```')) {
-      const language = line.trim().slice(3).trim();
-      const codeLines: string[] = [];
-      i++;
-      while (i < rawLines.length && !rawLines[i].trim().startsWith('```')) {
-        codeLines.push(rawLines[i]);
-        i++;
-      }
-      i++; // Skip closing ```
-      blocks.push(
-        <CodeBlock
-          key={`code-${i}`}
-          code={codeLines.join('\n')}
-          language={language}
-        />
-      );
-      continue;
-    }
-
-    // Horizontal rule: --- or ***
-    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) {
-      blocks.push(
-        <hr key={`hr-${i}`} className="my-4 border-t border-border-default" />
-      );
-      i++;
-      continue;
-    }
-
-    // Headings: # H1, ## H2, etc.
-    const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
-    if (headingMatch) {
-      const level = headingMatch[1].length;
-      const text = headingMatch[2];
-      const headingClasses: Record<number, string> = {
-        1: 'text-lg font-bold text-text-primary mt-4 mb-2 pb-1 border-b border-border-subtle',
-        2: 'text-base font-semibold text-text-primary mt-3 mb-2',
-        3: 'text-sm font-semibold text-text-primary mt-2 mb-1',
-        4: 'text-xs font-semibold text-text-primary mt-2 mb-1',
-        5: 'text-xs font-medium text-text-secondary mt-1 mb-1',
-        6: 'text-xs font-medium text-text-tertiary mt-1 mb-1',
-      };
-      blocks.push(
-        <div key={`h-${i}`} className={headingClasses[level]}>
-          {renderInlineMarkdown(text)}
-        </div>
-      );
-      i++;
-      continue;
-    }
-
-    // Blockquote: > text
-    if (line.startsWith('>')) {
-      const quoteLines: string[] = [];
-      while (i < rawLines.length && rawLines[i].startsWith('>')) {
-        quoteLines.push(rawLines[i].replace(/^>\s?/, ''));
-        i++;
-      }
-      blocks.push(
-        <blockquote
-          key={`quote-${i}`}
-          className="my-2 border-l-2 border-accent/60 bg-bg-surface/30 pl-3 py-1 text-xs italic text-text-secondary"
-        >
-          {quoteLines.map((ql, qIdx) => (
-            <div key={qIdx}>{renderInlineMarkdown(ql)}</div>
-          ))}
-        </blockquote>
-      );
-      continue;
-    }
-
-    // GFM Table: | col 1 | col 2 |
-    if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
-      const tableLines: string[] = [];
-      while (
-        i < rawLines.length &&
-        rawLines[i].trim().startsWith('|') &&
-        rawLines[i].trim().endsWith('|')
-      ) {
-        tableLines.push(rawLines[i].trim());
-        i++;
-      }
-
-      if (tableLines.length >= 2) {
-        const headerRow = tableLines[0]
-          .slice(1, -1)
-          .split('|')
-          .map((c) => c.trim());
-        // Skip separator row (tableLines[1], e.g. |---|---|)
-        const dataRows = tableLines.slice(2).map((row) =>
-          row
-            .slice(1, -1)
-            .split('|')
-            .map((c) => c.trim())
-        );
-
-        blocks.push(
-          <div key={`table-${i}`} className="my-3 overflow-x-auto" data-testid="markdown-table">
-            <table className="w-full text-left border-collapse text-xs border border-border-default">
-              <thead>
-                <tr className="border-b border-border-default bg-bg-surface/80">
-                  {headerRow.map((h, colIdx) => (
-                    <th
-                      key={colIdx}
-                      className="px-3 py-2 font-medium text-text-primary border-r border-border-subtle last:border-r-0"
-                    >
-                      {renderInlineMarkdown(h)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-subtle bg-bg-app/20">
-                {dataRows.map((row, rowIdx) => (
-                  <tr
-                    key={rowIdx}
-                    className="hover:bg-bg-surface/30 transition-colors"
-                  >
-                    {row.map((cell, cellIdx) => (
-                      <td
-                        key={cellIdx}
-                        className="px-3 py-1.5 text-text-secondary border-r border-border-subtle last:border-r-0"
-                      >
-                        {renderInlineMarkdown(cell)}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
-        continue;
-      }
-    }
-
-    // Lists: Unordered (*, -, +) or Ordered (1.) or Task lists (- [ ])
-    if (/^\s*([-*+]|\d+\.)\s+/.test(line)) {
-      const listItems: { isOrdered: boolean; text: string; isTask?: boolean; checked?: boolean }[] = [];
-      const isOrdered = /^\s*\d+\.\s+/.test(line);
-
-      while (i < rawLines.length && /^\s*([-*+]|\d+\.)\s+/.test(rawLines[i])) {
-        const itemLine = rawLines[i];
-        const match = itemLine.match(/^\s*([-*+]|\d+\.)\s+(.*)$/);
-        if (match) {
-          let itemText = match[2];
-          let isTask = false;
-          let checked = false;
-
-          const taskMatch = itemText.match(/^\[([ xX])\]\s+(.*)$/);
-          if (taskMatch) {
-            isTask = true;
-            checked = taskMatch[1].toLowerCase() === 'x';
-            itemText = taskMatch[2];
-          }
-
-          listItems.push({ isOrdered, text: itemText, isTask, checked });
-        }
-        i++;
-      }
-
-      blocks.push(
-        <div key={`list-${i}`} className="my-2 space-y-1 text-xs">
-          {listItems.map((item, idx) => (
-            <div key={idx} className="flex items-start gap-2 text-text-secondary">
-              {item.isTask ? (
-                <input
-                  type="checkbox"
-                  checked={item.checked}
-                  readOnly
-                  className="mt-0.5 h-3.5 w-3.5 rounded border-border-default bg-bg-surface text-accent cursor-default"
-                />
-              ) : item.isOrdered ? (
-                <span className="w-4 shrink-0 font-mono text-[11px] text-text-tertiary select-none text-right">
-                  {idx + 1}.
-                </span>
-              ) : (
-                <span className="shrink-0 text-text-tertiary select-none">•</span>
-              )}
-              <div className="flex-1 leading-relaxed">
-                {renderInlineMarkdown(item.text)}
-              </div>
-            </div>
-          ))}
-        </div>
-      );
-      continue;
-    }
-
-    // Empty line
-    if (!line.trim()) {
-      i++;
-      continue;
-    }
-
-    // Regular paragraph: gather consecutive text lines
-    const paragraphLines: string[] = [];
-    while (
-      i < rawLines.length &&
-      rawLines[i].trim() &&
-      !rawLines[i].trim().startsWith('```') &&
-      !rawLines[i].match(/^(#{1,6})\s+/) &&
-      !rawLines[i].startsWith('>') &&
-      !rawLines[i].trim().startsWith('|') &&
-      !/^(-{3,}|\*{3,}|_{3,})$/.test(rawLines[i].trim()) &&
-      !/^\s*([-*+]|\d+\.)\s+/.test(rawLines[i])
-    ) {
-      paragraphLines.push(rawLines[i]);
-      i++;
-    }
-
-    blocks.push(
-      <p
-        key={`p-${i}`}
-        className="my-1.5 text-xs leading-relaxed text-text-secondary"
-      >
-        {paragraphLines.map((pl, plIdx) => (
-          <React.Fragment key={plIdx}>
-            {plIdx > 0 && <br />}
-            {renderInlineMarkdown(pl)}
-          </React.Fragment>
-        ))}
-      </p>
-    );
-  }
 
   return (
     <div
       className={`message-markdown font-sans text-xs select-text ${className}`}
       data-testid="message-markdown"
     >
-      {blocks}
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={markdownComponents}
+        urlTransform={(url) => {
+          if (isSafeUrl(url)) return url;
+          return '';
+        }}
+      >
+        {content}
+      </ReactMarkdown>
     </div>
   );
+}
+
+// 兼容外部引用的辅助函数
+export function renderInlineMarkdown(text: string): React.ReactNode {
+  return <MessageMarkdown content={text} />;
 }

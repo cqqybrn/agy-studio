@@ -461,6 +461,43 @@ const greeting: string = "Hello World";
       expect(html).toContain('Done task');
       expect(html).toContain('Todo task');
     });
+
+    it('filters dangerous link protocols and forbids javascript: in href', () => {
+      const dangerousMarkdown = '[x](javascript:alert(1)) and [evil](vbscript:msgbox(1)) and [data](data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==)';
+      const html = renderToString(<MessageMarkdown content={dangerousMarkdown} />);
+      expect(html).not.toContain('href="javascript:');
+      expect(html).not.toContain('javascript:alert(1)');
+      expect(html).not.toContain('href="vbscript:');
+      expect(html).not.toContain('href="data:');
+      expect(html).toContain('x');
+    });
+
+    it('renders safe links with http, https, and mailto protocols correctly', () => {
+      const safeMarkdown = '[Secure](https://example.com) and [Insecure](http://example.org) and [Contact](mailto:dev@example.com)';
+      const html = renderToString(<MessageMarkdown content={safeMarkdown} />);
+      expect(html).toContain('href="https://example.com"');
+      expect(html).toContain('href="http://example.org"');
+      expect(html).toContain('href="mailto:dev@example.com"');
+      expect(html).toContain('target="_blank"');
+      expect(html).toContain('rel="noopener noreferrer"');
+    });
+
+    it('renders all markdown heading levels properly', () => {
+      const headingsMarkdown = '# Heading 1\n## Heading 2\n### Heading 3\n#### Heading 4\n##### Heading 5\n###### Heading 6';
+      const html = renderToString(<MessageMarkdown content={headingsMarkdown} />);
+      expect(html).toContain('<h1');
+      expect(html).toContain('Heading 1</h1>');
+      expect(html).toContain('<h2');
+      expect(html).toContain('Heading 2</h2>');
+      expect(html).toContain('<h3');
+      expect(html).toContain('Heading 3</h3>');
+      expect(html).toContain('<h4');
+      expect(html).toContain('Heading 4</h4>');
+      expect(html).toContain('<h5');
+      expect(html).toContain('Heading 5</h5>');
+      expect(html).toContain('<h6');
+      expect(html).toContain('Heading 6</h6>');
+    });
   });
 
   // ==========================================================================
