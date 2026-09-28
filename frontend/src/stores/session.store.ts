@@ -18,6 +18,7 @@ import {
   getSessionEvents,
   getSessions,
   importSessions as apiImportSessions,
+  updateSession as apiUpdateSession,
 } from '../api/endpoints';
 import { wsClient } from '../api/ws';
 import type { TimelineState } from '../domain/timeline.types';
@@ -67,6 +68,7 @@ export interface SessionState {
   handleSessionDeleted: (sessionId: string) => void;
   handleRunStatus: (run: Pick<Run, 'id' | 'sessionId'> & { status: RunStatus }) => void;
   createSession: (body: CreateSessionBody) => Promise<Session>;
+  renameSession: (sessionId: string, title: string) => Promise<Session>;
   deleteSession: (sessionId: string, purge?: boolean) => Promise<void>;
   importSessions: (body: ImportSessionsBody) => Promise<Session[]>;
 }
@@ -406,6 +408,12 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     get().handleSessionUpserted(session);
     get().setActiveSessionId(session.id);
     return session;
+  },
+
+  renameSession: async (sessionId: string, title: string) => {
+    const updated = await apiUpdateSession(sessionId, { title });
+    get().handleSessionUpserted(updated);
+    return updated;
   },
 
   deleteSession: async (sessionId: string, purge?: boolean) => {

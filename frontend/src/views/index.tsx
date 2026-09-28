@@ -22,36 +22,20 @@ import {
 import { QuotaPanel, QuotaRing } from '../components/quota';
 import { AccountMenu } from '../components/account';
 import type {
+  AssistantMessageItem,
   ErrorItem,
   RunDividerItem,
   StalledNoticeItem,
   SubagentItem,
   ThinkingItem,
+  TimelineItem,
   ToolGroupItem,
   ToolItem,
 } from '../domain/timeline.types';
 
 export { AccountsView } from './AccountsView';
-
-export function ManagerView() {
-  return (
-    <div className="flex h-full flex-col items-center justify-center p-8 text-center text-text-secondary">
-      <div className="max-w-md rounded-xl border border-border-default bg-bg-surface p-6 shadow-lg">
-        <h2 className="text-lg font-semibold text-text-primary">会话主视图 (ManagerView)</h2>
-        <p className="mt-2 text-sm text-text-secondary">
-          时间线、思考块、工具调用卡片与底部输入框骨架
-        </p>
-        <div className="mt-4 flex items-center justify-center gap-2 text-xs text-text-tertiary font-mono">
-          <span>左侧收件箱</span>
-          <span>•</span>
-          <span>中央对话流</span>
-          <span>•</span>
-          <span>右侧 Artifacts</span>
-        </div>
-      </div>
-    </div>
-  );
-}
+export { ManagerView } from './ManagerView';
+import { ManagerView as EmbeddedManagerView } from './ManagerView';
 
 export function SettingsView() {
   return (
@@ -902,8 +886,293 @@ const mockWhoamiSnapshot: WhoAmI = {
 // PlaygroundView Component
 // ============================================================================
 
+export function generateDenseTimelineItems(count: number): TimelineItem[] {
+  const items: TimelineItem[] = [];
+  const baseTime = Date.now() - count * 1000;
+
+  for (let i = 0; i < count; i++) {
+    const time = new Date(baseTime + i * 1000).toISOString();
+    const mod = i % 8;
+    switch (mod) {
+      case 0:
+        items.push({
+          id: `dense-user-${i}`,
+          kind: 'user_message',
+          type: 'user_message',
+          messageId: `msg-u-${i}`,
+          text: `用户指令 #${i + 1}: 请分析模块性能瓶颈并执行自动化基准测试套件。`,
+          attachments: [],
+          runId: `run-${Math.floor(i / 8)}`,
+          createdAt: time,
+        });
+        break;
+      case 1:
+        items.push({
+          id: `dense-think-${i}`,
+          kind: 'thinking',
+          type: 'thinking',
+          blockId: `blk-${i}`,
+          source: 'stream',
+          text: `正在分析第 ${i + 1} 步的 AST 解析树结构与依赖拓扑关系……`,
+          startedAt: time,
+          endedAt: time,
+          durationMs: 3200,
+          isComplete: true,
+          runId: `run-${Math.floor(i / 8)}`,
+        });
+        break;
+      case 2:
+        items.push({
+          id: `dense-tool-fe-${i}`,
+          kind: 'tool',
+          type: 'tool',
+          toolCallId: `tc-fe-${i}`,
+          tool: {
+            toolCallId: `tc-fe-${i}`,
+            name: 'edit_file',
+            kind: 'edit_file',
+            input: { path: `src/core/module_${i}.ts` },
+            target: `src/core/module_${i}.ts`,
+            output: 'Applied modifications successfully.',
+            error: null,
+            status: 'succeeded',
+            fileChanges: [
+              {
+                path: `src/core/module_${i}.ts`,
+                changeType: 'modified',
+                additions: 12,
+                deletions: 4,
+              },
+            ],
+            startedAt: time,
+            endedAt: time,
+          },
+          subagents: [],
+          runId: `run-${Math.floor(i / 8)}`,
+          createdAt: time,
+          updatedAt: time,
+        });
+        break;
+      case 3:
+        items.push({
+          id: `dense-tool-cmd-${i}`,
+          kind: 'tool',
+          type: 'tool',
+          toolCallId: `tc-cmd-${i}`,
+          tool: {
+            toolCallId: `tc-cmd-${i}`,
+            name: 'run_command',
+            kind: 'run_command',
+            input: { command: `npm run test -- --filter=module_${i}` },
+            target: `npm run test -- --filter=module_${i}`,
+            output: `✓ module_${i}.test.ts (8 tests passed in 42ms)`,
+            error: null,
+            status: 'succeeded',
+            fileChanges: [],
+            startedAt: time,
+            endedAt: time,
+          },
+          subagents: [],
+          runId: `run-${Math.floor(i / 8)}`,
+          createdAt: time,
+          updatedAt: time,
+        });
+        break;
+      case 4:
+        items.push({
+          id: `dense-tg-${i}`,
+          kind: 'tool_group',
+          type: 'tool_group',
+          tools: [
+            {
+              id: `dense-tg-sub1-${i}`,
+              kind: 'tool',
+              type: 'tool',
+              toolCallId: `tc-sub1-${i}`,
+              tool: {
+                toolCallId: `tc-sub1-${i}`,
+                name: 'view_file',
+                kind: 'view_file',
+                input: { path: `src/utils/calc_${i}.ts` },
+                target: `src/utils/calc_${i}.ts`,
+                output: '// 45 lines',
+                error: null,
+                status: 'succeeded',
+                fileChanges: [],
+                startedAt: time,
+                endedAt: time,
+              },
+              subagents: [],
+              runId: `run-${Math.floor(i / 8)}`,
+              createdAt: time,
+              updatedAt: time,
+            },
+            {
+              id: `dense-tg-sub2-${i}`,
+              kind: 'tool',
+              type: 'tool',
+              toolCallId: `tc-sub2-${i}`,
+              tool: {
+                toolCallId: `tc-sub2-${i}`,
+                name: 'search',
+                kind: 'search',
+                input: { query: `benchmark_${i}` },
+                target: `benchmark_${i}`,
+                output: 'Found 4 matches in 2 files',
+                error: null,
+                status: 'succeeded',
+                fileChanges: [],
+                startedAt: time,
+                endedAt: time,
+              },
+              subagents: [],
+              runId: `run-${Math.floor(i / 8)}`,
+              createdAt: time,
+              updatedAt: time,
+            },
+          ],
+          runId: `run-${Math.floor(i / 8)}`,
+          createdAt: time,
+          updatedAt: time,
+        });
+        break;
+      case 5:
+        items.push({
+          id: `dense-sub-${i}`,
+          kind: 'subagent',
+          type: 'subagent',
+          conversationId: `conv-dense-sub-${i}`,
+          role: 'Benchmarker',
+          typeName: 'benchmark-agent',
+          initialPrompt: `Execute throughput latency profiling for batch ${i}.`,
+          status: 'completed',
+          parentToolCallId: null,
+          runId: `run-${Math.floor(i / 8)}`,
+          createdAt: time,
+          updatedAt: time,
+          steps: [
+            {
+              stepIndex: 0,
+              type: 'thought',
+              status: 'ok',
+              createdAt: time,
+              content: null,
+              thinking: 'Profiling throughput…',
+              toolCalls: [],
+              error: null,
+            },
+            {
+              stepIndex: 1,
+              type: 'message',
+              status: 'ok',
+              createdAt: time,
+              content: `Throughput: ${5000 + (i * 17) % 3000} ops/sec, p99 latency 1.4ms.`,
+              thinking: null,
+              toolCalls: [],
+              error: null,
+            },
+          ],
+        });
+        break;
+      case 6:
+        items.push({
+          id: `dense-asst-${i}`,
+          kind: 'assistant_message',
+          type: 'assistant_message',
+          messageId: `msg-a-${i}`,
+          text: `第 ${i + 1} 轮分析已完成：所有单元测试与基准测试均在预期指标内。\n\n\`\`\`typescript\nexport const step_${i} = { completed: true, index: ${i} };\n\`\`\``,
+          isComplete: true,
+          runId: `run-${Math.floor(i / 8)}`,
+          createdAt: time,
+          updatedAt: time,
+        });
+        break;
+      case 7:
+      default:
+        items.push({
+          id: `dense-rd-${i}`,
+          kind: 'run_divider',
+          type: 'run_divider',
+          runId: `run-${Math.floor(i / 8)}`,
+          status: 'completed',
+          durationMs: 4200,
+          usage: {
+            inputTokens: 1200 + i * 10,
+            outputTokens: 350,
+            thinkingTokens: 120,
+            cacheReadTokens: 800,
+            totalTokens: 1670 + i * 10,
+          },
+          error: null,
+          agyConversationId: `conv-${i}`,
+          timestamp: time,
+        });
+        break;
+    }
+  }
+
+  return items;
+}
+
 export function PlaygroundView() {
   const [hideThinking, setHideThinking] = useState(false);
+  const [denseItems, setDenseItems] = useState<TimelineItem[]>(() => generateDenseTimelineItems(20));
+  const [isStreaming, setIsStreaming] = useState(false);
+  const streamTimerRef = React.useRef<any>(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (streamTimerRef.current) {
+        clearInterval(streamTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleGenerateDense2000 = () => {
+    const items = generateDenseTimelineItems(2000);
+    setDenseItems(items);
+  };
+
+  const handleToggleStreaming = () => {
+    if (isStreaming) {
+      if (streamTimerRef.current) clearInterval(streamTimerRef.current);
+      setIsStreaming(false);
+    } else {
+      setIsStreaming(true);
+      let stepCount = 0;
+      streamTimerRef.current = setInterval(() => {
+        stepCount++;
+        setDenseItems((prev) => {
+          const nowStr = new Date().toISOString();
+          const last = prev[prev.length - 1];
+          if (
+            last &&
+            last.kind === 'assistant_message' &&
+            !(last as AssistantMessageItem).isComplete
+          ) {
+            const updated: AssistantMessageItem = {
+              ...(last as AssistantMessageItem),
+              text: (last as AssistantMessageItem).text + ` · 流式数据帧 #${stepCount}`,
+              updatedAt: nowStr,
+            };
+            return [...prev.slice(0, -1), updated];
+          }
+          const newMsg: AssistantMessageItem = {
+            id: `stream-msg-${Date.now()}-${stepCount}`,
+            kind: 'assistant_message',
+            type: 'assistant_message',
+            messageId: `msg-${Date.now()}`,
+            text: `[流式实时追加 #${stepCount}] 收到连续事件推流，平滑跟随不跳动。`,
+            isComplete: stepCount % 5 === 0,
+            runId: 'playground-stream-run',
+            createdAt: nowStr,
+            updatedAt: nowStr,
+          };
+          return [...prev, newMsg];
+        });
+      }, 70);
+    }
+  };
 
   return (
     <div className="h-full overflow-y-auto bg-bg-app p-6 font-sans text-text-primary">
@@ -1405,6 +1674,62 @@ export function PlaygroundView() {
                 />
               </div>
             </div>
+          </div>
+        </section>
+
+        {/* 11. 虚拟滚动 2000+ 密集条目与流式追加模拟 (模块 2.13 对话视图组装) */}
+        <section className="space-y-4" data-testid="virtual-scrolling-showcase">
+          <div className="border-b border-border-default pb-2">
+            <h2 className="text-sm font-semibold tracking-wide text-text-secondary uppercase">
+              11. 虚拟滚动 2000+ 密集条目与流式追加模拟 (模块 2.13)
+            </h2>
+            <p className="mt-1 text-xs text-text-tertiary">
+              验证 @tanstack/react-virtual 在超大规模列表下的流畅渲染；动态高度测量自适应；距底部 &lt;80px 自动跟随与平滑定位，以及上滑出现“回到底部”指示。
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={handleGenerateDense2000}
+              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white shadow hover:bg-accent/90 transition-colors"
+              data-testid="generate-dense-btn"
+            >
+              🚀 生成 2000+ 条密集时间线数据
+            </button>
+
+            <button
+              type="button"
+              onClick={handleToggleStreaming}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                isStreaming
+                  ? 'bg-amber-600 text-white hover:bg-amber-700'
+                  : 'border border-border-default bg-bg-surface text-text-primary hover:border-border-strong'
+              }`}
+              data-testid="toggle-streaming-btn"
+            >
+              {isStreaming ? '⏸ 停止流式模拟' : '▶ 开始流式追加模拟 (70ms/帧)'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setDenseItems([])}
+              className="rounded-lg border border-border-default bg-bg-surface px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors"
+            >
+              清空
+            </button>
+
+            <span className="font-mono text-xs text-text-tertiary">
+              当前条目总数: <strong className="text-accent">{denseItems.length}</strong> 条
+            </span>
+          </div>
+
+          {/* 嵌入 ManagerView 容器 */}
+          <div className="h-[640px] rounded-xl border border-border-default bg-bg-panel overflow-hidden shadow-2xl flex flex-col">
+            <EmbeddedManagerView
+              initialItems={denseItems}
+              sessionId="playground-dense-session"
+            />
           </div>
         </section>
       </div>
