@@ -1465,7 +1465,14 @@ export function PlaygroundView() {
             <div className="rounded-lg border border-border-default bg-bg-surface/30 p-4 space-y-3">
               <div className="text-[11px] text-text-tertiary font-medium">独立选择器与附件胶囊组件：</div>
               <div className="flex flex-wrap items-center gap-3">
-                <ModelPicker value="claude-3-7-sonnet" onChange={() => {}} />
+                <ModelPicker
+                  value="gemini-3.8-flash-high"
+                  models={[
+                    { id: 'gemini-3.8-flash-high', label: 'Gemini 3.8 Flash (High)', group: 'gemini', isDefault: true },
+                    { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6 (Thinking)', group: 'third_party', isDefault: false },
+                  ]}
+                  onChange={() => {}}
+                />
                 <EffortPicker value="high" onChange={() => {}} />
                 <ModePicker value="code" onChange={() => {}} />
               </div>

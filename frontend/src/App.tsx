@@ -3,6 +3,9 @@ import type { Session } from '@agy-studio/contracts';
 import { RouterProvider, useRouter } from './router';
 import { AccountsView, ManagerView, PlaygroundView, SettingsView } from './views';
 import { useWorkspaceStore } from './stores/workspace.store';
+import { useCurrentModelId, useModelsStore } from './stores/models.store';
+import { usePrefsStore } from './stores/prefs.store';
+import { ModelPicker } from './components/composer';
 import {
   InboxList,
   ImportSessionsButton,
@@ -24,6 +27,9 @@ const MAX_RIGHT_WIDTH = 640;
 function TopBar() {
   const { path, navigate } = useRouter();
   const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
+  const models = useModelsStore((s) => s.models);
+  const currentModelId = useCurrentModelId();
+  const updatePrefs = usePrefsStore((s) => s.updatePrefs);
 
   return (
     <header className="flex h-12 w-full shrink-0 items-center justify-between border-b border-border-default bg-bg-panel px-4 text-xs select-none">
@@ -107,12 +113,17 @@ function TopBar() {
         <div className="h-3.5 w-px bg-border-subtle mx-1" />
 
         <div
-          className="flex items-center gap-1.5 rounded border border-border-default bg-bg-surface px-2.5 py-1 text-text-secondary"
+          className="flex items-center gap-1.5 text-text-secondary"
           data-testid="model-selector"
         >
           <span className="text-text-tertiary">模型:</span>
-          <span className="font-mono text-text-primary">claude-3-7-sonnet</span>
-          <span className="text-[10px] text-text-tertiary">▾</span>
+          <ModelPicker
+            value={currentModelId}
+            models={models}
+            onChange={(id) => {
+              void updatePrefs({ defaultModel: id }).catch(() => {});
+            }}
+          />
         </div>
       </div>
 

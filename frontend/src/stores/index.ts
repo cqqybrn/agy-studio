@@ -1,6 +1,7 @@
 export * from './account.store';
 export * from './bootstrap';
 export * from './connection.store';
+export * from './models.store';
 export * from './prefs.store';
 export * from './quota.store';
 export * from './session.store';

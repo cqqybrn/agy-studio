@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { AgentInfo, AgentMode, Effort } from '@agy-studio/contracts';
 import { getAgents, uploadAttachments } from '../../api/endpoints';
+import { useCurrentModelId, useModelsStore } from '../../stores/models.store';
 import { useSessionStore, type SendMessageOptions } from '../../stores/session.store';
 import { useWorkspaceStore } from '../../stores/workspace.store';
 import { AgentPicker, DEFAULT_AGENT_ID } from './AgentPicker';
@@ -136,6 +137,9 @@ export function Composer({
   const [text, setText] = useState<string>(() => loadDraft(sessionId));
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [selectedModel, setSelectedModel] = useState<string | undefined>(propModel);
+  const models = useModelsStore((s) => s.models);
+  const currentModelId = useCurrentModelId();
+  const effectiveModel = selectedModel ?? currentModelId;
   const [selectedEffort, setSelectedEffort] = useState<Effort | undefined>(propEffort);
   const [selectedMode, setSelectedMode] = useState<AgentMode | undefined>(propMode);
   const [selectedAgent, setSelectedAgent] = useState<string>(propAgent ?? DEFAULT_AGENT_ID);
@@ -178,6 +182,7 @@ export function Composer({
   useEffect(() => {
     adjustTextareaHeight();
   }, [text, adjustTextareaHeight]);
+
 
   // Sync props down to local state if provided
   useEffect(() => {
@@ -394,7 +399,7 @@ export function Composer({
 
     const options = buildSendOptions({
       attachmentIds,
-      model: selectedModel,
+      model: effectiveModel,
       effort: selectedEffort,
       mode: selectedMode,
       agent: selectedAgent,
@@ -667,7 +672,8 @@ export function Composer({
 
           {/* Sub Pickers */}
           <ModelPicker
-            value={selectedModel}
+            value={effectiveModel}
+            models={models}
             disabled={disabled || isRunning}
             onChange={(m) => {
               setSelectedModel(m);

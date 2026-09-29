@@ -135,13 +135,26 @@ describe('Composer & Pickers Component Suite', () => {
   // 3. Sub-pickers: ModelPicker, EffortPicker, ModePicker, AttachmentChip
   // ==========================================================================
   describe('Sub-pickers rendering', () => {
-    it('renders ModelPicker with default options and selected value', () => {
+    it('renders ModelPicker with the given catalog and selected value', () => {
       const html = renderToString(
-        <ModelPicker value="claude-3-7-sonnet" onChange={() => {}} />,
+        <ModelPicker
+          value="gemini-3.1-pro-high"
+          models={[
+            { id: 'gemini-3.8-flash-high', label: 'Gemini 3.8 Flash (High)', group: 'gemini', isDefault: true },
+            { id: 'gemini-3.1-pro-high', label: 'Gemini 3.1 Pro (High)', group: 'gemini', isDefault: false },
+          ]}
+          onChange={() => {}}
+        />,
       );
       expect(html).toContain('data-testid="model-picker-select"');
-      expect(html).toContain('Claude 3.7 Sonnet');
-      expect(html).toContain('Gemini 2.5 Pro');
+      expect(html).toContain('Gemini 3.8 Flash (High)');
+      expect(html).toContain('Gemini 3.1 Pro (High)');
+    });
+
+    it('renders a disabled loading placeholder while the model catalog is empty', () => {
+      const html = renderToString(<ModelPicker onChange={() => {}} />);
+      expect(html).toContain('加载模型中…');
+      expect(html).toContain('disabled');
     });
 
     it('renders EffortPicker with low/medium/high/max options', () => {

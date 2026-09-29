@@ -1,6 +1,7 @@
 import { wsClient } from '../api/ws';
 import { useAccountStore } from './account.store';
 import { useConnectionStore } from './connection.store';
+import { useModelsStore } from './models.store';
 import { usePrefsStore } from './prefs.store';
 import { useQuotaStore } from './quota.store';
 import { useSessionStore } from './session.store';
@@ -53,6 +54,7 @@ export function initializeApp(options: BootstrapOptions = {}): () => void {
     void useWorkspaceStore.getState().fetchWorkspaces();
     void useSessionStore.getState().fetchSessions();
     void usePrefsStore.getState().fetchPrefs();
+    void useModelsStore.getState().fetchModels();
     void useAccountStore.getState().fetchAccounts();
     void useQuotaStore.getState().fetchQuota();
   }

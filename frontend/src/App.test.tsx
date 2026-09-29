@@ -19,7 +19,7 @@ describe('App & Layout Component', () => {
     // 验证顶栏组件（工作区、模型、额度环、账号菜单、连接状态）
     expect(html).toContain('AGY Studio');
     expect(html).toContain('默认工作区');
-    expect(html).toContain('claude-3-7-sonnet');
+    expect(html).toContain('data-testid="model-selector"');
     expect(html).toContain('data-testid="quota-badge"');
     expect(html).toContain('default');
     expect(html).toContain('已连接');
