@@ -3,9 +3,9 @@ import fs from 'node:fs';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import {
   parseQuotaSummaryResponse,
-  redactSensitive,
   QuotaApiClient,
 } from '../../src/integrations/agy/quota-api.js';
+import { redactSecrets as redactSensitive } from '../../src/utils/redact.js';
 import { OAuthClientManager } from '../../src/integrations/agy/oauth-client.js';
 import type { CredentialStore } from '../../src/integrations/agy/credential-store.js';
 import type { CredentialSnapshot } from '../../src/services/ports/credential.port.js';

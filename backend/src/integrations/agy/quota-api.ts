@@ -10,6 +10,7 @@ import { parseJwtPayload } from './credential-store.js';
 import type { OAuthClientManager } from './oauth-client.js';
 import type { AgyProfile } from './profile/schema.js';
 import { AppError } from '../../utils/errors.js';
+import { redactSecrets } from '../../utils/redact.js';
 import type { Logger } from 'pino';
 
 export interface ParseQuotaSummaryOptions {
@@ -18,17 +19,6 @@ export interface ParseQuotaSummaryOptions {
   planTier?: string | null;
   fetchedAt?: string;
   now?: Date;
-}
-
-export function redactSensitive(input: string): string {
-  let s = input;
-  s = s.replace(/ya29\.[0-9A-Za-z_.-]+/g, '<redacted:access_token>');
-  s = s.replace(/1\/\/[0-9A-Za-z_-]+/g, '<redacted:refresh_token>');
-  s = s.replace(/GOCSPX-[0-9A-Za-z_-]+/g, '<redacted:client_secret>');
-  s = s.replace(/[0-9]+-[0-9a-z_.-]+\.apps\.googleusercontent\.com/gi, '<redacted:client_id>');
-  s = s.replace(/Bearer\s+[A-Za-z0-9_.-]+/gi, 'Bearer <redacted:token>');
-  s = s.replace(/Authorization:\s*[^\r\n]+/gi, 'Authorization: <redacted>');
-  return s;
 }
 
 export function parseQuotaSummaryResponse(
@@ -203,7 +193,7 @@ export class QuotaApiClient implements QuotaProbePort {
       if (controller.signal.aborted || e.name === 'AbortError') {
         throw new AppError('QUOTA_FETCH_FAILED', 'Quota request timed out after 10 seconds');
       }
-      throw new AppError('QUOTA_FETCH_FAILED', redactSensitive(e.message));
+      throw new AppError('QUOTA_FETCH_FAILED', redactSecrets(e.message));
     } finally {
       clearTimeout(timeoutTimer);
     }
@@ -292,7 +282,7 @@ export class QuotaApiClient implements QuotaProbePort {
           body: bodyParams.toString(),
         });
       } catch (err: unknown) {
-        throw new AppError('QUOTA_FETCH_FAILED', redactSensitive((err as Error).message));
+        throw new AppError('QUOTA_FETCH_FAILED', redactSecrets((err as Error).message));
       }
 
       if (res.status === 200) {
@@ -426,7 +416,7 @@ export class QuotaApiClient implements QuotaProbePort {
       }
     } catch (err: unknown) {
       this.logger?.debug?.(
-        { err: redactSensitive((err as Error).message) },
+        { err: redactSecrets((err as Error).message) },
         'loadCodeAssist call failed, falling back to empty project',
       );
     }
@@ -466,7 +456,7 @@ export class QuotaApiClient implements QuotaProbePort {
         body: reqBody,
       });
     } catch (err: unknown) {
-      throw new AppError('QUOTA_FETCH_FAILED', redactSensitive((err as Error).message));
+      throw new AppError('QUOTA_FETCH_FAILED', redactSecrets((err as Error).message));
     }
 
     // 401 UNAUTHENTICATED -> clear in-memory token and retry once
@@ -485,7 +475,7 @@ export class QuotaApiClient implements QuotaProbePort {
             body: reqBody,
           });
         } catch (err: unknown) {
-          throw new AppError('QUOTA_FETCH_FAILED', redactSensitive((err as Error).message));
+          throw new AppError('QUOTA_FETCH_FAILED', redactSecrets((err as Error).message));
         }
       }
     }
@@ -514,7 +504,6 @@ export class QuotaApiClient implements QuotaProbePort {
       planTier,
       now: new Date(),
     });
-
     if (!snapshot) {
       throw new AppError(
         'QUOTA_FETCH_FAILED',

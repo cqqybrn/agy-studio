@@ -1,9 +1,12 @@
+import http from 'node:http';
 import process from 'node:process';
 import { buildApp } from './app.js';
 import { loadConfig } from './utils/config.js';
 import { logger } from './utils/logger.js';
 
 export async function bootstrap(): Promise<void> {
+  // Node 的 fetch 默认不读取 HTTPS_PROXY / HTTP_PROXY；额度接口在需要代理的网络下会一直超时
+  (http as typeof http & { setGlobalProxyFromEnv?: () => void }).setGlobalProxyFromEnv?.();
   const config = loadConfig();
   const { app, container, close } = buildApp({ config });
 

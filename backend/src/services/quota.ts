@@ -6,7 +6,7 @@ import type { AccountLeaseLock } from './account/lease-lock.js';
 import type { EventBus } from './event-bus.js';
 import type { Logger } from 'pino';
 import { logger as defaultLogger } from '../utils/logger.js';
-import { redactSensitive } from '../integrations/agy/quota-api.js';
+import { redactSecrets } from '../utils/redact.js';
 
 export interface QuotaServiceOptions {
   quotaCacheRepo: QuotaCacheRepository;
@@ -148,7 +148,7 @@ export class QuotaService {
     try {
       probeResult = await this.quotaProbe.probe(targetAccount);
     } catch (err: unknown) {
-      const safeMsg = redactSensitive((err as Error).message);
+      const safeMsg = redactSecrets((err as Error).message);
       this.logger.warn({ err: safeMsg, account: targetAccount }, 'Quota probe failed');
     } finally {
       lease.release();
