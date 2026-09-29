@@ -24,7 +24,7 @@ import { AppError } from '../utils/errors.js';
 import { createId } from '../utils/ids.js';
 import type { SessionServicePort } from '../routes/ws/gateway.js';
 import { PromptInjector } from './attachment/prompt-inject.js';
-import type { AgyProfile } from '../integrations/agy/profile/schema.js';
+import type { ImageInputProfile } from './ports/agy-runner.port.js';
 import { isBuiltinAgent, isSafeAgentName, type AgentService } from './agent.js';
 
 export interface SendMessageInput {
@@ -50,7 +50,7 @@ export interface SessionServiceOptions {
   homeIsolation?: HomeIsolationPort;
   isolationMode?: 'isolated_home' | 'credential_snapshot';
   promptInjector?: PromptInjector;
-  profile?: AgyProfile;
+  profile?: ImageInputProfile;
   agentService?: AgentService;
 }
 
@@ -67,7 +67,7 @@ export class SessionService implements SessionServicePort {
   private readonly homeIsolation?: HomeIsolationPort;
   private readonly isolationMode: 'isolated_home' | 'credential_snapshot';
   private readonly promptInjector: PromptInjector;
-  private readonly profile?: AgyProfile;
+  private readonly profile?: ImageInputProfile;
   private readonly agentService?: AgentService;
 
   constructor(options: SessionServiceOptions) {

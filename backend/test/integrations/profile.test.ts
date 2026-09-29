@@ -17,7 +17,7 @@ describe('AgyProfile & Loader', () => {
     expect(profile.stream.userFrameTemplate).toBeDefined();
     expect(profile.paths.conversationDirPattern).toBeDefined();
     expect(profile.credentials.preferredIsolation).toBe('isolated_home');
-    expect(profile.login.argv).toContain('login');
+    expect(profile.login.argv).toEqual([]);
     expect(profile.quota.usageCommand).toBe('/usage');
     expect(profile.catalog.modelsParser).toBe('text-v1');
   });

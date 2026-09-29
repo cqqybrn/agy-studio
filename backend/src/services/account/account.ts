@@ -7,8 +7,7 @@ import type {
   WhoAmI,
 } from '@agy-studio/contracts';
 import type { AccountsRepository, StoredAccount } from '../../repositories/accounts.js';
-import type { CredentialStore } from '../../integrations/agy/credential-store.js';
-import { extractClaimsFromSnapshot } from '../../integrations/agy/credential-store.js';
+import type { CredentialPort } from '../ports/credential.port.js';
 import type { CredentialSnapshot } from '../ports/credential.port.js';
 import type { LoginPort, LoginHandle } from '../ports/login.port.js';
 import { AccountLeaseLock } from './lease-lock.js';
@@ -30,7 +29,7 @@ export interface RunSupervisorLike {
 
 export interface AccountServiceOptions {
   accountsRepo: AccountsRepository;
-  credentialStore: CredentialStore;
+  credentialStore: CredentialPort;
   loginPort?: LoginPort;
   leaseLock?: AccountLeaseLock;
   eventBus?: EventBus;
@@ -96,7 +95,7 @@ function snapshotsMatch(s1: CredentialSnapshot, s2: CredentialSnapshot): boolean
 
 export class AccountService {
   private readonly accountsRepo: AccountsRepository;
-  private readonly credentialStore: CredentialStore;
+  private readonly credentialStore: CredentialPort;
   private readonly loginPort?: LoginPort;
   private readonly leaseLock: AccountLeaseLock;
   private readonly eventBus?: EventBus;
@@ -369,7 +368,7 @@ export class AccountService {
       }
 
       const liveClaims = await this.credentialStore.readLiveClaims();
-      const targetClaims = extractClaimsFromSnapshot(targetSnapshot);
+      const targetClaims = this.credentialStore.claimsOf(targetSnapshot);
 
       if (targetClaims?.sub) {
         if (!liveClaims?.sub || targetClaims.sub !== liveClaims.sub) {

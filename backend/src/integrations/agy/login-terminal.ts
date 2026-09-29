@@ -139,7 +139,7 @@ function getDefaultProfile(): AgyProfile {
       credentialFiles: [],
     },
     login: {
-      argv: ['login'],
+      argv: [],
       authUrlPattern: 'https?://[^\\s]+',
       successPatterns: ['Logged in as', 'Authentication successful', 'Welcome'],
       failurePatterns: ['Authentication failed', 'Login cancelled', 'Error: '],
@@ -274,7 +274,7 @@ export class LoginTerminal implements LoginPort {
 
   async startLogin(options: StartLoginOptions): Promise<TerminalLoginHandle> {
     const loginId = createId('login');
-    const argv = this.profile.login?.argv ?? ['login'];
+    const argv = this.profile.login?.argv ?? [];
     const bin =
       findAgyBinary(this.profile, this.binaryPath) ??
       resolveBinary(this.profile, this.binaryPath);

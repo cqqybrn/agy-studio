@@ -1,20 +1,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { CredentialPort, CredentialSnapshot } from '../../services/ports/credential.port.js';
+import type {
+  CredentialPort,
+  CredentialSnapshot,
+  IdTokenClaims,
+} from '../../services/ports/credential.port.js';
 import type { AgyProfile } from './profile/schema.js';
 import { resolveDataDir } from '../../utils/config.js';
 import { AppError } from '../../utils/errors.js';
 import { dpapi as defaultDpapi, type DpapiPort } from './dpapi.js';
 import { WindowsCredentialManager, type WinCredPort } from './wincred.js';
 
-export interface IdTokenClaims {
-  sub?: string;
-  email?: string;
-  name?: string;
-  picture?: string;
-  given_name?: string;
-  [key: string]: unknown;
-}
+export type { IdTokenClaims };
 
 export function parseJwtPayload(jwt: string): IdTokenClaims | null {
   try {
@@ -202,6 +199,10 @@ export class CredentialStore implements CredentialPort {
   hasSnapshot(accountName: string): boolean {
     const filePath = this.getSnapshotPath(accountName);
     return fs.existsSync(filePath);
+  }
+
+  claimsOf(snapshot: CredentialSnapshot): IdTokenClaims | null {
+    return extractClaimsFromSnapshot(snapshot);
   }
 
   /**

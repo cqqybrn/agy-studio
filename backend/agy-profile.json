@@ -76,9 +76,7 @@
     "credentialFiles": []
   },
   "login": {
-    "argv": [
-      "login"
-    ],
+    "argv": [],
     "authUrlPattern": "https?://[^\\s]+",
     "successPatterns": [
       "Logged in as",

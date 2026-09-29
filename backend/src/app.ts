@@ -542,6 +542,8 @@ export function buildApp(options?: AppOptions): BuiltApp {
 
   // 8. Graceful Shutdown Implementation
   let isShuttingDown = false;
+  // The returned instance has its `close` replaced by the full shutdown below, so keep Fastify's own.
+  const closeFastify = app.close.bind(app);
 
   // Intercept sessionService.send to reject new runs during shutdown
   const originalSend = sessionService.send.bind(sessionService);
@@ -589,7 +591,7 @@ export function buildApp(options?: AppOptions): BuiltApp {
 
     // 6. 关闭 Fastify app
     try {
-      await app.close();
+      await closeFastify();
     } catch (err) {
       appLogger.warn({ err }, 'Error closing Fastify app');
     }

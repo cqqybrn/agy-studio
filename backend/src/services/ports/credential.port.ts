@@ -7,6 +7,15 @@ export interface CredentialSnapshot {
   readonly files: Record<string, string>; // relativePath -> base64 payload
 }
 
+export interface IdTokenClaims {
+  sub?: string;
+  email?: string;
+  name?: string;
+  picture?: string;
+  given_name?: string;
+  [key: string]: unknown;
+}
+
 export interface CredentialPort {
   /**
    * Check whether any live credentials currently exist in the system store / file locations.
@@ -14,7 +23,7 @@ export interface CredentialPort {
   isPresent(): Promise<boolean>;
 
   /**
-   * Capture a snapshot of current live credentials.
+   * Capture a snapshot of current live credentials and persist it for the account.
    */
   snapshot(accountName: string): Promise<CredentialSnapshot>;
 
@@ -27,4 +36,20 @@ export interface CredentialPort {
    * Clear live credentials from system store and configured files.
    */
   clear(): Promise<void>;
+
+  /** Identity claims of the live credentials, or null when absent or unreadable. */
+  readLiveClaims(): Promise<IdTokenClaims | null>;
+
+  /** Capture current live credentials in memory without persisting them. */
+  takeLiveSnapshot(): Promise<CredentialSnapshot>;
+
+  hasSnapshot(accountName: string): boolean;
+  loadSnapshot(accountName: string): Promise<CredentialSnapshot>;
+  deleteSnapshot(accountName: string): Promise<void>;
+
+  /** Throws when the snapshot cannot be safely written back to the live slot. */
+  assertRestorable(snapshot: CredentialSnapshot): void;
+
+  /** Identity claims contained in a snapshot. */
+  claimsOf(snapshot: CredentialSnapshot): IdTokenClaims | null;
 }

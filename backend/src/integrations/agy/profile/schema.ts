@@ -63,7 +63,7 @@ export const CredentialsConfigSchema = z.object({
 });
 
 export const LoginConfigSchema = z.object({
-  argv: z.array(z.string()).min(1),
+  argv: z.array(z.string()),
   authUrlPattern: z.string(),
   successPatterns: z.array(z.string()).min(1),
   failurePatterns: z.array(z.string()),

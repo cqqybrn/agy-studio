@@ -22,3 +22,13 @@ export interface RunnerProcess {
 export interface AgyRunnerPort {
   start(options: SpawnRunnerOptions): Promise<RunnerProcess>;
 }
+
+/** The subset of the agy profile that decides how attachments are injected into a user frame. */
+export interface ImageInputProfile {
+  stream?: {
+    imageInput?: {
+      supported: boolean;
+      template: string | Record<string, unknown> | null;
+    };
+  };
+}

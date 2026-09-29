@@ -49,6 +49,13 @@ describe('Service Ports Type Integrity', () => {
       snapshot: async () => ({ version: 1, createdAt: '', targets: {}, files: {} }),
       restore: async () => {},
       clear: async () => {},
+      readLiveClaims: async () => null,
+      takeLiveSnapshot: async () => ({ version: 1, createdAt: '', targets: {}, files: {} }),
+      hasSnapshot: () => false,
+      loadSnapshot: async () => ({ version: 1, createdAt: '', targets: {}, files: {} }),
+      deleteSnapshot: async () => {},
+      assertRestorable: () => {},
+      claimsOf: () => null,
     };
     expect(mockCredential).toBeDefined();
 

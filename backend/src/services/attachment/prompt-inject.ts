@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import type { Attachment } from '@agy-studio/contracts';
-import type { AgyProfile } from '../../integrations/agy/profile/schema.js';
+import type { ImageInputProfile } from '../ports/agy-runner.port.js';
 
 export interface InjectedPromptResult {
   prompt: string;
@@ -29,7 +29,7 @@ export class PromptInjector {
   injectAttachments(
     prompt: string,
     attachments: Attachment[],
-    profile?: AgyProfile,
+    profile?: ImageInputProfile,
   ): InjectedPromptResult {
     if (!attachments || attachments.length === 0) {
       return { prompt };
