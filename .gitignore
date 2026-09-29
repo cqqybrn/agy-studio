@@ -3,3 +3,6 @@ dist/
 *.db
 .agy-studio/
 fixtures/private/
+test-results/
+playwright-report/
+.cursor/
