@@ -49,6 +49,7 @@ import { EventBus } from './services/event-bus.js';
 import { AutoApproveService } from './services/autoapprove/autoapprove.js';
 import { AccountLeaseLock } from './services/account/lease-lock.js';
 import { AccountService } from './services/account/account.js';
+import { assertGoogleAuthReachable } from './utils/connectivity.js';
 import { PrefsService } from './services/prefs.js';
 import { ModelService, MODELS_CACHE_FILE } from './services/model.js';
 import { CheckpointService } from './services/checkpoint.js';
@@ -345,6 +346,8 @@ export function buildApp(options?: AppOptions): BuiltApp {
     accountsRepo,
     credentialStore,
     loginPort: login,
+    // Only for the real login terminal; tests inject their own loginPort and must not hit the network.
+    loginPreflight: options?.loginPort ? undefined : () => assertGoogleAuthReachable(),
     leaseLock,
     eventBus,
     runSupervisor: {

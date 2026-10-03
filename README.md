@@ -197,6 +197,23 @@ npm run test
 - **排查**：
   - 本项目为 Monorepo 架构，在仓库根目录下运行一次 `npm install` 即可自动建立 workspaces 内部符号链接。
 
+### Q5: 点击登录提示“无法连接 Google 登录服务”，或登录窗口里一直转圈？
+- **原因**：`agy` 只读取 `HTTPS_PROXY` 环境变量，**不会使用** Windows 系统代理（浏览器用的那个）。因此即使浏览器能打开授权页，`agy` 换取令牌时也可能连不上 Google。
+- **默认行为（无需配置）**：
+  - 已设置 `HTTPS_PROXY` / `HTTP_PROXY` 环境变量 → 直接使用你的设置；
+  - 未设置，但系统代理已开启且代理端口可连通 → 启动时自动沿用系统代理；
+  - 未使用代理 → 直连，不做任何改动。
+- **排查**：
+  1. 启动日志出现 `Using the Windows system proxy` 说明已自动沿用系统代理；
+  2. 如果代理使用 **PAC 脚本** 或 **仅 SOCKS** 协议，无法自动识别，请手动指定 HTTP 代理后再启动：
+     ```cmd
+     set HTTPS_PROXY=http://127.0.0.1:7890
+     set HTTP_PROXY=http://127.0.0.1:7890
+     start.cmd
+     ```
+  3. 想强制直连（忽略系统代理），启动前设置 `set AGY_STUDIO_PROXY=off`；
+  4. 登录前的网络预检误报时，可用 `set AGY_STUDIO_SKIP_NET_CHECK=1` 跳过。
+
 ---
 
 ## 📄 开源许可

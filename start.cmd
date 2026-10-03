@@ -1,14 +1,18 @@
 @echo off
 setlocal enabledelayedexpansion
-chcp 65001 >nul 2>&1
 title AGY Studio Launcher
+cd /d "%~dp0"
 
 echo ===================================================
-echo               AGY Studio 启动程序
+echo               AGY Studio Launcher
 echo ===================================================
 echo.
 
-:: 1. 自动适配 Node.js 常见安装路径（若不在 PATH 中）
+rem NOTE: keep this file ASCII-only with CRLF line endings. cmd.exe parses
+rem UTF-8 / LF-only batch files incorrectly on non-UTF-8 Windows code pages,
+rem which makes the window close immediately.
+
+rem 1. Add common Node.js install locations to PATH if node is not found
 where node >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
     if exist "%LOCALAPPDATA%\Programs\nodejs\node.exe" (
@@ -18,15 +22,14 @@ if %ERRORLEVEL% NEQ 0 (
     )
 )
 
-:: 2. 检查 Node.js 是否安装并检查版本 >= 20
+rem 2. Check Node.js is installed and version >= 20
 where node >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
-    echo [错误] 未检测到 Node.js 环境！
-    echo AGY Studio 需要 Node.js (v20 或更高版本)。
+    echo [ERROR] Node.js not found.
+    echo AGY Studio needs Node.js v20 or newer.
     echo.
-    echo 请访问 Node.js 官网下载并安装 LTS 版本：
-    echo   https://nodejs.org/
-    echo 安装完成后请重新运行本脚本。
+    echo Download the LTS version from https://nodejs.org/
+    echo then run this script again.
     echo ===================================================
     pause
     exit /b 1
@@ -37,57 +40,52 @@ for /f "tokens=1,2,3 delims=.v" %%a in ('node -v 2^>nul') do (
 )
 
 if not defined NODE_MAJOR (
-    echo [警告] 无法准确识别 Node.js 版本，继续尝试启动...
+    echo [WARN] Could not detect the Node.js version, trying to continue...
 ) else (
-    if %NODE_MAJOR% LSS 20 (
-        echo [错误] 当前 Node.js 版本过低: v%NODE_MAJOR%
-        echo AGY Studio 要求 Node.js 版本 ^>= 20.0.0
-        echo 请前往 https://nodejs.org/ 下载升级最新 LTS 版本。
+    if !NODE_MAJOR! LSS 20 (
+        echo [ERROR] Node.js version too old: v!NODE_MAJOR!
+        echo AGY Studio requires Node.js ^>= 20.0.0
+        echo Download the latest LTS from https://nodejs.org/
         echo ===================================================
         pause
         exit /b 1
     )
-    echo [✔] Node.js 环境检查通过: v!NODE_MAJOR!
+    echo [OK] Node.js check passed: v!NODE_MAJOR!
 )
 
-:: 3. 检查 agy CLI 是否存在
+rem 3. Check that the agy CLI exists
 set AGY_FOUND=0
 where agy >nul 2>&1
-if %ERRORLEVEL% EQU 0 (
-    set AGY_FOUND=1
-) else if exist "%LOCALAPPDATA%\agy\bin\agy.cmd" (
-    set AGY_FOUND=1
-) else if exist "%LOCALAPPDATA%\agy\bin\agy.exe" (
-    set AGY_FOUND=1
-) else if exist "%USERPROFILE%\.antigravity\bin\agy.cmd" (
-    set AGY_FOUND=1
-) else if exist "%USERPROFILE%\.antigravity\bin\agy.exe" (
-    set AGY_FOUND=1
-)
+if %ERRORLEVEL% EQU 0 set AGY_FOUND=1
+if exist "%LOCALAPPDATA%\agy\bin\agy.cmd" set AGY_FOUND=1
+if exist "%LOCALAPPDATA%\agy\bin\agy.exe" set AGY_FOUND=1
+if exist "%USERPROFILE%\.antigravity\bin\agy.cmd" set AGY_FOUND=1
+if exist "%USERPROFILE%\.antigravity\bin\agy.exe" set AGY_FOUND=1
+if defined AGY_BIN set AGY_FOUND=1
 
 if %AGY_FOUND% EQU 0 (
-    echo [警告] 未在系统 PATH 或常见位置检测到 agy CLI 工具。
-    echo AGY Studio 底层依赖官方 Antigravity agy CLI 提供 Agent 对话能力。
-    echo 若尚未安装 agy，请参考官方指引进行安装并登录：
+    echo [WARN] The agy CLI was not found on PATH or in the usual locations.
+    echo AGY Studio relies on the official Antigravity agy CLI for agent chat.
+    echo Install and log in to agy first, see:
     echo   https://antigravity.google/docs
     echo.
-    echo 如果您已安装在自定义路径，可通过设置环境变量启动：
+    echo If agy is installed in a custom path, set AGY_BIN before starting:
     echo   set AGY_BIN=C:\path\to\agy.exe
     echo   start.cmd
     echo.
-    echo 按任意键将继续尝试启动（部分功能或核心对话可能会受限）...
+    echo Press any key to continue anyway - some features may be limited...
     pause
 ) else (
-    echo [✔] agy CLI 环境检查通过
+    echo [OK] agy CLI check passed
 )
 
-:: 4. 检查依赖与前端构建物
+rem 4. Check dependencies and the frontend build
 if not exist "node_modules" (
     echo.
-    echo [*] 未检测到根依赖 (node_modules)，正在执行 npm install，请稍候...
+    echo [*] node_modules not found, running npm install, please wait...
     call npm install
-    if %ERRORLEVEL% NEQ 0 (
-        echo [错误] 依赖安装失败，请检查网络或 npm 源配置。
+    if !ERRORLEVEL! NEQ 0 (
+        echo [ERROR] npm install failed. Check your network or npm registry settings.
         pause
         exit /b 1
     )
@@ -95,39 +93,40 @@ if not exist "node_modules" (
 
 if not exist "frontend\dist\index.html" (
     echo.
-    echo [*] 未检测到前端构建产物 (frontend\dist)，正在进行首次构建...
+    echo [*] frontend\dist not found, running the first-time frontend build...
     call npm run build -w frontend
-    if %ERRORLEVEL% NEQ 0 (
-        echo [错误] 前端构建失败，请检查构建日志。
+    if !ERRORLEVEL! NEQ 0 (
+        echo [ERROR] Frontend build failed. See the log above.
         pause
         exit /b 1
     )
-    echo [✔] 前端构建成功！
+    echo [OK] Frontend build finished
 )
 
-:: 5. 准备启动端口与环境变量
+rem 5. Host / port
 if "%HOST%"=="" set HOST=127.0.0.1
 if "%PORT%"=="" set PORT=8790
 set TARGET_URL=http://%HOST%:%PORT%
 
 echo.
 echo ===================================================
-echo  启动服务中: %TARGET_URL%
-echo  服务启动完成后将自动唤起默认浏览器打开页面...
-echo  提示: 关闭此终端窗口即可终止服务。
+echo  Starting server: %TARGET_URL%
+echo  The default browser opens automatically once it is ready.
+echo  Close this window to stop the server.
 echo ===================================================
 echo.
 
-:: 6. 在后台异步等待端口就绪后调用默认浏览器打开
-start /b cmd /c "for /l %%i in (1,1,30) do ( powershell -NoProfile -Command "(New-Object System.Net.Sockets.TcpClient).Connect('127.0.0.1', %PORT%)" >nul 2>&1 && ( start %TARGET_URL% & exit ) || ( powershell -NoProfile -Command "Start-Sleep -Milliseconds 600" >nul 2>&1 ) )"
+rem 6. In the background, wait for the port and then open the browser
+start "" /b powershell -NoProfile -Command "for($i=0;$i -lt 30;$i++){ try{ (New-Object Net.Sockets.TcpClient).Connect('%HOST%',%PORT%); Start-Process '%TARGET_URL%'; break }catch{ Start-Sleep -Milliseconds 600 } }"
 
-:: 7. 启动后端主服务
-:: 优先使用 tsx 直接运行源码（无需额外编译 backend/dist，与 npm run dev 契合），若异常则降级为 npm run dev -w backend
+rem 7. Start the backend (tsx on the sources, fall back to npm run dev)
 call npx tsx backend/src/main.ts
 if %ERRORLEVEL% NEQ 0 (
     echo.
-    echo [提示] 尝试通过 npm run dev -w backend 重新拉起...
+    echo [INFO] Retrying through npm run dev -w backend ...
     call npm run dev -w backend
 )
 
+echo.
+echo Server stopped.
 pause

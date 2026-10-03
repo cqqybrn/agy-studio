@@ -4,6 +4,7 @@ import process from 'node:process';
 import { buildApp } from './app.js';
 import { loadConfig } from './utils/config.js';
 import { logger } from './utils/logger.js';
+import { applySystemProxyToEnv } from './utils/proxy.js';
 
 function hasEnvProxy(): boolean {
   return Boolean(
@@ -78,9 +79,17 @@ export async function bootstrap(): Promise<void> {
 
 // Automatically start if executed as entrypoint
 if (process.argv[1] && (process.argv[1].endsWith('main.ts') || process.argv[1].endsWith('main.js'))) {
-  reexecWithEnvProxyIfNeeded();
-  bootstrap().catch((err) => {
-    logger.fatal({ err }, 'Failed to start AGY Studio backend');
-    process.exit(1);
-  });
+  // Must run before the re-exec so the child (and every agy process we spawn) inherits the proxy.
+  applySystemProxyToEnv()
+    .catch((err) => {
+      logger.warn({ err }, 'System proxy detection failed, continuing without it');
+    })
+    .then(() => {
+      reexecWithEnvProxyIfNeeded();
+      return bootstrap();
+    })
+    .catch((err) => {
+      logger.fatal({ err }, 'Failed to start AGY Studio backend');
+      process.exit(1);
+    });
 }

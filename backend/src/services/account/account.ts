@@ -38,6 +38,8 @@ export interface AccountServiceOptions {
   loginPollIntervalMs?: number;
   loginSettleDelayMs?: number;
   loginTimeoutMs?: number;
+  /** Runs before live credentials are touched; reject to abort the login with a clear error. */
+  loginPreflight?: () => Promise<void>;
 }
 
 interface ActiveLoginCoordinator {
@@ -104,6 +106,7 @@ export class AccountService {
   private readonly loginPollIntervalMs: number;
   private readonly loginSettleDelayMs: number;
   private readonly loginTimeoutMs: number;
+  private readonly loginPreflight?: () => Promise<void>;
 
   private activeLogin: ActiveLoginCoordinator | null = null;
   private readonly loginSessions = new Map<string, AccountLoginSession>();
@@ -119,6 +122,7 @@ export class AccountService {
     this.loginPollIntervalMs = options.loginPollIntervalMs ?? 2000;
     this.loginSettleDelayMs = options.loginSettleDelayMs ?? 2000;
     this.loginTimeoutMs = options.loginTimeoutMs ?? 10 * 60 * 1000;
+    this.loginPreflight = options.loginPreflight;
   }
 
   getLock(): AccountLeaseLock {
@@ -470,6 +474,15 @@ export class AccountService {
         'ACCOUNT_SWITCH_IN_PROGRESS',
         'A login flow is already in progress',
       );
+    }
+
+    // Fail fast (e.g. Google unreachable) before the live credential is backed up and cleared.
+    if (this.loginPreflight) {
+      try {
+        await this.loginPreflight();
+      } catch (err) {
+        throw AppError.from(err);
+      }
     }
 
     // Acquire write lease (throws ACCOUNT_SWITCH_IN_PROGRESS / ACCOUNT_BUSY if busy)
