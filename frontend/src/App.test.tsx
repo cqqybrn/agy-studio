@@ -24,12 +24,11 @@ describe('App & Layout Component', () => {
     expect(html).toContain('default');
     expect(html).toContain('已连接');
 
-    // 验证三栏布局结构
+    // 验证两栏布局结构（右侧 Artifacts 面板已移除）
     expect(html).toContain('data-testid="left-sidebar"');
     expect(html).toContain('data-testid="center-panel"');
-    expect(html).toContain('data-testid="right-panel"');
+    expect(html).not.toContain('data-testid="right-panel"');
     expect(html).toContain('收件箱');
-    expect(html).toContain('Artifacts');
   });
 
   it('renders placeholder views correctly', () => {
@@ -47,15 +46,5 @@ describe('App & Layout Component', () => {
     expect(playgroundHtml).toContain('Timeline Components Showcase');
     expect(playgroundHtml).toContain('data-testid="markdown-table"');
     expect(playgroundHtml).toContain('data-testid="code-block"');
-  });
-
-  it('verifies localStorage interaction logic for right panel settings', () => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('agy_studio_right_panel_width', '450');
-      localStorage.setItem('agy_studio_right_panel_collapsed', 'true');
-
-      const html = renderToString(<App />);
-      expect(html).toContain('data-testid="expand-right-btn"');
-    }
   });
 });

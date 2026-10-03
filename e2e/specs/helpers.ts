@@ -93,6 +93,23 @@ export async function createIndependentSession(page: Page): Promise<void> {
 }
 
 /**
+ * 等待所有会话的运行结束。有运行时账号的登录/切换会被拒绝（ACCOUNT_BUSY），
+ * 前一个用例留下的运行可能还没收尾。
+ */
+export async function waitForNoActiveRuns(page: Page): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        const res = await page.request.get('/api/sessions?limit=200');
+        const body = (await res.json()) as { items: { status: string }[] };
+        return body.items.filter((s) => s.status === 'running').length;
+      },
+      { timeout: 30000, intervals: [500] },
+    )
+    .toBe(0);
+}
+
+/**
  * 展开时间线里所有折叠的 "Worked for Xs" 块与工具分组。
  * 思考、工具调用、子 agent 卡片都收在这些折叠块里，运行结束后默认折叠。
  */

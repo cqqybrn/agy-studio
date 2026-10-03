@@ -4,7 +4,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   AgyCatalog,
-  findAgyBinary,
   parseModelsOutput,
   parseVersionOutput,
 } from '../../src/integrations/agy/catalog.js';
@@ -75,7 +74,6 @@ describe('AgyCatalog & CLI parser integration', () => {
         dataRoots: ['/dummy'],
         conversationDirPattern: '/dummy/{{conversationId}}',
         transcriptRelPath: 't.jsonl',
-        artifactRules: [],
       },
       settings: {
         files: [{ scope: 'user', pathTemplate: '/dummy/s.json' }],

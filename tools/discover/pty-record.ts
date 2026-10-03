@@ -15,6 +15,7 @@ export interface PtyRecordResult {
 /**
  * 完整 ANSI 转义序列剥离正则
  */
+// eslint-disable-next-line no-control-regex -- matching the ESC control character is the point
 export const ANSI_REGEX = /\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g;
 
 export function stripAnsi(str: string): string {
@@ -29,9 +30,9 @@ export function sanitizeTerminalOutput(text: string): string {
   // 脱敏邮箱
   result = result.replace(/[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+/g, '<REDACTED_EMAIL>');
   // 脱敏 OAuth code 与 token
-  result = result.replace(/(code=)[a-zA-Z0-9_\-\.\/]+/gi, '$1<REDACTED_CODE>');
-  result = result.replace(/(token=)[a-zA-Z0-9_\-\.\/]+/gi, '$1<REDACTED_TOKEN>');
-  result = result.replace(/(Bearer\s+)[a-zA-Z0-9_\-\.\/]+/gi, '$1<REDACTED_BEARER>');
+  result = result.replace(/(code=)[a-zA-Z0-9_./-]+/gi, '$1<REDACTED_CODE>');
+  result = result.replace(/(token=)[a-zA-Z0-9_./-]+/gi, '$1<REDACTED_TOKEN>');
+  result = result.replace(/(Bearer\s+)[a-zA-Z0-9_./-]+/gi, '$1<REDACTED_BEARER>');
   return result;
 }
 

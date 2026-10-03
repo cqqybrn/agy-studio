@@ -80,7 +80,6 @@ describe('EventBus', () => {
       runId: 'run-1',
       model: 'test-model',
       cwd: '/tmp',
-      checkpointId: null,
     };
     const event2: AgentEvent = {
       type: 'user.message',
@@ -263,7 +262,6 @@ describe('EventBus', () => {
       runId: 'run-2',
       model: null,
       cwd: '/tmp',
-      checkpointId: null,
     });
 
     expect(received).toHaveLength(1);

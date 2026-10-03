@@ -655,7 +655,6 @@ describe('RunSupervisor Integration Tests', () => {
       status: 'running',
       model: null,
       accountName: null,
-      checkpointId: null,
       pid,
       usage: null,
       error: null,

@@ -14,7 +14,6 @@ import { MemoryDpapi } from '../../src/integrations/agy/dpapi.js';
 import { AccountService } from '../../src/services/account/account.js';
 import { AccountLeaseLock } from '../../src/services/account/lease-lock.js';
 import { EventBus } from '../../src/services/event-bus.js';
-import { AppError } from '../../src/utils/errors.js';
 import type { LoginPort, LoginHandle } from '../../src/services/ports/login.port.js';
 import type { AccountLoginSession } from '@agy-studio/contracts';
 
@@ -44,7 +43,7 @@ class MockLoginPort implements LoginPort {
   activeHandle: LoginHandle | null = null;
   failStart = false;
 
-  async startLogin(options: { accountName: string }): Promise<LoginHandle> {
+  async startLogin(_options: { accountName: string }): Promise<LoginHandle> {
     if (this.failStart) {
       throw new Error('Terminal spawn failed');
     }

@@ -23,7 +23,6 @@ describe('PrefsService', () => {
 
     expect(prefs).toEqual({
       showThinking: true,
-      checkpointsEnabled: true,
       maxConcurrentRuns: 3,
       stallTimeoutSeconds: 180,
       defaultModel: null,
@@ -43,7 +42,6 @@ describe('PrefsService', () => {
     expect(updated.defaultModel).toBe('gemini-3.8-flash-high');
     expect(updated.defaultEffort).toBe('high');
     expect(updated.showThinking).toBe(false);
-    expect(updated.checkpointsEnabled).toBe(true);
     expect(updated.maxConcurrentRuns).toBe(3);
     expect(updated.stallTimeoutSeconds).toBe(180);
 

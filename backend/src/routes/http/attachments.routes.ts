@@ -27,7 +27,7 @@ export const attachmentsRoutes: FastifyPluginAsync<AttachmentsRoutesOptions> = a
 
   app.setErrorHandler((error, _request, reply) => {
     // 检查 fastify multipart 抛出的文件过大错误 (FST_REQ_FILE_TOO_LARGE)
-    if ((error as any).code === 'FST_REQ_FILE_TOO_LARGE') {
+    if ((error as { code?: string }).code === 'FST_REQ_FILE_TOO_LARGE') {
       const appErr = new AppError('ATTACHMENT_TOO_LARGE', 'Attachment file exceeds maximum size limit');
       return reply.status(appErr.status).send(appErr.toApiErrorResponse());
     }

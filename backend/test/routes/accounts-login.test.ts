@@ -41,7 +41,7 @@ function makeCredJson(sub: string, email: string): Buffer {
 }
 
 class FakeLoginPort implements LoginPort {
-  async startLogin(options: { accountName: string }): Promise<LoginHandle> {
+  async startLogin(_options: { accountName: string }): Promise<LoginHandle> {
     const loginId = `login_rt_${Date.now()}`;
     let session: AccountLoginSession = {
       loginId,

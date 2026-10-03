@@ -11,7 +11,6 @@ interface RunRow {
   status: RunStatus;
   model: string | null;
   account_name: string | null;
-  checkpoint_id: string | null;
   pid: number | null;
   usage_json: string | null;
   error_json: string | null;
@@ -28,7 +27,6 @@ function toDomain(row: RunRow): RunRecord {
     status: row.status,
     model: row.model,
     accountName: row.account_name,
-    checkpointId: row.checkpoint_id,
     pid: row.pid ?? null,
     usage: row.usage_json ? (JSON.parse(row.usage_json) as TokenUsage) : null,
     error: row.error_json ? (JSON.parse(row.error_json) as ApiErrorBody) : null,
@@ -44,9 +42,9 @@ export class RunsRepository {
     this.db
       .prepare(
         `INSERT INTO runs (
-          id, session_id, status, model, account_name, checkpoint_id,
+          id, session_id, status, model, account_name,
           pid, usage_json, error_json, started_at, ended_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         run.id,
@@ -54,7 +52,6 @@ export class RunsRepository {
         run.status,
         run.model ?? null,
         run.accountName ?? null,
-        run.checkpointId ?? null,
         run.pid ?? null,
         run.usage ? JSON.stringify(run.usage) : null,
         run.error ? JSON.stringify(run.error) : null,
@@ -101,7 +98,7 @@ export class RunsRepository {
     this.db
       .prepare(
         `UPDATE runs
-         SET status = ?, model = ?, account_name = ?, checkpoint_id = ?,
+         SET status = ?, model = ?, account_name = ?,
              pid = ?, usage_json = ?, error_json = ?, ended_at = ?
          WHERE id = ?`,
       )
@@ -109,7 +106,6 @@ export class RunsRepository {
         updated.status,
         updated.model ?? null,
         updated.accountName ?? null,
-        updated.checkpointId ?? null,
         updated.pid ?? null,
         updated.usage ? JSON.stringify(updated.usage) : null,
         updated.error ? JSON.stringify(updated.error) : null,

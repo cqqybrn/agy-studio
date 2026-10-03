@@ -18,7 +18,6 @@ import {
   HIGHLIGHT_MAX_CHARS,
   HIGHLIGHT_MAX_LINES,
   MessageMarkdown,
-  renderInlineMarkdown,
   RunDivider,
   shouldHighlightCode,
   StalledNotice,

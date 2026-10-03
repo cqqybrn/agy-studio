@@ -44,23 +44,11 @@ fs.mkdirSync(dataDir, { recursive: true });
 fs.mkdirSync(homeDir, { recursive: true });
 fs.mkdirSync(workspaceDir, { recursive: true });
 
-// 初始化 workspace 为 git 仓库以便 checkpoint 服务正常工作
-try {
-  execSync('git init', { cwd: workspaceDir, stdio: 'ignore' });
-  execSync('git config user.name "E2E Tester"', { cwd: workspaceDir, stdio: 'ignore' });
-  execSync('git config user.email "tester@example.com"', { cwd: workspaceDir, stdio: 'ignore' });
-  fs.writeFileSync(path.join(workspaceDir, 'README.md'), '# E2E Workspace\n');
-  execSync('git add .', { cwd: workspaceDir, stdio: 'ignore' });
-  execSync('git commit -m "initial commit"', { cwd: workspaceDir, stdio: 'ignore' });
-} catch {
-  // 忽略 git init 失败
-}
-
 // 准备 subagent transcript fixture 到 home 目录与 profile 查找路径
 const subagentConvId = 'e33a7c24-f1e3-4792-ac80-d602ef34dabb';
 const fixtureTranscript = path.join(rootDir, 'fixtures', 'agy', 'fs', 'brain-sample', '.system_generated', 'logs', 'transcript.jsonl');
 
-// 复制到多个候选路径以确保 backend 的 ArtifactService 能解析到
+// 复制到多个候选路径，确保子 agent transcript 接口能解析到
 const candidateBrainDirs = [
   path.join(homeDir, '.gemini', 'antigravity-cli', 'brain', subagentConvId, '.system_generated', 'logs'),
   path.join(homeDir, '.gemini', 'antigravity-cli', 'brain', subagentConvId),

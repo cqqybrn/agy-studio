@@ -1,10 +1,9 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach } from 'vitest';
 import {
   extractOAuthCandidatesFromText,
   findAgyBinaryPath,
   OAuthClientManager,
 } from '../../src/integrations/agy/oauth-client.js';
-import type { AgyProfile } from '../../src/integrations/agy/profile/schema.js';
 
 describe('OAuth Client Scanner & Manager', () => {
   const sampleClientId1 = '1234567890-abcdefghij.apps.googleusercontent.com';

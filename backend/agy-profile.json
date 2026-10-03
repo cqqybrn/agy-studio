@@ -28,24 +28,7 @@
       "%USERPROFILE%\\.gemini\\antigravity"
     ],
     "conversationDirPattern": "%USERPROFILE%\\.gemini\\antigravity-cli\\brain\\{{conversationId}}",
-    "transcriptRelPath": ".system_generated\\logs\\transcript.jsonl",
-    "artifactRules": [
-      {
-        "kind": "implementation_plan",
-        "glob": "implementation_plan.md",
-        "mimeType": "text/markdown"
-      },
-      {
-        "kind": "walkthrough",
-        "glob": "walkthrough.md",
-        "mimeType": "text/markdown"
-      },
-      {
-        "kind": "markdown",
-        "glob": "*.md",
-        "mimeType": "text/markdown"
-      }
-    ]
+    "transcriptRelPath": ".system_generated\\logs\\transcript.jsonl"
   },
   "transcript": {
     "taskResultPattern": "Task id \"[^\"]*/task-(?<step>\\d+)\" finished with result:\\s*(?:The command exited with code (?<exitCode>-?\\d+)\\.)?\\s*(?:Output:)?[ \\t]*\\r?\\n?(?<output>[\\s\\S]*?)\\s*(?:Log: |</SYSTEM_MESSAGE>|$)"

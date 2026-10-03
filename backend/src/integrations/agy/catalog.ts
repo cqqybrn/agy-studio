@@ -76,7 +76,9 @@ export function findAgyBinary(profile: AgyProfile, explicitBin?: string): string
           return path.resolve(firstLine);
         }
       }
-    } catch {}
+    } catch {
+      // not resolvable via PATH
+    }
     return null;
   }
 
@@ -109,7 +111,9 @@ export function findAgyBinary(profile: AgyProfile, explicitBin?: string): string
             return path.resolve(firstLine);
           }
         }
-      } catch {}
+      } catch {
+        // not on PATH; try the next candidate
+      }
     }
   }
 
@@ -208,7 +212,7 @@ export class AgyCatalog implements ModelCatalogPort {
     try {
       const res = await this.executor(targetBin, argv);
       stdout = res.stdout;
-    } catch (err: any) {
+    } catch (err: unknown) {
       throw catalogCommandError(err, 'agy models');
     }
 

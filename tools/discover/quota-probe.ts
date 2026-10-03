@@ -133,22 +133,22 @@ export function placeholderForKey(key: string, value: unknown): unknown {
 
 const LEAK_PATTERNS: Array<[string, RegExp]> = [
   ['google-access-token', /ya29\.[0-9A-Za-z_\-.]+/g],
-  ['google-refresh-token', /1\/\/[0-9A-Za-z_\-]{10,}/g],
-  ['oauth-client-secret', /GOCSPX-[0-9A-Za-z_\-]+/g],
+  ['google-refresh-token', /1\/\/[0-9A-Za-z_-]{10,}/g],
+  ['oauth-client-secret', /GOCSPX-[0-9A-Za-z_-]+/g],
   ['oauth-client-id', /[0-9]+-[0-9a-z]+\.apps\.googleusercontent\.com/g],
-  ['jwt', /eyJ[0-9A-Za-z_\-]{8,}\.[0-9A-Za-z_\-]{8,}\.[0-9A-Za-z_\-]{8,}/g],
-  ['email', /[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g],
+  ['jwt', /eyJ[0-9A-Za-z_-]{8,}\.[0-9A-Za-z_-]{8,}\.[0-9A-Za-z_-]{8,}/g],
+  ['email', /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g],
   ['long-numeric-id', /(?<![0-9.])[0-9]{15,}(?![0-9.])/g],
 ];
 
 export function redactByPattern(input: string): string {
   let s = input;
   s = s.replace(/ya29\.[0-9A-Za-z_\-.]+/g, '<redacted:access_token>');
-  s = s.replace(/1\/\/[0-9A-Za-z_\-]{10,}/g, '<redacted:refresh_token>');
-  s = s.replace(/GOCSPX-[0-9A-Za-z_\-]+/g, '<redacted:client_secret>');
+  s = s.replace(/1\/\/[0-9A-Za-z_-]{10,}/g, '<redacted:refresh_token>');
+  s = s.replace(/GOCSPX-[0-9A-Za-z_-]+/g, '<redacted:client_secret>');
   s = s.replace(/[0-9]+-[0-9a-z]+\.apps\.googleusercontent\.com/g, '<redacted:client_id>');
-  s = s.replace(/eyJ[0-9A-Za-z_\-]{8,}\.[0-9A-Za-z_\-]{8,}\.[0-9A-Za-z_\-]{8,}/g, '<redacted:jwt>');
-  s = s.replace(/[A-Za-z0-9._%+\-]+@([A-Za-z0-9.\-]+\.[A-Za-z]{2,})/g, '<redacted:email>@$1');
+  s = s.replace(/eyJ[0-9A-Za-z_-]{8,}\.[0-9A-Za-z_-]{8,}\.[0-9A-Za-z_-]{8,}/g, '<redacted:jwt>');
+  s = s.replace(/[A-Za-z0-9._%+-]+@([A-Za-z0-9.-]+\.[A-Za-z]{2,})/g, '<redacted:email>@$1');
   s = s.replace(/(?<![0-9.])[0-9]{15,}(?![0-9.])/g, '<redacted:numeric-id>');
   return s;
 }
@@ -166,6 +166,7 @@ export interface StoredCredential {
 
 export function parseCredentialBlob(bytes: Buffer): StoredCredential | null {
   let text = bytes.toString('utf-8').replace(/^\uFEFF/, '');
+  // eslint-disable-next-line no-control-regex -- strips NUL padding from UTF-16 credential blobs
   if (text.includes('\u0000')) text = bytes.toString('utf16le').replace(/\u0000/g, '');
   let parsed: Record<string, unknown>;
   try {

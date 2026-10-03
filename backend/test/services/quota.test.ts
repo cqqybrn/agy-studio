@@ -7,7 +7,6 @@ import { EventBus } from '../../src/services/event-bus.js';
 import { AccountLeaseLock } from '../../src/services/account/lease-lock.js';
 import type { QuotaProbePort } from '../../src/services/ports/quota-probe.port.js';
 import type { QuotaSnapshot } from '@agy-studio/contracts';
-import { AppError } from '../../src/utils/errors.js';
 import type { Logger } from 'pino';
 
 describe('QuotaService', () => {

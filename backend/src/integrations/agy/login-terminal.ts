@@ -136,7 +136,6 @@ function getDefaultProfile(): AgyProfile {
       dataRoots: [],
       conversationDirPattern: '',
       transcriptRelPath: '',
-      artifactRules: [],
     },
     settings: {
       files: [],

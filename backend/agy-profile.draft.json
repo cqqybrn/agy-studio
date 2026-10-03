@@ -24,8 +24,7 @@
       "%LOCALAPPDATA%\\agy"
     ],
     "conversationDirPattern": null,
-    "transcriptRelPath": null,
-    "artifactRules": []
+    "transcriptRelPath": null
   },
   "settings": {
     "files": [

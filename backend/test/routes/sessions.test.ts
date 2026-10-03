@@ -221,7 +221,6 @@ describe('Sessions HTTP Routes', () => {
       status: 'completed',
       model: null,
       accountName: null,
-      checkpointId: null,
       pid: null,
       usage: null,
       error: null,

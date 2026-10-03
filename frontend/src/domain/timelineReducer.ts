@@ -1014,7 +1014,6 @@ export function reduce(
     }
 
     case 'raw':
-    case 'artifact.updated':
     case 'autoapprove.injected': {
       // Ignored for timeline items per spec
       return {

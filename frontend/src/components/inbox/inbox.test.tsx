@@ -14,8 +14,6 @@ import {
   ImportSessionsButton,
   InboxItem,
   InboxList,
-  NewSessionButton,
-  useIsIsolatedHome,
   WorkspaceSwitcher,
 } from './index';
 

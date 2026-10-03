@@ -346,11 +346,6 @@ describe('ManagerView & Timeline Components', () => {
     });
 
     it('store.renameSession 正确更新会话列表中的标题', async () => {
-      const mockUpdatedSession: Session = {
-        ...mockSession,
-        title: '重构完成后的全新标题',
-      };
-
       // 验证 SessionStore 的 renameSession 接口
       const renameFn = vi.fn().mockImplementation(async (id: string, title: string) => {
         const next = { ...mockSession, id, title };

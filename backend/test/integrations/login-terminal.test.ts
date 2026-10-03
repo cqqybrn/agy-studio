@@ -1,8 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   LoginTerminal,
   defaultTerminalLauncher,
-  type TerminalProcess,
   type TerminalLauncher,
 } from '../../src/integrations/agy/login-terminal.js';
 import type { AgyProfile } from '../../src/integrations/agy/profile/schema.js';
@@ -25,7 +24,6 @@ describe('LoginTerminal Integration', () => {
       dataRoots: [],
       conversationDirPattern: '',
       transcriptRelPath: '',
-      artifactRules: [],
     },
     settings: {
       files: [],

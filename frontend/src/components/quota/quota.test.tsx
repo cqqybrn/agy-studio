@@ -1,10 +1,9 @@
 import React from 'react';
 import { renderToString } from 'react-dom/server';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { QuotaBucket, QuotaSnapshot } from '@agy-studio/contracts';
+import { beforeEach, describe, expect, it } from 'vitest';
+import type { QuotaSnapshot } from '@agy-studio/contracts';
 import { useQuotaStore } from '../../stores/quota.store';
 import {
-  formatFetchedTime,
   formatQuotaSource,
   formatResetCountdown,
   getMinRemainingFraction,

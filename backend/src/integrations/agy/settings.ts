@@ -83,12 +83,12 @@ export function formatJson(data: unknown, formatting: JsonFormatting): string {
  */
 export function getByPath(obj: Record<string, unknown>, jsonPath: string): unknown {
   const parts = jsonPath.split('.');
-  let current: any = obj;
+  let current: unknown = obj;
   for (const part of parts) {
     if (current === undefined || current === null || typeof current !== 'object') {
       return undefined;
     }
-    current = current[part];
+    current = (current as Record<string, unknown>)[part];
   }
   return current;
 }
@@ -103,18 +103,14 @@ export function setByPath(
   value: unknown,
 ): boolean {
   const parts = jsonPath.split('.');
-  let current: any = obj;
+  let current: Record<string, unknown> = obj;
   for (let i = 0; i < parts.length - 1; i++) {
     const part = parts[i];
-    if (
-      current[part] === undefined ||
-      current[part] === null ||
-      typeof current[part] !== 'object' ||
-      Array.isArray(current[part])
-    ) {
+    const next = current[part];
+    if (next === undefined || next === null || typeof next !== 'object' || Array.isArray(next)) {
       current[part] = {};
     }
-    current = current[part];
+    current = current[part] as Record<string, unknown>;
   }
 
   const lastPart = parts[parts.length - 1];
@@ -175,12 +171,14 @@ async function writeAtomicWithRetry(
   try {
     await attempt();
     return { success: true };
-  } catch (err1) {
+  } catch {
     try {
       if (fs.existsSync(tempFile)) {
         await fs.promises.unlink(tempFile);
       }
-    } catch {}
+    } catch {
+      // ignore: best-effort temp file cleanup
+    }
 
     // Back off 50ms and retry once
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -188,12 +186,14 @@ async function writeAtomicWithRetry(
     try {
       await attempt();
       return { success: true };
-    } catch (err2: any) {
+    } catch (err2: unknown) {
       try {
         if (fs.existsSync(tempFile)) {
           await fs.promises.unlink(tempFile);
         }
-      } catch {}
+      } catch {
+        // ignore: best-effort temp file cleanup
+      }
       return { success: false, error: err2 instanceof Error ? err2 : new Error(String(err2)) };
     }
   }
@@ -245,11 +245,11 @@ export class AgySettings implements SettingsPort {
         if (typeof data !== 'object' || data === null || Array.isArray(data)) {
           data = {};
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         return {
           updated: false,
           filePath,
-          warning: `Failed to read or parse existing settings file at ${filePath}: ${err.message}`,
+          warning: `Failed to read or parse existing settings file at ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
         };
       }
     }
@@ -284,14 +284,14 @@ export class AgySettings implements SettingsPort {
   /**
    * Install the statusline bridge hook into the settings file.
    */
-  async installStatusline(homeDir?: string): Promise<void> {
+  async installStatusline(_homeDir?: string): Promise<void> {
     // Placeholder for module 1.16; ensures SettingsPort contract is fulfilled
   }
 
   /**
    * Uninstall the statusline bridge hook and restore previous settings.
    */
-  async uninstallStatusline(homeDir?: string): Promise<void> {
+  async uninstallStatusline(_homeDir?: string): Promise<void> {
     // Placeholder for module 1.16; ensures SettingsPort contract is fulfilled
   }
 }

@@ -1,10 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   Account,
-  GlobalEvent,
   Prefs,
   QuotaSnapshot,
-  Run,
   RunStatus,
   Session,
   SessionEventEnvelope,
@@ -140,8 +138,6 @@ describe('Frontend Stores', () => {
       status: 'open',
     });
     useUiStore.setState({
-      rightPanelCollapsed: false,
-      activeArtifactTab: 'Task',
       showThinkingOverride: null,
       readSeqMap: {},
     });
@@ -159,7 +155,6 @@ describe('Frontend Stores', () => {
           runId: 'run-1',
           model: 'gemini-2.5-pro',
           cwd: '/workspace',
-          checkpointId: null,
         },
       };
 
@@ -269,7 +264,6 @@ describe('Frontend Stores', () => {
           runId: 'run-live-1',
           model: 'gemini-2.5-pro',
           cwd: '/workspace',
-          checkpointId: null,
         },
       };
       subscription.callbacks.onEvent(startEnv);
@@ -341,7 +335,6 @@ describe('Frontend Stores', () => {
                 runId: 'run-1',
                 model: 'gemini-2.5-pro',
                 cwd: '/workspace',
-                checkpointId: null,
               },
             },
           ],
@@ -431,7 +424,7 @@ describe('Frontend Stores', () => {
         seq: 2,
         runId: 'run-mock-123',
         ts: '2026-09-28T10:00:08.000Z',
-        event: { type: 'run.started', runId: 'run-mock-123', model: null, cwd: '/workspace', checkpointId: null },
+        event: { type: 'run.started', runId: 'run-mock-123', model: null, cwd: '/workspace' },
       });
       slot = useSessionStore.getState().slots['sess-send'];
       expect(slot.pendingRunId).toBeNull();
@@ -461,7 +454,6 @@ describe('Frontend Stores', () => {
                 runId: `run-${id}`,
                 model: 'gemini-2.5-pro',
                 cwd: '/workspace',
-                checkpointId: null,
               },
             },
           ],
@@ -791,7 +783,6 @@ describe('Frontend Stores', () => {
         defaultMode: 'code',
         defaultWorkspaceId: null,
         showThinking: true,
-        checkpointsEnabled: true,
         maxConcurrentRuns: 3,
         stallTimeoutSeconds: 180,
       };
@@ -907,18 +898,7 @@ describe('Frontend Stores', () => {
   });
 
   describe('ui.store', () => {
-    it('toggles right panel, sets tabs, and records read sequence numbers', () => {
-      expect(useUiStore.getState().rightPanelCollapsed).toBe(false);
-
-      useUiStore.getState().toggleRightPanel();
-      expect(useUiStore.getState().rightPanelCollapsed).toBe(true);
-
-      useUiStore.getState().setRightPanelCollapsed(false);
-      expect(useUiStore.getState().rightPanelCollapsed).toBe(false);
-
-      useUiStore.getState().setActiveArtifactTab('Plan');
-      expect(useUiStore.getState().activeArtifactTab).toBe('Plan');
-
+    it('sets the thinking override and records read sequence numbers', () => {
       useUiStore.getState().setShowThinkingOverride(true);
       expect(useUiStore.getState().showThinkingOverride).toBe(true);
 

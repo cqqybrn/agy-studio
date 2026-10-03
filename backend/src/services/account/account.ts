@@ -518,7 +518,9 @@ export class AccountService {
       if (liveBackup) {
         try {
           await this.credentialStore.restore(liveBackup);
-        } catch {}
+        } catch {
+          // best effort: the original error below is what the caller needs to see
+        }
       }
       writeLease.release();
       throw AppError.from(err);
@@ -692,7 +694,9 @@ export class AccountService {
           } else {
             try {
               await this.credentialStore.clear();
-            } catch {}
+            } catch {
+              // best effort: nothing to restore, leave the live slot as it is
+            }
           }
         }
       } finally {

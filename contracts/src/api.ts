@@ -4,11 +4,8 @@ import type {
   AccountType,
   AgentInfo,
   AgentMode,
-  Artifact,
   Attachment,
   Capabilities,
-  Checkpoint,
-  CheckpointDiff,
   Effort,
   Health,
   Model,
@@ -115,15 +112,6 @@ export interface ApiEndpoints {
     query: { afterStep?: number; limit?: number };
     response: { steps: TranscriptStep[]; total: number };
   };
-
-  'GET /api/sessions/:sessionId/artifacts': { response: Artifact[] };
-  /** Streams raw bytes with the artifact's mimeType. */
-  'GET /api/sessions/:sessionId/artifacts/:artifactId/raw': { response: Blob };
-
-  'GET /api/sessions/:sessionId/checkpoints': { response: Checkpoint[] };
-  'GET /api/checkpoints/:checkpointId/diff': { response: CheckpointDiff };
-  /** Restores the workspace to the state *before* the checkpoint's run. Rejects with SESSION_BUSY while running. */
-  'POST /api/checkpoints/:checkpointId/rollback': { response: { ok: true; restoredFiles: number } };
 
   /** multipart/form-data: fields `workspaceId`, optional `sessionId`, files under `files`. */
   'POST /api/attachments': { body: FormData; response: { attachments: Attachment[] } };

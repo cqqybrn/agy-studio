@@ -300,7 +300,6 @@ describe('Attachment Services', () => {
           dataRoots: ['/root'],
           conversationDirPattern: '/root/{{conversationId}}',
           transcriptRelPath: 'logs.jsonl',
-          artifactRules: [],
         },
         settings: {
           files: [{ scope: 'user', pathTemplate: '/settings.json' }],
