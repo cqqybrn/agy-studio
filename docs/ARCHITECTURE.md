@@ -472,6 +472,8 @@ git push -u origin main
 #### 0.1 Monorepo 骨架与工具链 🟢
 - **交付物**：根 `package.json`（workspaces）、`tsconfig.base.json`、`.gitignore`、backend 与 frontend 空壳、ESLint + Prettier、根脚本 `dev/build/test/typecheck/lint`
 - **完成标准**：`npm install && npm run typecheck && npm run build && npm test` 通过；前后端都能 `import type` 契约
+- **2026-10-03 修订**：根目录新增 `.npmrc`（`ignore-scripts=true`）。better-sqlite3 自带各平台预编译文件（`prebuilds/win32-x64.node` 等），但包里有 `binding.gyp`，npm 会隐式执行 `node-gyp rebuild`，在没装 Visual Studio C++ 工具链的机器上安装失败。依赖树里另外两个安装脚本（esbuild 校验、fsevents）都可省略，因此全部跳过，`npm install` 不再需要 Visual Studio
+- **2026-10-04 修订**：backend 新增 `vitest.config.ts`，`testTimeout`/`hookTimeout` 设为 20 秒。很多后端测试会真实拉起 git 或 node 子进程，Windows 上全量并行跑时经常超过 vitest 默认的 5 秒（并非卡死），此前全量运行有 6 个用例因此偶发失败
 
 #### 0.2 探测一：stream 录制 🟡
 - **交付物**：`tools/discover/record-stream.ts`；`fixtures/agy/stream/<场景>/{stdout.jsonl,stderr.txt,meta.json}`（每行带相对时间戳）；`docs/VERIFY.md` 中 V1–V4 的结论
@@ -521,6 +523,7 @@ git push -u origin main
   - 运行异常退出时账号租约没有释放，导致之后永远无法切换账号
 - **完成标准**：fake-agy 覆盖正常、非零退出、中止、超时、并发上限、双击、租约获取失败；每种情况恰好一条 `run.completed`，租约数归零，无残留进程
 - **2026-10-01 修订**：默认不再设运行总时长上限（原 10 分钟会强杀正常的长任务，`timeoutMs` 仍可按次传入）；卡死改由 1.7 的看门狗处理，其无输出时长取 prefs 的 `stallTimeoutSeconds`（默认 180 秒，有命令类工具运行时放宽 3 倍），每次运行开始时读取，修改后下一次运行生效
+- **2026-10-04 修订**：`ProcessRunner` 改用 `resolveRunnerBinary`（先 `findAgyBinary` 找实际存在的候选，找不到再退回 `resolveBinary`），与 1.13 模型目录、1.15 登录的查找方式一致。原来未设 `AGY_BIN` 时直接用 profile 第一个候选 `agy`，agy 位于 `%LOCALAPPDATA%\agy\bin` 但不在本进程 PATH 中时（典型：刚装完 agy、资源管理器还没拿到新 PATH 就双击 `start.cmd`），模型列表和登录正常，唯独每次运行都报 `spawn agy ENOENT`。注意：在同一进程内修改 `process.env.PATH` 不影响 Windows 下子进程的可执行文件查找，复现需从不含该目录的新进程启动
 
 #### 1.7 自动同意四层兜底 🔴
 - **交付物**：L1 参数由 1.6 固定带上；L2 `integrations/agy/settings.ts`（实现 `SettingsPort.ensureAlwaysProceed(scope, homeDir?)`：按 profile 读合并写，原子替换，保留其他字段）；L3 由 runner 根据 `profile.stream.permissionEvent` 自动回复，服务层只接收 `autoapprove.injected` 事件；L4 `services/autoapprove/watchdog.ts`（无输出超时 → stalled → 尝试注入 → 再超时 → `AGY_STALLED`；有命令类工具运行时计时放宽 3 倍）
@@ -549,11 +552,17 @@ git push -u origin main
 - **交付物**：`services/checkpoint.ts`（影子仓库 `DATA_DIR/shadow/<workspaceId>.git`，所有命令带 `--git-dir` 与 `--work-tree`；运行前快照，超时 15 秒则跳过；diff；回滚前再做一次快照；同一工作区的操作串行化）；checkpoints 路由
 - **潜在死穴**：回滚覆盖用户后来的手动修改；大仓库首次快照阻塞运行；并发快照互相干扰；误操作用户自己的 `.git`
 - **完成标准**：新增、修改、删除文件后回滚正确；测试前后用户 `.git` 目录哈希一致
+- **2026-10-04 修订**（实测后修复"检查点永久失效"）：
+  - **问题**：实现的快照默认超时为 3 秒（`defaultTimeoutMs`，与上文设计的 15 秒不一致，待定），超时后通过 `AbortSignal` 杀掉正在运行的 git。本机实测首次快照：300 个文件 4.9 秒，3000 个文件 28.6 秒（增量快照约 1 秒）。被杀的 `git add -A` 会在影子仓库留下 `index.lock`，之后每次快照都因锁文件失败，只记一条 error 日志，界面无提示，检查点实际上一个都没有
+  - **修复**：超时只阻止开始下一步，**绝不杀正在运行的 git**（`execGit` 不再把信号交给子进程，已超时则不启动新步骤）；`snapshot` 到时即返回 `null`，不阻塞运行，计时包含排队等锁的时间；准备步骤与 `add -A` 在锁内总是跑完（只写影子仓库），为后续快照预热索引；`commit` 及记录检查点受超时控制，超时后才完成的快照不入库（此时运行可能已改动工作区）；`ensureRepoInitialized` 在锁内清理残留的 `index.lock`（锁内不可能有其他 git 在用，残留一定来自崩溃或旧版本）；新增 `whenIdle()` 等待后台收尾
+  - **回滚**：一旦开始改写工作区（`read-tree` → `checkout-index` → `clean -fd` → `update-ref`）就不再响应超时，保证全部完成，避免工作区停在一半新一半旧的状态；`diff` 的 `reset HEAD` 清理步骤总是执行
+  - **效果**（默认 3 秒，两次运行之间有间隔）：300 个文件从第 2 次运行起有检查点，3000 个文件从第 3 次起；修复前永远没有。是否把默认值调到设计的 15 秒（首次运行最多多等 15 秒）尚未决定
 
 #### 1.13 模型、偏好、系统接口 🟢
 - **交付物**：`integrations/agy/catalog.ts`（按 profile 执行版本与模型命令并解析）；`services/model.ts`（缓存 10 分钟）、`services/prefs.ts`；system 路由（capabilities 的 features 来自 profile；比较 agy 版本与 profile 版本）
 - **完成标准**：agy 未安装时 capabilities 返回 `agyPath: null`，不会报 500
 - **2026-10-03 修订**：`agy models` 返回「Please sign in」时映射为 `AGY_NOT_AUTHENTICATED`；列模型前尽量从默认账号快照恢复 live 凭据；成功列表写入 `DATA_DIR/models-cache.json`，CLI 失败时回退缓存。若缓存文件尚不存在，启动时用 `fixtures/agy/catalog/models.txt`（本机探测结果）种子一份，避免空列表把账号/模型显示成「未登录」。有效磁盘缓存命中时不再每次恢复凭据并打 CLI。输入栏模型选择器在失败后把原因放到 title，仍显示上次选中的模型 id
+- **2026-10-04 修订**：`catalog.ts` 执行 agy 时原来在 Windows 上无条件 `shell: true`，命令行拼接不转义，agy 路径含空格（如用户名 `John Smith`）时被截断，模型列表报 `AGY_NOT_INSTALLED`、版本检测返回 null。改为只有 `.cmd`/`.bat` 才走 shell，且路径加引号；`.exe` 直接执行。agy 1.2.16 把 `Fetching available models...` 从 stdout 移到了 stderr，解析器本来就跳过该行，不受影响
 
 #### 1.14 凭据快照与账号服务 🔴
 - **前置证据**：VERIFY.md 的 V7（凭据条目名、编码格式、相关文件）必须有本机探测结论，没有就停下
@@ -570,6 +579,8 @@ git push -u origin main
 - **交付物**：`integrations/agy/login-terminal.ts`（实现 `LoginPort`：用 `profile.login.argv` 在一个新的系统终端窗口中启动 agy，由用户自己完成登录；服务端不读取、不解析终端输出）；在 `account.ts` 中编排登录：持写锁 → 备份 live → 清空 → 弹出终端（状态 `awaiting_browser`，`authUrl` 为 null）→ 每 2 秒检查 live 凭据是否出现（判定方式以 V10 为准）→ 快照为新账号 → 按用户选择恢复原账号或切到新账号；10 分钟超时自动取消
 - **潜在死穴**：登录中途用户关闭页面、关掉终端或超时，live 槽位处于被清空状态 → 任何结束路径（成功、取消、超时、服务关闭）都必须在同一个 finally 中恢复；凭据刚写入一半就被快照 → 检测到凭据后再等 2 秒、两次读取一致才快照
 - **完成标准**：用可注入的假终端启动器和假凭据存储覆盖成功、取消、超时、服务关闭四条路径；每条路径结束后 live 凭据状态正确，写锁已释放
+- **2026-10-03 修订**（登录网络预检）：实测登录失败的原因是浏览器授权成功后，agy 向 `oauth2.googleapis.com/token` 换令牌时直连超时——agy 是 Go 程序，只认 `HTTPS_PROXY` 等环境变量，不读 Windows 系统代理（见 1.18 修订）。`AccountService` 新增可选 `loginPreflight`，在备份与清空 live 凭据**之前**执行；`app.ts` 只在使用真实登录终端时接入 `utils/connectivity.ts` 的 `assertGoogleAuthReachable`：用系统自带 `curl`（与 agy 一样只认环境变量代理）访问该地址，任何 HTTP 响应即视为可达；不可达时立即返回 `AGY_TIMEOUT`（可重试），消息说明原因（超时、DNS、证书等）以及当前是直连还是走哪个代理，不再让用户等满 10 分钟。找不到 `curl` 时跳过预检；`AGY_STUDIO_SKIP_NET_CHECK=1` 可关闭
+- **2026-10-04 修订**：`defaultTerminalLauncher` 的 `cmd /c start "" <command>` 使用 `windowsVerbatimArguments`，原来命令路径没加引号，agy 路径含空格时 `start` 找不到被截断的路径并弹出系统报错框，登录窗口打不开。拼参数提取为 `buildWindowsStartArgs`：命令总是加引号，参数仅在含空白或引号时加引号
 
 #### 1.16 ~~statusline 桥接与接收~~（已取消）
 额度改为由 1.17 直接查询额度接口，不再需要 statusline 桥接。
@@ -584,6 +595,7 @@ git push -u origin main
 #### 1.18 后端装配与启动 🟡
 - **交付物**：`app.ts`（手写构造注入：先创建 integrations 实现，再注入 services，最后注册路由）；`main.ts`（配置 → 迁移 → 加载 profile → 清理孤儿进程 → 监听）；生产模式静态托管前端；优雅关闭
 - **完成标准**：以 fake-agy 启动，用 ws 客户端走通"创建工作区 → 创建会话 → 发送 → 收到完整事件"；`services/` 下没有任何文件 import `integrations/`（加一条 ESLint 规则强制）
+- **2026-10-03 修订**（自动沿用系统代理）：客户既有用代理的也有直连的，不能写死。`utils/proxy.ts` 的 `applySystemProxyToEnv` 在 `main.ts` 入口、`NODE_USE_ENV_PROXY` 重拉进程**之前**执行，结果写入 `process.env`，agy 登录终端与所有运行进程自动继承。规则：已设置 `HTTPS_PROXY`/`HTTP_PROXY` → 尊重用户设置不改动；未设置且 Windows 系统代理开启（读 `HKCU\...\Internet Settings` 的 `ProxyEnable`/`ProxyServer`/`ProxyOverride`）→ 先 TCP 探测代理端口（防止代理软件已退出但注册表残留），可连通才写入，并把 `localhost,127.0.0.1,::1` 与 `ProxyOverride` 合并进 `NO_PROXY`；未开代理 → 不做任何事，直连。PAC 脚本与仅 SOCKS 的配置无法自动识别，只记警告。`AGY_STUDIO_PROXY=off` 关闭自动识别。仅支持 Windows，macOS/Linux 需自行设置 `HTTPS_PROXY`
 
 #### 2.1–2.13 前端模块
 
@@ -614,6 +626,7 @@ git push -u origin main
 #### 3.1 端到端测试 🟡 / 3.2 启动脚本与 README 🟢
 - 3.1：Playwright + fake-agy，覆盖发送与流式显示、子 agent、中止、刷新后历史完整、断网重连、附件、回滚、登录流程
 - 3.2：`start.cmd`（检查 Node 与 agy → 按需构建 → 启动 → 打开浏览器）；README（安装、首次登录、局域网访问安全、自动同意风险与回滚、"agy 升级后重新探测"的步骤）
+- **2026-10-03 修订（3.2）**：`start.cmd` 原为 LF 换行且含 UTF-8 中文，中文 Windows（GBK 代码页）下 cmd 按字节偏移解析会把中文切断成乱码命令（`此时不应有 )`），双击后窗口一闪即退；只改 CRLF 仍会在全角标点处报错。现改为**纯 ASCII + CRLF**，提示文字为英文，文件头注释写明这一约束；同时修复后台等端口打开浏览器那行的嵌套双引号（改用 `start "" /b powershell ...`），并在开头 `cd /d "%~dp0"`。编辑此文件时不要引入非 ASCII 字符
 
 ---
 
@@ -1270,7 +1283,8 @@ git push -u origin main
 
 | 风险 | 对策 |
 |---|---|
-| agy 升级后行为变化 | 版本比对提示 → 重跑 `tools/discover` → 更新 profile 与 fixtures → 快照测试立刻暴露差异；未知输出降级为 `raw` |
+| agy 升级后行为变化 | 版本比对提示 → 重跑 `tools/discover` → 更新 profile 与 fixtures → 快照测试立刻暴露差异；未知输出降级为 `raw`。agy 会在后台自动升级（2026-10-03 本机从 1.2.12 升到 1.2.16），1.2.16 的复核结论见 VERIFY.md |
+| 客户机器环境差异 | 用户名含空格、agy 不在 PATH、需要代理或直连、未装 Visual Studio、中文代码页——均已有对应处理与回归测试（0.1、1.6、1.13、1.15、1.18、3.2 的修订条目） |
 | 官方没有文档的行为探测不到 | 每项探测都有降级方案（阶段 0 表格）；最坏情况下仍可用"只靠 CLI 参数 + stdout 事件"跑通核心对话 |
 | 自动同意导致破坏性操作 | 影子 git 检查点一键回滚；默认只监听本机；非本机访问强制 token |
 | 凭据泄露 | 不入库、DPAPI 加密快照、日志脱敏、API 不返回、internal 接口只收回环地址并校验令牌 |

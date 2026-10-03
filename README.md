@@ -60,6 +60,9 @@ AGY Studio 旨在彻底解决这一体验瓶颈：
 - **Antigravity CLI**：已在本机安装并成功登录 `agy`
   - 官方文档与安装指南：[https://antigravity.google/docs](https://antigravity.google/docs)
   - 验证命令：在终端运行 `agy --version`，确保可正确返回版本号。
+  - 已验证版本：1.2.12（完整实录）、1.2.16（兼容性复核，见 `docs/VERIFY.md`）。agy 会在后台自动升级。
+- **无需** Visual Studio / C++ 编译工具：根目录 `.npmrc` 已跳过依赖的本地编译（better-sqlite3 自带预编译文件）。
+- **网络**：需要能访问 Google（登录、额度、对话都要用到）。使用代理时会自动沿用 Windows 系统代理，详见 FAQ Q5；代理出口地区需在 Gemini API 支持范围内，详见 FAQ Q6。
 
 ---
 
@@ -81,7 +84,7 @@ AGY Studio 旨在彻底解决这一体验瓶颈：
 ### 方式二：命令行手动启动
 
 ```bash
-# 1. 安装项目所有依赖
+# 1. 安装项目所有依赖（国内网络较慢时可先执行：set npm_config_registry=https://registry.npmmirror.com）
 npm install
 
 # 2. 构建前端生产产物
@@ -104,7 +107,7 @@ npx tsx backend/src/main.ts
    - 在左侧侧边栏点击“添加工作区”，指定本机代码工程所在目录。
    - Studio 将以该目录作为 Agent 执行的根上下文。
 3. **开启新会话（New Session）**
-   - 选择所需模型（如 Gemini 2.5 Flash / Pro）、推理级别（Effort）与执行模式。
+   - 在输入栏选择模型（列表来自本机 `agy models`，如 Gemini 3.x Flash / Pro、Claude、GPT-OSS），所选模型会保存为默认值。
    - 输入您的提示词或拖入需求文件/需求文档，开启丝滑的无阻断自动化开发体验！
 
 ---
@@ -145,8 +148,9 @@ npx tsx backend/src/main.ts
 
 ### 2. 影子 Git（Shadow Git）与一键回滚
 - **工作机制**：AGY Studio 维护独立于项目本身 Git 的影子对象库（位于数据目录中）。
-- **快照时机**：每次调用 Agent 发起任务前，系统自动以非阻塞方式为整个工作区拍下增量快照。
-- **安心回滚**：如果 Agent 执行过程中写坏了代码或删错了配置文件，随时可以在“检查点（Checkpoints）”面板中对比变更差异（Diff），一键安全无损撤回。
+- **快照时机**：每次调用 Agent 发起任务前，系统自动为整个工作区拍下增量快照。快照最多等待 3 秒，超时则本次运行照常开始、不带检查点，绝不拖住运行。
+- **大项目的前几次运行**：第一次快照需要把全部文件写入影子仓库，Windows 上实测 300 个文件约 5 秒、3000 个文件约 30 秒，会超过等待时间。此时 git 会在后台继续完成并为后续快照做好准备（之后每次约 1 秒），所以中大型项目的**前一两次运行可能没有检查点**，属正常现象。
+- **安心回滚**：如果 Agent 执行过程中写坏了代码或删错了配置文件，随时可以在“检查点（Checkpoints）”面板中对比变更差异（Diff），一键安全无损撤回。回滚前会先给当前状态再拍一个快照；回滚一旦开始改写文件就会完整执行，不会停在一半。
 
 ---
 
@@ -166,6 +170,7 @@ npm run test -w tools/discover
 npm run test
 ```
 
+- **当前状态**：本机 agy 已自动升级到 1.2.16，模型列表、额度接口、事件适配器均已复核兼容（结论与待补录项见 `docs/VERIFY.md` 的“agy 1.2.16 复核”）。
 - **架构优势**：AGY Studio 严格遵循**端口与适配器设计原则**。业务逻辑与外部细节完全隔离，所有与版本紧密相关的定义统一由 `agy-profile.json` 声明。即使遇到尚未识别的未知新事件，适配器也会自动降级包装为 `raw` 事件，绝不抛出未捕获异常导致流断裂。
 
 ---
@@ -212,7 +217,20 @@ npm run test
      start.cmd
      ```
   3. 想强制直连（忽略系统代理），启动前设置 `set AGY_STUDIO_PROXY=off`；
-  4. 登录前的网络预检误报时，可用 `set AGY_STUDIO_SKIP_NET_CHECK=1` 跳过。
+  4. 登录前的网络预检误报时，可用 `set AGY_STUDIO_SKIP_NET_CHECK=1` 跳过；
+  5. agy 自身日志位于 `%USERPROFILE%\.gemini\antigravity-cli\log\`，登录失败时搜索 `token exchange failed` 可看到具体网络错误（日志里大量 `You are not logged into Antigravity` 是登录过程中的正常现象）。
+
+### Q6: 发送消息后报错 “User location is not supported for the API use”？
+- **原因**：Google 根据**出口 IP 所在地区**拒绝了模型调用。使用代理时，这说明当前代理节点所在地区不在 Gemini API 支持范围内（额度查询走的是另一个接口，可能仍然正常）。
+- **处理**：切换到受支持地区的代理节点后重试即可；如果更换了代理端口，需要重启 AGY Studio 以重新识别系统代理。
+
+### Q7: 检查点列表是空的，或前几次运行没有检查点？
+- **原因**：中大型项目的第一次快照较慢，超过 3 秒等待时会跳过本次检查点，git 在后台继续完成准备工作，后续运行即可正常生成（见“影子 Git 与一键回滚”）。
+- **排查**：若持续多次都没有检查点，查看启动窗口日志中的 `Checkpoint snapshot` 相关警告或错误；也可确认偏好设置里检查点开关（`checkpointsEnabled`）是否开启。
+
+### Q8: `npm install` 报 `node-gyp` 或 “Could not find any Visual Studio installation”？
+- **原因**：根目录的 `.npmrc`（`ignore-scripts=true`）缺失或被覆盖，npm 尝试本地编译 better-sqlite3。
+- **处理**：确认 `.npmrc` 存在，或手动执行 `npm install --ignore-scripts`。该包自带 Windows 预编译文件，不需要 Visual Studio。
 
 ---
 

@@ -25,6 +25,24 @@
 
 ---
 
+## agy 1.2.16 复核（2026-10-04）
+
+agy 会在后台自动升级：本机 `agy.exe` 于 2026-10-03 20:09 被替换为 **1.2.16**（当天约 20:00 `agy --version` 还输出 1.2.11，低于 profile 记录的 1.2.12；当晚 CLI 日志出现 `Language server version: 1.2.16` 与 `Spawned background update process`）。`agy-profile.json` 的 `agyVersion` 仍为 1.2.12，以下为对已实录结论的复核，未重新录制 fixtures。
+
+| 项 | 1.2.16 结果 | 方法 |
+|---|---|---|
+| V11 `--version` | 输出纯版本号 `1.2.16`，解析器正常 | 直接执行 |
+| V11 `models` | 模型列表与 1.2.12 实录完全相同（14 个）；**`Fetching available models...` 从 stdout 移到了 stderr**。`parseModelsOutput` 本来就跳过该行，无需修改 | 对比 `fixtures/agy/catalog/models.txt` |
+| V12 额度接口 | 从 `agy.exe` 提取 OAuth 客户端、换 token、`retrieveUserQuotaSummary` 全部成功，仍为 2 组 4 桶（`gemini-weekly`、`gemini-5h`、`3p-weekly`、`3p-5h`） | 用 `QuotaApiClient.probe` 只读调用（需 `NODE_USE_ENV_PROXY=1`） |
+| V3 stream-json | 一次最小真实运行，适配器**没有产生任何 `raw` 事件**，`conversation_id` 正常捕获，错误 `result` 正确映射为 `run.error`。成功回复路径**未验证**：本次运行被服务端以 `FAILED_PRECONDITION (code 400): User location is not supported for the API use.` 拒绝（代理出口地区不受支持），退出码 3 | `ProcessRunner` 在临时空目录发送一句话 |
+| V6 settings | `%USERPROFILE%\.gemini\antigravity-cli\settings.json` 仍含 `toolPermission`/`artifactReviewPolicy: "always-proceed"`，另有 `allowNonWorkspaceAccess`、`trustedWorkspaces` | 读取文件 |
+| CLI 日志 | 位于 `%USERPROFILE%\.gemini\antigravity-cli\log\cli-<时间>.log`；登录失败时可在此看到 `consumerOAuth: token exchange failed due to network error ... oauth2.googleapis.com/token`（见 ARCHITECTURE 1.15 修订）。被 Studio 清空凭据后启动时大量 `You are not logged into Antigravity` 属正常现象 | 读取日志 |
+
+- **新增实测事实**：agy 只认 `HTTPS_PROXY` / `HTTP_PROXY` 环境变量，不使用 Windows 系统代理；直连 `oauth2.googleapis.com` 在本机网络下 IPv4/IPv6 均超时，经系统代理可达。
+- **待办**：在受支持地区的网络下补录一次 1.2.16 成功回复的 stream，确认 `step_update` 字段无变化后，再把 `agyVersion` 更新为 1.2.16。
+
+---
+
 ## 实录校正（2026-09-28，本机 agy 1.2.12 真实录制）
 
 下方 V1–V4 详细分析最初是在尚无录制数据时撰写的。以本节为准，冲突时以 `fixtures/agy/stream/` 中的实录为准。

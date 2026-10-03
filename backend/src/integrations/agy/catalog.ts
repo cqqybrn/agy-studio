@@ -14,14 +14,18 @@ export type CommandExecutor = (
 ) => Promise<{ stdout: string; stderr: string }>;
 
 const defaultCommandExecutor: CommandExecutor = (bin: string, argv: string[]) => {
+  // Only .cmd/.bat shims need a shell on Windows. With a shell the command line is joined
+  // unescaped, so an unquoted path such as C:\Users\John Smith\...\agy.exe would be split at
+  // the space.
+  const needsShell = process.platform === 'win32' && /\.(cmd|bat)$/i.test(bin);
   return new Promise((resolve, reject) => {
     execFile(
-      bin,
+      needsShell ? `"${bin}"` : bin,
       argv,
       {
         encoding: 'utf-8',
         windowsHide: true,
-        shell: process.platform === 'win32',
+        shell: needsShell,
         timeout: 20_000,
       },
       (err, stdout, stderr) => {
