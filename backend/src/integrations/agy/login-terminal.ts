@@ -35,11 +35,27 @@ export type TerminalLauncher = (
   options?: LaunchOptions,
 ) => Promise<TerminalProcess> | TerminalProcess;
 
+/**
+ * `cmd.exe /c start "" "<command>" <args...>`, passed verbatim. The command is always quoted
+ * (agy usually lives under C:\Users\<name>\..., and user names may contain spaces); arguments are
+ * quoted only when they contain whitespace or quotes.
+ */
+export function buildWindowsStartArgs(command: string, args: string[]): string[] {
+  const quote = (value: string) => `"${value.replace(/"/g, '\\"')}"`;
+  return [
+    '/c',
+    'start',
+    '""',
+    quote(command),
+    ...args.map((arg) => (/[\s"]/.test(arg) ? quote(arg) : arg)),
+  ];
+}
+
 export const defaultTerminalLauncher: TerminalLauncher = (command, args, options) => {
   let child: ChildProcess;
   if (process.platform === 'win32') {
     // Windows requires cmd.exe /c start "" <command> <args...> to open in a new console window
-    const cmdArgs = ['/c', 'start', '""', command, ...args];
+    const cmdArgs = buildWindowsStartArgs(command, args);
     child = spawn('cmd.exe', cmdArgs, {
       cwd: options?.cwd,
       env: options?.env ?? process.env,

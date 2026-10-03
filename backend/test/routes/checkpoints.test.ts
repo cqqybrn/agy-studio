@@ -78,6 +78,8 @@ describe('Checkpoints HTTP Routes', () => {
         hasActiveRunsForWorkspace: (wsId: string) => isWorkspaceBusy && wsId === workspaceId,
       },
       dataDir: tempDir,
+      // The 3s production default is too tight for git on Windows under a parallel test run.
+      defaultTimeoutMs: 15_000,
     });
 
     app = Fastify();

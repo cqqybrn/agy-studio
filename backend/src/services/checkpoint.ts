@@ -120,6 +120,17 @@ export class WorkspaceMutex {
       }
     }
   }
+
+  /** Resolves when the queue for the workspace (or every workspace) has drained. */
+  async whenIdle(workspaceId?: string): Promise<void> {
+    for (;;) {
+      const pending = workspaceId
+        ? [this.tails.get(workspaceId)].filter((p): p is Promise<void> => !!p)
+        : [...this.tails.values()];
+      if (pending.length === 0) return;
+      await Promise.allSettled(pending);
+    }
+  }
 }
 
 export class CheckpointService {
@@ -144,18 +155,26 @@ export class CheckpointService {
 
   /**
    * Invokes git subprocess directly via execFile (never via shell).
+   *
+   * An aborted `signal` only prevents the *next* git step from starting; a running git is never
+   * killed. Killing git mid-write leaves `index.lock` behind (breaking every later operation) and,
+   * during rollback, would leave the user's workspace half-restored.
    */
   private async execGit(
     args: string[],
     options?: ExecGitOptions,
   ): Promise<{ stdout: string; stderr: string }> {
+    if (options?.signal?.aborted) {
+      const err = new Error(String(options.signal.reason ?? 'Operation aborted'));
+      err.name = 'AbortError';
+      throw err;
+    }
     return new Promise((resolve, reject) => {
       execFile(
         'git',
         args,
         {
           cwd: options?.cwd,
-          signal: options?.signal,
           timeout: options?.timeout,
           windowsHide: true,
           maxBuffer: 50 * 1024 * 1024,
@@ -202,6 +221,15 @@ export class CheckpointService {
         ['--git-dir=' + shadowRepo, 'config', 'user.email', 'studio@local'],
         { signal },
       );
+    }
+
+    // Callers hold the workspace mutex and every git step runs to completion, so no git can be
+    // using this repo right now: a leftover lock comes from a crash or an older build that killed
+    // git, and would otherwise make every later snapshot fail.
+    const indexLock = path.join(shadowRepo, 'index.lock');
+    if (fs.existsSync(indexLock)) {
+      fs.rmSync(indexLock, { force: true });
+      this.logger?.warn?.({ shadowRepo }, 'Removed stale index.lock from checkpoint shadow repo');
     }
   }
 
@@ -315,102 +343,151 @@ export class CheckpointService {
   }
 
   /**
-   * Captures a snapshot of the workspace into the shadow bare git repo.
-   * Times out after timeoutMs (defaults to 3,000ms), returning null on timeout/failure without blocking.
+   * Resolves once every queued checkpoint operation (including a snapshot that timed out but is
+   * still finishing in the background) has completed for the workspace, or for all workspaces.
    */
-  async snapshot(
+  whenIdle(workspaceId?: string): Promise<void> {
+    return this.mutex.whenIdle(workspaceId);
+  }
+
+  /**
+   * Captures a snapshot of the workspace into the shadow bare git repo.
+   *
+   * Resolves with null after timeoutMs (defaults to 3,000ms) so a run is never held up. The git
+   * step already in progress keeps running under the workspace mutex: the first snapshot of a real
+   * project can take tens of seconds on Windows, and letting it finish warms the shadow index so
+   * later snapshots are fast. A snapshot that completes after its timeout is not recorded, because
+   * the run may already have modified the workspace by then.
+   */
+  snapshot(
     workspaceId: string,
     sessionId: string,
     runId: string,
     options?: { timeoutMs?: number },
   ): Promise<Checkpoint | null> {
-    return this.mutex.runExclusive(workspaceId, async () => {
-      const timeoutMs = options?.timeoutMs ?? this.defaultTimeoutMs;
+    const timeoutMs = options?.timeoutMs ?? this.defaultTimeoutMs;
+
+    return new Promise<Checkpoint | null>((resolve, reject) => {
+      let settled = false;
+      const settle = (fn: () => void) => {
+        if (!settled) {
+          settled = true;
+          fn();
+        }
+      };
+
+      // The clock includes waiting for the workspace mutex: a previous snapshot still warming the
+      // shadow index in the background must not hold up the next run either.
       const controller = new AbortController();
       let timer: NodeJS.Timeout | null = null;
-      let isTimedOut = false;
-
       if (timeoutMs > 0) {
         timer = setTimeout(() => {
-          isTimedOut = true;
           controller.abort(new Error(`Checkpoint snapshot timed out after ${timeoutMs}ms`));
-        }, timeoutMs);
-      }
-
-      try {
-        const workspace = this.workspacesRepo.findById(workspaceId);
-        if (!workspace) {
-          throw new AppError('NOT_FOUND', `Workspace ${workspaceId} not found`);
-        }
-
-        const shadowRepo = this.getShadowRepoPath(workspaceId);
-        await this.ensureRepoInitialized(shadowRepo, controller.signal);
-        await this.updateExcludeRules(shadowRepo, workspace.path, controller.signal);
-
-        await this.execGit(
-          ['--git-dir=' + shadowRepo, '--work-tree=' + workspace.path, 'add', '-A'],
-          { signal: controller.signal },
-        );
-
-        await this.execGit(
-          [
-            '--git-dir=' + shadowRepo,
-            '--work-tree=' + workspace.path,
-            'commit',
-            '-m',
-            `checkpoint:${runId}`,
-            '--allow-empty',
-          ],
-          { signal: controller.signal },
-        );
-
-        const { stdout: commitShaOut } = await this.execGit(
-          ['--git-dir=' + shadowRepo, 'rev-parse', 'HEAD'],
-          { signal: controller.signal },
-        );
-        const commitSha = commitShaOut.trim();
-
-        const { stdout: statOut } = await this.execGit(
-          ['--git-dir=' + shadowRepo, 'show', '--shortstat', '--format=', 'HEAD'],
-          { signal: controller.signal },
-        );
-        const filesChanged = this.parseFilesChanged(statOut);
-
-        const checkpoint: Checkpoint = {
-          id: createId('chk'),
-          workspaceId,
-          sessionId,
-          runId,
-          commitSha,
-          filesChanged,
-          createdAt: new Date().toISOString(),
-        };
-
-        return this.checkpointsRepo.create(checkpoint);
-      } catch (err) {
-        if (isTimedOut || (err instanceof Error && err.name === 'AbortError')) {
           this.logger?.warn?.(
             { workspaceId, sessionId, runId, timeoutMs },
             'Checkpoint snapshot timed out; continuing without checkpoint',
           );
-          return null;
-        }
-
-        if (err instanceof AppError && err.code === 'NOT_FOUND') {
-          throw err;
-        }
-
-        this.logger?.error?.(
-          { err, workspaceId, sessionId, runId },
-          'Checkpoint snapshot failed; continuing without checkpoint',
-        );
-        return null;
-      } finally {
-        if (timer) {
-          clearTimeout(timer);
-        }
+          settle(() => resolve(null));
+        }, timeoutMs);
       }
+
+      this.mutex
+        .runExclusive(workspaceId, async () => {
+          // The caller already gave up while queued; the run has started, so this snapshot would
+          // no longer reflect the pre-run state.
+          if (controller.signal.aborted) return;
+
+          try {
+            const checkpoint = await this.captureSnapshot(
+              workspaceId,
+              sessionId,
+              runId,
+              controller.signal,
+            );
+            settle(() => resolve(checkpoint));
+          } catch (err) {
+            if (controller.signal.aborted || (err instanceof Error && err.name === 'AbortError')) {
+              settle(() => resolve(null));
+            } else if (err instanceof AppError && err.code === 'NOT_FOUND') {
+              settle(() => reject(err));
+            } else {
+              this.logger?.error?.(
+                { err, workspaceId, sessionId, runId },
+                'Checkpoint snapshot failed; continuing without checkpoint',
+              );
+              settle(() => resolve(null));
+            }
+          } finally {
+            if (timer) {
+              clearTimeout(timer);
+            }
+          }
+        })
+        .catch((err) => settle(() => reject(err)));
     });
+  }
+
+  private async captureSnapshot(
+    workspaceId: string,
+    sessionId: string,
+    runId: string,
+    signal: AbortSignal,
+  ): Promise<Checkpoint> {
+    const workspace = this.workspacesRepo.findById(workspaceId);
+    if (!workspace) {
+      throw new AppError('NOT_FOUND', `Workspace ${workspaceId} not found`);
+    }
+
+    const shadowRepo = this.getShadowRepoPath(workspaceId);
+    // Staging always runs to completion, even past the timeout: it only touches the shadow repo,
+    // and it is what makes the next snapshot fast. Gating it would let a large workspace time out
+    // at the same step forever.
+    await this.ensureRepoInitialized(shadowRepo);
+    await this.updateExcludeRules(shadowRepo, workspace.path);
+    await this.execGit(['--git-dir=' + shadowRepo, '--work-tree=' + workspace.path, 'add', '-A']);
+
+    await this.execGit(
+      [
+        '--git-dir=' + shadowRepo,
+        '--work-tree=' + workspace.path,
+        'commit',
+        '-m',
+        `checkpoint:${runId}`,
+        '--allow-empty',
+      ],
+      { signal },
+    );
+
+    const { stdout: commitShaOut } = await this.execGit(
+      ['--git-dir=' + shadowRepo, 'rev-parse', 'HEAD'],
+      { signal },
+    );
+    const commitSha = commitShaOut.trim();
+
+    const { stdout: statOut } = await this.execGit(
+      ['--git-dir=' + shadowRepo, 'show', '--shortstat', '--format=', 'HEAD'],
+      { signal },
+    );
+    const filesChanged = this.parseFilesChanged(statOut);
+
+    // Finished after the caller gave up: the workspace may no longer be in its pre-run state.
+    if (signal.aborted) {
+      const err = new Error('Checkpoint snapshot finished after its timeout');
+      err.name = 'AbortError';
+      throw err;
+    }
+
+    const checkpoint: Checkpoint = {
+      id: createId('chk'),
+      workspaceId,
+      sessionId,
+      runId,
+      commitSha,
+      filesChanged,
+      createdAt: new Date().toISOString(),
+    };
+
+    return this.checkpointsRepo.create(checkpoint);
   }
 
   /**
@@ -474,11 +551,10 @@ export class CheckpointService {
           );
           diffOutput = stdout;
         } finally {
-          // Clear intent-to-add from shadow index without affecting working tree
+          // Clear intent-to-add from shadow index without affecting working tree (always, even
+          // after a timeout, so the shadow index is left clean)
           try {
-            await this.execGit(['--git-dir=' + shadowRepo, 'reset', 'HEAD'], {
-              signal: controller.signal,
-            });
+            await this.execGit(['--git-dir=' + shadowRepo, 'reset', 'HEAD']);
           } catch {
             // ignore reset error
           }
@@ -612,44 +688,34 @@ export class CheckpointService {
         const changedFiles = diffNamesOut.trim().split(/\r?\n/).filter(Boolean);
         const restoredFiles = changedFiles.length;
 
-        // 3. Restore workspace to target snapshot state and clean untracked additions
-        await this.execGit(
-          [
-            '--git-dir=' + shadowRepo,
-            '--work-tree=' + workspace.path,
-            'read-tree',
-            checkpoint.commitSha,
-          ],
-          { signal: controller.signal },
-        );
-        await this.execGit(
-          [
-            '--git-dir=' + shadowRepo,
-            '--work-tree=' + workspace.path,
-            'checkout-index',
-            '-a',
-            '-f',
-          ],
-          { signal: controller.signal },
-        );
-        await this.execGit(
-          [
-            '--git-dir=' + shadowRepo,
-            '--work-tree=' + workspace.path,
-            'clean',
-            '-fd',
-          ],
-          { signal: controller.signal },
-        );
-        await this.execGit(
-          [
-            '--git-dir=' + shadowRepo,
-            'update-ref',
-            'HEAD',
-            checkpoint.commitSha,
-          ],
-          { signal: controller.signal },
-        );
+        // 3. Restore workspace to target snapshot state and clean untracked additions.
+        // Last point at which a timeout may stop the rollback: the steps below rewrite the user's
+        // files and must all run, otherwise the workspace is left half-restored.
+        if (controller.signal.aborted) {
+          const err = new Error(String(controller.signal.reason ?? 'Rollback aborted'));
+          err.name = 'AbortError';
+          throw err;
+        }
+        await this.execGit([
+          '--git-dir=' + shadowRepo,
+          '--work-tree=' + workspace.path,
+          'read-tree',
+          checkpoint.commitSha,
+        ]);
+        await this.execGit([
+          '--git-dir=' + shadowRepo,
+          '--work-tree=' + workspace.path,
+          'checkout-index',
+          '-a',
+          '-f',
+        ]);
+        await this.execGit([
+          '--git-dir=' + shadowRepo,
+          '--work-tree=' + workspace.path,
+          'clean',
+          '-fd',
+        ]);
+        await this.execGit(['--git-dir=' + shadowRepo, 'update-ref', 'HEAD', checkpoint.commitSha]);
 
         return {
           ok: true,

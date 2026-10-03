@@ -124,7 +124,9 @@ describe('CheckpointService', () => {
     });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // A timed-out snapshot keeps git running in the background; let it finish before deleting.
+    await checkpointService.whenIdle();
     db.close();
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
@@ -268,7 +270,7 @@ index 3333333..0000000
     // Verify user .git directory hash is 100% identical
     const hashAfterRollback = hashDirectory(userGitDir);
     expect(hashAfterRollback).toBe(hashBefore);
-  });
+  }, 15_000);
 
   it('respects exclusion rules: node_modules, .agy-attachments, .gitignore, and files > 20MB', async () => {
     // 1. .gitignore rule
@@ -337,7 +339,49 @@ index 3333333..0000000
     const res = await timeoutService.snapshot(workspaceId, sessionId, 'run_timeout_1');
     expect(res).toBeNull();
     expect(warnLogs.length).toBeGreaterThan(0);
+    await timeoutService.whenIdle();
   });
+
+  it('does not kill git on timeout: no stale index.lock, late result is not recorded, next snapshot works', async () => {
+    createTestRun('run_timeout_late');
+    createTestRun('run_after_timeout');
+    for (let i = 0; i < 50; i++) {
+      fs.writeFileSync(path.join(workspacePath, `file_${i}.txt`), `content ${i}`);
+    }
+
+    const res = await checkpointService.snapshot(workspaceId, sessionId, 'run_timeout_late', {
+      timeoutMs: 1,
+    });
+    expect(res).toBeNull();
+
+    // The background git finishes under the mutex instead of being killed mid-write
+    await checkpointService.whenIdle(workspaceId);
+    const shadowRepo = path.join(tempDir, 'shadow', `${workspaceId}.git`);
+    expect(fs.existsSync(path.join(shadowRepo, 'index.lock'))).toBe(false);
+
+    // A snapshot that finished after the caller gave up must not become a checkpoint
+    expect(await checkpointService.listBySessionId(sessionId)).toHaveLength(0);
+
+    const next = await checkpointService.snapshot(workspaceId, sessionId, 'run_after_timeout');
+    expect(next).not.toBeNull();
+    expect(await checkpointService.listBySessionId(sessionId)).toHaveLength(1);
+  }, 15_000);
+
+  it('recovers from an index.lock left behind by a crash', async () => {
+    createTestRun('run_lock_1');
+    createTestRun('run_lock_2');
+    fs.writeFileSync(path.join(workspacePath, 'a.txt'), 'a');
+    expect(await checkpointService.snapshot(workspaceId, sessionId, 'run_lock_1')).not.toBeNull();
+
+    const shadowRepo = path.join(tempDir, 'shadow', `${workspaceId}.git`);
+    fs.writeFileSync(path.join(shadowRepo, 'index.lock'), '');
+    fs.writeFileSync(path.join(workspacePath, 'a.txt'), 'b');
+
+    const res = await checkpointService.snapshot(workspaceId, sessionId, 'run_lock_2');
+    expect(res).not.toBeNull();
+    expect(res?.filesChanged).toBe(1);
+    expect(fs.existsSync(path.join(shadowRepo, 'index.lock'))).toBe(false);
+  }, 15_000);
 
   it('serializes concurrent snapshot requests for the same workspace without corruption', async () => {
     fs.writeFileSync(path.join(workspacePath, 'counter.txt'), '0');

@@ -8,6 +8,7 @@ import type {
 } from '@agy-studio/contracts';
 import type { AgyProfile } from './profile/schema.js';
 import { adapt, type AdaptResult } from './stream-adapter.js';
+import { findAgyBinary } from './catalog.js';
 import type {
   AgyRunnerPort,
   RunnerProcess,
@@ -175,6 +176,16 @@ export function resolveBinary(profile: AgyProfile, explicitBin?: string): string
 }
 
 /**
+ * Binary used to start runs. Prefers a candidate that actually exists (same lookup as the model
+ * catalog and the login terminal), so a run does not fail with `spawn agy ENOENT` when agy lives
+ * in %LOCALAPPDATA%\agy\bin but is not on this process's PATH (e.g. right after installing agy,
+ * before Explorer picks up the new PATH).
+ */
+export function resolveRunnerBinary(profile: AgyProfile, explicitBin?: string): string {
+  return findAgyBinary(profile, explicitBin) ?? resolveBinary(profile, explicitBin);
+}
+
+/**
  * Formats a user frame string based on the profile template and prompt text.
  */
 export function formatUserFrame(
@@ -212,7 +223,7 @@ export class ProcessRunner implements AgyRunnerPort {
   ) {}
 
   async start(options: ProcessRunnerOptions): Promise<ProcessRunnerProcess> {
-    const bin = resolveBinary(this.profile, options.bin ?? this.defaultBin);
+    const bin = resolveRunnerBinary(this.profile, options.bin ?? this.defaultBin);
     const argv = buildArgv(this.profile, options);
     const runId = options.runId ?? createId('run');
     const profile = this.profile;
