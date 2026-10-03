@@ -14,6 +14,7 @@ import {
   EffortPicker,
   formatFileSize,
   getDraftStorageKey,
+  isIgnorableSendTimeout,
   loadDraft,
   ModelPicker,
   ModePicker,
@@ -157,6 +158,20 @@ describe('Composer & Pickers Component Suite', () => {
       expect(html).toContain('disabled');
     });
 
+    it('keeps a last-selected model id visible and puts the catalog error on title', () => {
+      const html = renderToString(
+        <ModelPicker
+          onChange={() => {}}
+          fetched
+          value="gemini-3.8-flash-high"
+          error="agy 未登录，请到账号页登录后再刷新模型"
+        />,
+      );
+      expect(html).toContain('gemini-3.8-flash-high');
+      expect(html).toContain('title="agy 未登录，请到账号页登录后再刷新模型"');
+      expect(html).not.toContain('加载模型中…');
+    });
+
     it('renders EffortPicker with low/medium/high/max options', () => {
       const html = renderToString(<EffortPicker value="high" onChange={() => {}} />);
       expect(html).toContain('data-testid="effort-picker-select"');
@@ -255,17 +270,25 @@ describe('Composer & Pickers Component Suite', () => {
       expect(html).toContain('data-testid="hidden-camera-input"');
       expect(html).toContain('capture="environment"');
       expect(html).toContain('data-testid="model-picker-select"');
-      expect(html).toContain('data-testid="effort-picker-select"');
-      expect(html).toContain('data-testid="mode-picker-select"');
-      expect(html).toContain('data-testid="agent-picker-select"');
+      expect(html).not.toContain('data-testid="effort-picker-select"');
+      expect(html).not.toContain('data-testid="mode-picker-select"');
+      expect(html).not.toContain('data-testid="agent-picker-select"');
       expect(html).toContain('data-testid="composer-send-button"');
       expect(html).not.toContain('data-testid="composer-stop-button"');
     });
 
-    it('carries the agent chosen in the composer into the send options, and drops the default agent', () => {
-      const html = renderToString(<Composer sessionId="session-123" agent="code-reviewer" />);
-      expect(html).toMatch(/<option[^>]*value="code-reviewer"[^>]*selected/);
+    it('treats AGY_TIMEOUT as a non-fatal send ack delay', () => {
+      expect(
+        isIgnorableSendTimeout({
+          code: 'AGY_TIMEOUT',
+          message: 'Request timed out after 10000ms',
+        }),
+      ).toBe(true);
+      expect(isIgnorableSendTimeout(new Error('发送失败，请重试'))).toBe(false);
+      expect(isIgnorableSendTimeout({ code: 'INTERNAL', message: 'boom' })).toBe(false);
+    });
 
+    it('drops the default agent from send options and keeps a named agent', () => {
       expect(
         buildSendOptions({ attachmentIds: [], model: 'm1', mode: 'plan', agent: 'code-reviewer' }),
       ).toEqual({ attachmentIds: undefined, model: 'm1', effort: undefined, mode: 'plan', agent: 'code-reviewer' });

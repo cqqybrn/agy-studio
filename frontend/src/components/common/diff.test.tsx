@@ -102,12 +102,12 @@ index 111..222 100644
 
       // 验证新增行与删除行测试 ID 及着色 class
       expect(html).toContain('data-testid="diff-line-add"');
-      expect(html).toContain('bg-emerald-500/15');
-      expect(html).toContain('text-emerald-300');
+      expect(html).toContain('bg-status-success-subtle');
+      expect(html).toContain('text-status-success-text');
 
       expect(html).toContain('data-testid="diff-line-del"');
-      expect(html).toContain('bg-rose-500/15');
-      expect(html).toContain('text-rose-300');
+      expect(html).toContain('bg-status-error-subtle');
+      expect(html).toContain('text-status-error-text');
 
       // 验证 hunk 标头
       expect(html).toContain('data-testid="diff-line-hunk"');

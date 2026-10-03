@@ -5,6 +5,7 @@ import {
   formatFetchedTime,
   formatQuotaSource,
   formatResetCountdown,
+  localizeQuotaLabel,
 } from './formatQuota';
 
 export interface QuotaPanelProps {
@@ -97,17 +98,17 @@ export function QuotaPanel({
           <div>
             <div className="flex items-center gap-1.5">
               <h3 className="font-semibold text-sm text-text-primary">
-                {snapshot?.title || '额度详情'}
+                {localizeQuotaLabel(snapshot?.title) || '额度详情'}
               </h3>
               {snapshot?.planTier && (
-                <span className="rounded bg-accent/20 px-1.5 py-0.5 text-[10px] font-mono font-medium text-accent uppercase">
-                  {snapshot.planTier}
+                <span className="rounded bg-accent/20 px-1.5 py-0.5 text-[10px] font-medium text-accent">
+                  {localizeQuotaLabel(snapshot.planTier)}
                 </span>
               )}
             </div>
             {snapshot?.description && (
               <p className="text-[11px] text-text-tertiary mt-0.5 line-clamp-1">
-                {snapshot.description}
+                {localizeQuotaLabel(snapshot.description)}
               </p>
             )}
           </div>
@@ -150,7 +151,9 @@ export function QuotaPanel({
             </div>
             <h4 className="text-sm font-medium text-text-primary">额度暂不可用</h4>
             <p className="text-xs text-text-tertiary mt-1.5 max-w-[260px] leading-relaxed">
-              当前暂未探测到额度信息或额度服务异常，这不影响正常的会话交互与任务执行。
+              {snapshot?.description
+                ? localizeQuotaLabel(snapshot.description)
+                : '当前暂未探测到额度信息或额度服务异常，这不影响正常的会话交互与任务执行。'}
             </p>
           </div>
         ) : (
@@ -158,7 +161,7 @@ export function QuotaPanel({
             {/* 积分 Credits 展示（若有） */}
             {snapshot.credits?.available && (
               <div className="flex items-center justify-between rounded-lg border border-border-default bg-bg-panel/50 px-3 py-2 text-xs">
-                <span className="text-text-secondary">积分余额 (Credits)</span>
+                <span className="text-text-secondary">积分余额</span>
                 <span className="font-mono font-medium text-text-primary">
                   {snapshot.credits.balance !== null ? snapshot.credits.balance : '无限'}
                 </span>
@@ -170,11 +173,11 @@ export function QuotaPanel({
               <div key={groupIdx} className="space-y-2.5">
                 <div className="flex items-baseline justify-between border-b border-border-subtle pb-1">
                   <span className="text-xs font-semibold text-text-secondary">
-                    {group.displayName}
+                    {localizeQuotaLabel(group.displayName)}
                   </span>
                   {group.description && (
                     <span className="text-[11px] text-text-tertiary">
-                      {group.description}
+                      {localizeQuotaLabel(group.description)}
                     </span>
                   )}
                 </div>
@@ -197,7 +200,7 @@ export function QuotaPanel({
         )}
 
         {storeError && !localMessage && (
-          <div className="rounded border border-color-error/30 bg-color-error-subtle/40 px-3 py-2 text-xs text-color-error">
+          <div className="rounded border border-color-error/30 bg-status-error-subtle/40 px-3 py-2 text-xs text-color-error">
             {storeError}
           </div>
         )}
@@ -208,13 +211,13 @@ export function QuotaPanel({
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <div className="flex items-center gap-1.5">
-              <span>数据来源:</span>
+              <span>数据来源：</span>
               <span className="font-mono text-text-secondary font-medium">
                 {formatQuotaSource(snapshot?.source)}
               </span>
             </div>
             <div className="flex items-center gap-1.5 text-[11px]">
-              <span>获取时间:</span>
+              <span>获取时间：</span>
               <span className="font-mono">
                 {formatFetchedTime(snapshot?.fetchedAt)}
               </span>
@@ -240,7 +243,7 @@ export function QuotaPanel({
                 {isLoading
                   ? '刷新中…'
                   : cooldownRemaining > 0
-                    ? `冷却中 (${cooldownRemaining}s)`
+                    ? `冷却中（${cooldownRemaining} 秒）`
                     : '刷新额度'}
               </span>
             </button>
@@ -297,7 +300,7 @@ function BucketItem({ bucket }: { bucket: QuotaBucket }) {
       <div className="flex items-center justify-between text-xs mb-1.5">
         <div className="flex items-center gap-1.5">
           <span className="font-medium text-text-primary">
-            {bucket.displayName}
+            {localizeQuotaLabel(bucket.displayName)}
           </span>
           <span className="rounded bg-bg-panel px-1.5 py-0.2 text-[10px] font-mono text-text-tertiary border border-border-subtle">
             {windowLabel}

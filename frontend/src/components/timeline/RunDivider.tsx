@@ -30,21 +30,21 @@ export function RunDivider({ item, className = '' }: RunDividerProps) {
   const statusConfig = {
     completed: {
       label: 'Completed',
-      textColor: 'text-emerald-400',
-      badgeBg: 'bg-emerald-500/10 border-emerald-500/20',
-      icon: <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-400" />,
+      textColor: 'text-status-success-text',
+      badgeBg: 'bg-status-success-subtle border-status-success/20',
+      icon: <CheckCircleIcon className="w-3.5 h-3.5 text-status-success-text" />,
     },
     failed: {
       label: 'Failed',
-      textColor: 'text-rose-400',
-      badgeBg: 'bg-rose-500/10 border-rose-500/20',
-      icon: <XCircleIcon className="w-3.5 h-3.5 text-rose-400" />,
+      textColor: 'text-status-error-text',
+      badgeBg: 'bg-status-error-subtle border-status-error/20',
+      icon: <XCircleIcon className="w-3.5 h-3.5 text-status-error-text" />,
     },
     aborted: {
       label: 'Aborted',
-      textColor: 'text-amber-400',
-      badgeBg: 'bg-amber-500/10 border-amber-500/20',
-      icon: <AlertCircleIcon className="w-3.5 h-3.5 text-amber-400" />,
+      textColor: 'text-status-warning-text',
+      badgeBg: 'bg-status-warning-subtle border-status-warning/20',
+      icon: <AlertCircleIcon className="w-3.5 h-3.5 text-status-warning-text" />,
     },
   }[item.status] || {
     label: item.status,
@@ -107,7 +107,7 @@ export function RunDivider({ item, className = '' }: RunDividerProps) {
 
         {/* Error snippet if failed */}
         {item.error && (
-          <span className="rounded bg-rose-500/10 px-1.5 py-0.5 text-[10px] text-rose-400 border border-rose-500/20 truncate max-w-xs">
+          <span className="rounded bg-status-error-subtle px-1.5 py-0.5 text-[10px] text-status-error-text border border-status-error/20 truncate max-w-xs">
             {`${item.error.code}: ${item.error.message}`}
           </span>
         )}

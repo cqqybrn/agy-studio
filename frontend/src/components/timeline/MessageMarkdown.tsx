@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { createHighlighter, type Highlighter } from 'shiki';
-import { CheckIcon, CopyIcon } from './icons';
+import { CopyButton } from './CopyButton';
+import { splitMarkdownSegments } from './asciiBox';
 
 export interface MessageMarkdownProps {
   content: string;
@@ -43,7 +44,7 @@ let highlighterPromise: Promise<Highlighter> | null = null;
 function getHighlighterInstance(): Promise<Highlighter> {
   if (!highlighterPromise) {
     highlighterPromise = createHighlighter({
-      themes: ['tokyo-night'],
+      themes: ['github-light', 'tokyo-night'],
       langs: [
         'typescript',
         'javascript',
@@ -84,7 +85,9 @@ export async function highlightCodeWithShiki(code: string, language: string): Pr
     const effectiveLang = highlighter.getLoadedLanguages().includes(lang as any) ? lang : 'text';
     return highlighter.codeToHtml(code, {
       lang: effectiveLang,
-      theme: 'tokyo-night',
+      // Inline colors are the light theme; theme.css switches to --shiki-dark under the dark theme
+      themes: { light: 'github-light', dark: 'tokyo-night' },
+      defaultColor: 'light',
     });
   } catch (err) {
     console.warn('Failed to highlight code with shiki:', err);
@@ -97,7 +100,6 @@ export async function highlightCodeWithShiki(code: string, language: string): Pr
 // ---------------------------------------------------------------------------
 function CodeBlock({ code, language }: { code: string; language: string }) {
   const [highlightedHtml, setHighlightedHtml] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const highlightEnabled = React.useContext(HighlightContext);
 
   useEffect(() => {
@@ -116,17 +118,9 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
     };
   }, [code, language, highlightEnabled]);
 
-  const handleCopy = () => {
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
   return (
     <div
-      className="my-3 overflow-hidden rounded-md border border-border-default bg-[#080a0f] text-xs font-mono"
+      className="my-3 overflow-hidden rounded-md border border-border-default bg-bg-code text-xs font-mono"
       data-testid="code-block"
       data-language={language || 'text'}
     >
@@ -134,24 +128,7 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
         <span className="text-[11px] font-medium text-text-secondary uppercase tracking-wider">
           {language || 'text'}
         </span>
-        <button
-          type="button"
-          onClick={handleCopy}
-          className="flex items-center gap-1.5 rounded px-2 py-0.5 text-[11px] text-text-tertiary hover:bg-bg-surface-hover hover:text-text-primary transition-colors focus:outline-none"
-          data-testid="copy-code-btn"
-        >
-          {copied ? (
-            <>
-              <CheckIcon className="w-3 h-3 text-emerald-400" />
-              <span className="text-emerald-400">Copied!</span>
-            </>
-          ) : (
-            <>
-              <CopyIcon className="w-3 h-3" />
-              <span>Copy code</span>
-            </>
-          )}
-        </button>
+        <CopyButton text={code} label="复制代码" testId="copy-code-btn" />
       </div>
 
       {highlightedHtml ? (
@@ -369,8 +346,26 @@ const markdownComponents: Components = {
 // ---------------------------------------------------------------------------
 // 纯展示无状态 MessageMarkdown 组件
 // ---------------------------------------------------------------------------
+function AsciiBox({ text }: { text: string }) {
+  return (
+    <div
+      className="my-3 overflow-hidden rounded-md border border-border-default bg-bg-code"
+      data-testid="ascii-box"
+    >
+      <div className="flex items-center justify-end border-b border-border-subtle bg-bg-surface/50 px-2 py-1">
+        <CopyButton text={text} label="复制" testId="copy-box-btn" />
+      </div>
+      <pre className="overflow-x-auto p-3 font-mono text-[11px] leading-relaxed text-text-secondary whitespace-pre">
+        {text}
+      </pre>
+    </div>
+  );
+}
+
 export function MessageMarkdown({ content, className = '', streaming = false }: MessageMarkdownProps) {
   if (!content) return null;
+
+  const segments = splitMarkdownSegments(content);
 
   return (
     <div
@@ -378,16 +373,23 @@ export function MessageMarkdown({ content, className = '', streaming = false }: 
       data-testid="message-markdown"
     >
       <HighlightContext.Provider value={!streaming}>
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          components={markdownComponents}
-          urlTransform={(url) => {
-            if (isSafeUrl(url)) return url;
-            return '';
-          }}
-        >
-          {content}
-        </ReactMarkdown>
+        {segments.map((segment, index) =>
+          segment.kind === 'box' ? (
+            <AsciiBox key={`box-${index}`} text={segment.text} />
+          ) : (
+            <ReactMarkdown
+              key={`md-${index}`}
+              remarkPlugins={[remarkGfm]}
+              components={markdownComponents}
+              urlTransform={(url) => {
+                if (isSafeUrl(url)) return url;
+                return '';
+              }}
+            >
+              {segment.text}
+            </ReactMarkdown>
+          ),
+        )}
       </HighlightContext.Provider>
     </div>
   );

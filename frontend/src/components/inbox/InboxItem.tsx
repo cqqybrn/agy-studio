@@ -164,7 +164,7 @@ export function InboxItem({
               data-testid="confirm-delete-btn"
               onClick={handleConfirmDelete}
               disabled={isDeleting}
-              className="rounded bg-status-error px-1.5 py-0.5 text-[10px] font-medium text-white hover:opacity-90 disabled:opacity-50"
+              className="rounded bg-status-error px-1.5 py-0.5 text-[10px] font-medium text-accent-foreground hover:opacity-90 disabled:opacity-50"
             >
               {isDeleting ? '...' : '确定'}
             </button>

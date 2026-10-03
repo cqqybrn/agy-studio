@@ -1,4 +1,10 @@
-import type { AgentEvent, ISODateString, TranscriptStep, TranscriptToolCall } from '@agy-studio/contracts';
+import type {
+  AgentEvent,
+  ISODateString,
+  ToolCall,
+  TranscriptStep,
+  TranscriptToolCall,
+} from '@agy-studio/contracts';
 import path from 'node:path';
 import { isUuid } from '../../utils/ids.js';
 import { JsonlTail } from '../../utils/jsonl-tail.js';
@@ -7,7 +13,14 @@ import {
   resolveTranscriptPath as resolveTranscriptPathFromProfile,
   type PathResolveOptions,
 } from './paths.js';
-import type { PathsConfig } from './profile/schema.js';
+import type { AgyProfile, PathsConfig } from './profile/schema.js';
+import {
+  extractFileChanges,
+  extractToolTarget,
+  resolveToolKind,
+  stepMessageId,
+  stepToolCallId,
+} from './stream-adapter.js';
 
 export { expandPathTokens } from './paths.js';
 
@@ -279,6 +292,156 @@ export function toEvents(
   }
 
   return [];
+}
+
+/** Bookkeeping keys agy adds to every tool call; stdout tool parameters never contain them. */
+const TRANSCRIPT_ONLY_ARG_KEYS = new Set(['toolAction', 'toolSummary']);
+
+/**
+ * transcript.jsonl stores string arguments JSON-encoded a second time (`"\"npm test\""`),
+ * while transcript_full.jsonl and stdout do not.
+ */
+function decodeTranscriptArgs(args: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(args)) {
+    if (TRANSCRIPT_ONLY_ARG_KEYS.has(key)) continue;
+    if (typeof value === 'string' && value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
+      try {
+        const decoded: unknown = JSON.parse(value);
+        out[key] = typeof decoded === 'string' ? decoded : value;
+        continue;
+      } catch {
+        // not an encoded string; keep as is
+      }
+    }
+    out[key] = value;
+  }
+  return out;
+}
+
+function floorToSecond(iso: string): number {
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? 0 : Math.floor(ms / 1000) * 1000;
+}
+
+export interface RunTranscriptMapperOptions {
+  runId: string;
+  /** Steps from earlier turns of a resumed conversation precede this run's USER_INPUT. */
+  runStartedAt: ISODateString;
+  profile?: AgyProfile;
+}
+
+/**
+ * Maps a main conversation's transcript steps for one run into the same message / tool events
+ * the stdout adapter produces, with identical ids (both use agy's conversation-wide step index).
+ *
+ * - PLANNER_RESPONSE with content → message.delta (full text) + message.done
+ * - PLANNER_RESPONSE tool_calls are paired, in order, with the GENERIC result steps that follow;
+ *   a RUNNING result → tool.started, any other status → tool.finished
+ * - A background tool's GENERIC step stays RUNNING; its result arrives later as a SYSTEM_MESSAGE
+ *   matching `profile.transcript.taskResultPattern` → tool.finished for that step
+ * - Thinking, user input and other system messages produce nothing.
+ */
+export class RunTranscriptMapper {
+  private readonly runId: string;
+  private readonly runStartMs: number;
+  private readonly profile?: AgyProfile;
+  private readonly taskResultPattern: RegExp | null;
+  private started = false;
+  private pendingCalls: TranscriptToolCall[] = [];
+  /** step index → tool still running in the background */
+  private readonly runningTools = new Map<number, ToolCall>();
+
+  constructor(options: RunTranscriptMapperOptions) {
+    this.runId = options.runId;
+    this.runStartMs = floorToSecond(options.runStartedAt);
+    this.profile = options.profile;
+    const pattern = options.profile?.transcript?.taskResultPattern;
+    this.taskResultPattern = pattern ? new RegExp(pattern) : null;
+  }
+
+  push(step: TranscriptStep): AgentEvent[] {
+    const type = step.type.toUpperCase();
+
+    if (!this.started) {
+      if (type === 'USER_INPUT' && step.createdAt && floorToSecond(step.createdAt) >= this.runStartMs) {
+        this.started = true;
+      }
+      return [];
+    }
+
+    if (type === 'PLANNER_RESPONSE') {
+      this.pendingCalls = [...step.toolCalls];
+      const text = step.content ?? '';
+      if (text.trim().length === 0) return [];
+      const messageId = stepMessageId(this.runId, step.stepIndex);
+      return [
+        { type: 'message.delta', messageId, text },
+        { type: 'message.done', messageId },
+      ];
+    }
+
+    if (type === 'GENERIC') {
+      const call = this.pendingCalls.shift();
+      if (!call) return [];
+      const event = this.toToolEvent(step, call);
+      if (event.type === 'tool.started') this.runningTools.set(step.stepIndex, event.tool);
+      return [event];
+    }
+
+    if (type === 'SYSTEM_MESSAGE') {
+      return this.toBackgroundResult(step);
+    }
+
+    return [];
+  }
+
+  private toBackgroundResult(step: TranscriptStep): AgentEvent[] {
+    if (!this.taskResultPattern || !step.content) return [];
+    const groups = this.taskResultPattern.exec(step.content)?.groups;
+    if (!groups?.step) return [];
+    const stepIndex = Number(groups.step);
+    const started = this.runningTools.get(stepIndex);
+    if (!started) return [];
+    this.runningTools.delete(stepIndex);
+
+    const exitCode = groups.exitCode === undefined ? null : Number(groups.exitCode);
+    const failed = exitCode !== null && exitCode !== 0;
+    const output = groups.output?.trim() ?? '';
+    return [
+      {
+        type: 'tool.finished',
+        tool: {
+          ...started,
+          output: output.length > 0 ? output : null,
+          error: failed ? `exit code ${exitCode}` : null,
+          status: failed ? 'failed' : 'succeeded',
+          endedAt: step.createdAt ?? new Date().toISOString(),
+        },
+      },
+    ];
+  }
+
+  private toToolEvent(step: TranscriptStep, call: TranscriptToolCall): AgentEvent {
+    const input = decodeTranscriptArgs(call.args);
+    const kind = resolveToolKind(call.name, this.profile);
+    const ts = step.createdAt ?? new Date().toISOString();
+    const running = (step.status ?? '').toUpperCase() === 'RUNNING';
+    const tool: ToolCall = {
+      toolCallId: stepToolCallId(this.runId, step.stepIndex),
+      name: call.name,
+      kind,
+      input,
+      target: extractToolTarget(kind, input),
+      output: step.content,
+      error: step.error,
+      status: running ? 'running' : step.error ? 'failed' : 'succeeded',
+      fileChanges: extractFileChanges(call.name, kind, input),
+      startedAt: ts,
+      endedAt: running ? null : ts,
+    };
+    return running ? { type: 'tool.started', tool } : { type: 'tool.finished', tool };
+  }
 }
 
 /**

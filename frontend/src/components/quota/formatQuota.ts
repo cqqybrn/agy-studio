@@ -117,14 +117,41 @@ export function formatQuotaSource(source: QuotaSource | string | null | undefine
     case 'quota_api':
       return '额度接口';
     case 'statusline':
-      return 'Statusline';
+      return '状态行';
     case 'cli_probe':
-      return 'CLI 探针';
+      return '命令行探测';
     case 'unavailable':
       return '不可用';
     default:
       return source ? String(source) : '未知来源';
   }
+}
+
+const QUOTA_LABELS: Array<[RegExp, string]> = [
+  [/^Model Quotas$/i, '模型额度'],
+  [/^Google AI Pro$/i, 'Google AI 专业版'],
+  [/^Google AI Ultra$/i, 'Google AI 旗舰版'],
+  [/^Google AI Free$/i, 'Google AI 免费版'],
+  [/^Gemini Models$/i, 'Gemini 模型'],
+  [/^Claude and GPT models$/i, 'Claude 与 GPT 模型'],
+  [/^Weekly Limit Remaining$/i, '每周剩余额度'],
+  [/^Five Hour Limit Remaining$/i, '五小时剩余额度'],
+  [/^Daily Limit Remaining$/i, '每日剩余额度'],
+  [/^Daily Limit$/i, '每日限额'],
+  [/^Weekly Limit$/i, '每周限额'],
+  [/^Pro$/i, '专业版'],
+  [/^Free$/i, '免费版'],
+  [/^Ultra$/i, '旗舰版'],
+];
+
+/** Translate quota API English labels for display. Unknown strings are returned as-is. */
+export function localizeQuotaLabel(text: string | null | undefined): string {
+  if (!text) return '';
+  const trimmed = text.trim();
+  for (const [pattern, label] of QUOTA_LABELS) {
+    if (pattern.test(trimmed)) return label;
+  }
+  return trimmed;
 }
 
 /**

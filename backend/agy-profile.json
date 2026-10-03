@@ -47,6 +47,9 @@
       }
     ]
   },
+  "transcript": {
+    "taskResultPattern": "Task id \"[^\"]*/task-(?<step>\\d+)\" finished with result:\\s*(?:The command exited with code (?<exitCode>-?\\d+)\\.)?\\s*(?:Output:)?[ \\t]*\\r?\\n?(?<output>[\\s\\S]*?)\\s*(?:Log: |</SYSTEM_MESSAGE>|$)"
+  },
   "settings": {
     "files": [
       {

@@ -55,6 +55,14 @@ export const PathsConfigSchema = z.object({
   artifactRules: z.array(ArtifactRuleSchema),
 });
 
+export const TranscriptConfigSchema = z.object({
+  /**
+   * Regex (named groups `step`, optional `exitCode` / `output`) matched against SYSTEM_MESSAGE steps
+   * that report a background task's result; `step` is the step index of the tool that started it.
+   */
+  taskResultPattern: z.string(),
+});
+
 export const CredentialsConfigSchema = z.object({
   preferredIsolation: z.enum(['isolated_home', 'credential_snapshot']),
   homeEnvVars: z.array(z.string()).min(1),
@@ -94,6 +102,7 @@ export const AgyProfileSchema = z.object({
   binary: BinaryConfigSchema,
   stream: StreamConfigSchema,
   paths: PathsConfigSchema,
+  transcript: TranscriptConfigSchema.optional(),
   settings: SettingsConfigSchema,
   credentials: CredentialsConfigSchema,
   login: LoginConfigSchema,
@@ -105,6 +114,7 @@ export type AgyProfile = z.infer<typeof AgyProfileSchema>;
 export type BinaryConfig = z.infer<typeof BinaryConfigSchema>;
 export type StreamConfig = z.infer<typeof StreamConfigSchema>;
 export type PathsConfig = z.infer<typeof PathsConfigSchema>;
+export type TranscriptConfig = z.infer<typeof TranscriptConfigSchema>;
 export type SettingsConfig = z.infer<typeof SettingsConfigSchema>;
 export type CredentialsConfig = z.infer<typeof CredentialsConfigSchema>;
 export type LoginConfig = z.infer<typeof LoginConfigSchema>;

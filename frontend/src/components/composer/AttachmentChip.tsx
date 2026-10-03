@@ -18,7 +18,7 @@ export function AttachmentChip({
       data-testid={`attachment-chip-${attachment.id}`}
       className={`group relative inline-flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs transition-colors select-none ${
         isError
-          ? 'border-red-500/50 bg-red-950/20 text-red-300'
+          ? 'border-status-error/50 bg-status-error-subtle text-status-error-text'
           : isUploading
           ? 'border-border-default bg-bg-surface text-text-secondary'
           : 'border-border-default bg-bg-surface text-text-primary hover:border-border-strong'
@@ -53,7 +53,7 @@ export function AttachmentChip({
               <span className="text-accent font-mono">{attachment.progress}%</span>
             )
           ) : isError ? (
-            <span className="text-red-400 font-medium">失败</span>
+            <span className="text-status-error-text font-medium">失败</span>
           ) : (
             <span>({formatFileSize(attachment.size)})</span>
           )}
@@ -70,7 +70,7 @@ export function AttachmentChip({
             e.stopPropagation();
             onRetry(attachment.id);
           }}
-          className="ml-0.5 rounded p-0.5 text-red-400 hover:bg-red-500/20 hover:text-red-200 transition-colors"
+          className="ml-0.5 rounded p-0.5 text-status-error-text hover:bg-status-error-subtle hover:text-status-error-text transition-colors"
           title="点击重试上传"
           aria-label="重试上传"
         >

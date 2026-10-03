@@ -10,7 +10,7 @@ import type Database from 'better-sqlite3';
 import type { AgyProfile } from './integrations/agy/profile/schema.js';
 import { loadProfile } from './integrations/agy/profile/loader.js';
 import { getDefaultProfile } from './integrations/agy/settings.js';
-import { AgyCatalog, AgyCatalog as AgyModelCatalog } from './integrations/agy/catalog.js';
+import { AgyCatalog, parseModelsOutput } from './integrations/agy/catalog.js';
 import { ProcessRunner } from './integrations/agy/process.js';
 import { BrainFs } from './integrations/agy/brain-fs.js';
 import * as TranscriptManager from './integrations/agy/transcript.js';
@@ -50,10 +50,11 @@ import { AutoApproveService } from './services/autoapprove/autoapprove.js';
 import { AccountLeaseLock } from './services/account/lease-lock.js';
 import { AccountService } from './services/account/account.js';
 import { PrefsService } from './services/prefs.js';
-import { ModelService } from './services/model.js';
+import { ModelService, MODELS_CACHE_FILE } from './services/model.js';
 import { CheckpointService } from './services/checkpoint.js';
 import { RunSupervisor } from './services/run-supervisor.js';
 import { ArtifactService } from './services/artifact.js';
+import { TranscriptFollowService } from './services/transcript-follow.js';
 import { AttachmentStore } from './services/attachment/store.js';
 import { AttachmentConverter } from './services/attachment/convert.js';
 import { PromptInjector } from './services/attachment/prompt-inject.js';
@@ -198,6 +199,26 @@ function resolveInternalToken(dataDir: string, explicitToken?: string): string {
   return generated;
 }
 
+/** If CLI catalog has never succeeded, seed DATA_DIR/models-cache.json from the last probed models.txt. */
+function seedModelsCacheFromFixture(dataDir: string): void {
+  const cachePath = path.join(dataDir, MODELS_CACHE_FILE);
+  if (fs.existsSync(cachePath)) return;
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const fixture = path.resolve(here, '../../fixtures/agy/catalog/models.txt');
+  if (!fs.existsSync(fixture)) return;
+  try {
+    const models = parseModelsOutput(fs.readFileSync(fixture, 'utf-8'));
+    if (models.length === 0) return;
+    fs.mkdirSync(dataDir, { recursive: true });
+    fs.writeFileSync(
+      cachePath,
+      JSON.stringify({ models, savedAt: new Date().toISOString(), source: 'catalog-fixture' }),
+    );
+  } catch {
+    // seed is best-effort
+  }
+}
+
 function resolveFrontendDistDir(customDir?: string): string | null {
   if (customDir && fs.existsSync(customDir)) {
     return path.resolve(customDir);
@@ -296,6 +317,7 @@ export function buildApp(options?: AppOptions): BuiltApp {
       credentialStore,
       oauthClientManager,
       profile,
+      requestTimeoutMs: 20_000,
     });
 
   const agentCatalog = new AgentCatalog();
@@ -317,6 +339,7 @@ export function buildApp(options?: AppOptions): BuiltApp {
   const leaseLock = new AccountLeaseLock();
 
   let supervisor: RunSupervisor | null = null;
+  let transcriptFollow: TranscriptFollowService | null = null;
 
   const accountService = new AccountService({
     accountsRepo,
@@ -330,10 +353,12 @@ export function buildApp(options?: AppOptions): BuiltApp {
   });
 
   const prefsService = new PrefsService(prefsRepo);
+  seedModelsCacheFromFixture(config.dataDir);
   const modelService = new ModelService({
     catalogPort: catalog,
     prefsService,
     config,
+    ensureCredentials: () => accountService.ensureDefaultLiveCredentials({ force: true }),
   });
 
   const checkpointService = new CheckpointService({
@@ -358,12 +383,23 @@ export function buildApp(options?: AppOptions): BuiltApp {
     autoApprove,
     checkpointService,
     onEvent: async (sessionId, runId, event) => {
+      if (transcriptFollow && !transcriptFollow.filterStreamEvent(sessionId, runId, event)) {
+        return;
+      }
       await eventBus.publish(sessionId, runId, event);
       if (event.type === 'run.completed') {
         const session = sessionsRepo.findById(sessionId);
         await accountService.onRunCompleted(session?.accountName ?? null);
       }
     },
+  });
+
+  transcriptFollow = new TranscriptFollowService({
+    brainPort: brain,
+    sessionsRepo,
+    publish: (sessionId, runId, event) => eventBus.publish(sessionId, runId, event),
+    onActivity: (runId) => supervisor?.noteActivity(runId),
+    logger: appLogger,
   });
 
   const artifactService = new ArtifactService({
@@ -575,8 +611,9 @@ export function buildApp(options?: AppOptions): BuiltApp {
       appLogger.warn({ err }, 'Error cancelling active login during shutdown');
     }
 
-    // 4. 清理 artifactService
+    // 4. 清理 artifactService 与 transcript 追踪
     try {
+      transcriptFollow?.dispose();
       artifactService.dispose();
     } catch (err) {
       appLogger.warn({ err }, 'Error disposing artifactService during shutdown');
@@ -653,7 +690,7 @@ export function buildApp(options?: AppOptions): BuiltApp {
 }
 
 export {
-  AgyModelCatalog,
+  AgyCatalog as AgyModelCatalog,
   QuotaApi,
   TranscriptManager,
 };

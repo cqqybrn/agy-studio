@@ -252,12 +252,12 @@ export function DiffViewer({
           </span>
           <div className="flex items-center gap-1 font-mono text-[11px]">
             {totalAdditions > 0 && (
-              <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 font-medium text-emerald-400">
+              <span className="rounded bg-status-success-subtle px-1.5 py-0.5 font-medium text-status-success-text">
                 {`+${totalAdditions}`}
               </span>
             )}
             {totalDeletions > 0 && (
-              <span className="rounded bg-rose-500/15 px-1.5 py-0.5 font-medium text-rose-400">
+              <span className="rounded bg-status-error-subtle px-1.5 py-0.5 font-medium text-status-error-text">
                 {`-${totalDeletions}`}
               </span>
             )}
@@ -306,10 +306,10 @@ export function DiffViewer({
                     <span
                       className={`inline-block px-1 rounded text-[10px] font-mono uppercase font-semibold shrink-0 ${
                         file.changeType === 'created'
-                          ? 'bg-emerald-500/20 text-emerald-400'
+                          ? 'bg-status-success-subtle text-status-success-text'
                           : file.changeType === 'deleted'
-                          ? 'bg-rose-500/20 text-rose-400'
-                          : 'bg-amber-500/20 text-amber-400'
+                          ? 'bg-status-error-subtle text-status-error-text'
+                          : 'bg-status-warning-subtle text-status-warning-text'
                       }`}
                     >
                       {file.changeType === 'created'
@@ -323,10 +323,10 @@ export function DiffViewer({
 
                   <div className="flex items-center gap-1 font-mono text-[10px] shrink-0 pl-1">
                     {file.additions > 0 && (
-                      <span className="text-emerald-400">{`+${file.additions}`}</span>
+                      <span className="text-status-success-text">{`+${file.additions}`}</span>
                     )}
                     {file.deletions > 0 && (
-                      <span className="text-rose-400">{`-${file.deletions}`}</span>
+                      <span className="text-status-error-text">{`-${file.deletions}`}</span>
                     )}
                   </div>
                 </button>
@@ -348,7 +348,7 @@ export function DiffViewer({
                 key={file.path}
                 id={`diff-file-${encodeURIComponent(file.path)}`}
                 data-testid={`diff-file-${file.path}`}
-                className="rounded-md border border-border-default bg-[#0d1117] overflow-hidden shadow-sm"
+                className="rounded-md border border-border-default bg-bg-code overflow-hidden shadow-sm"
               >
                 {/* 文件标题栏 */}
                 <div className="flex items-center justify-between border-b border-border-default bg-bg-surface px-3 py-2 text-xs">
@@ -378,10 +378,10 @@ export function DiffViewer({
                     <span
                       className={`rounded px-1.5 py-0.2 text-[10px] font-mono uppercase font-semibold ${
                         file.changeType === 'created'
-                          ? 'bg-emerald-500/20 text-emerald-400'
+                          ? 'bg-status-success-subtle text-status-success-text'
                           : file.changeType === 'deleted'
-                          ? 'bg-rose-500/20 text-rose-400'
-                          : 'bg-amber-500/20 text-amber-400'
+                          ? 'bg-status-error-subtle text-status-error-text'
+                          : 'bg-status-warning-subtle text-status-warning-text'
                       }`}
                     >
                       {file.changeType}
@@ -389,7 +389,7 @@ export function DiffViewer({
 
                     {file.isLarge && (
                       <span
-                        className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.2 text-[10px] text-amber-400"
+                        className="rounded border border-status-warning/30 bg-status-warning-subtle px-1.5 py-0.2 text-[10px] text-status-warning-text"
                         data-testid={`large-file-badge-${file.path}`}
                       >
                         {`大文件 (${file.lines.length} 行)`}
@@ -400,10 +400,10 @@ export function DiffViewer({
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1 font-mono text-[11px]">
                       {file.additions > 0 && (
-                        <span className="text-emerald-400">{`+${file.additions}`}</span>
+                        <span className="text-status-success-text">{`+${file.additions}`}</span>
                       )}
                       {file.deletions > 0 && (
-                        <span className="text-rose-400">{`-${file.deletions}`}</span>
+                        <span className="text-status-error-text">{`-${file.deletions}`}</span>
                       )}
                     </div>
                   </div>
@@ -461,9 +461,9 @@ export function DiffViewer({
                             const isDel = line.type === 'del';
 
                             const rowBg = isAdd
-                              ? 'bg-emerald-500/15 text-emerald-300 border-l-2 border-emerald-500'
+                              ? 'bg-status-success-subtle text-status-success-text border-l-2 border-status-success'
                               : isDel
-                              ? 'bg-rose-500/15 text-rose-300 border-l-2 border-rose-500'
+                              ? 'bg-status-error-subtle text-status-error-text border-l-2 border-status-error'
                               : 'text-text-secondary hover:bg-bg-surface/30';
 
                             return (

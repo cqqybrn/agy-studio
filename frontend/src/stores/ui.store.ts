@@ -1,11 +1,20 @@
 import { create } from 'zustand';
+import {
+  applyTheme,
+  readStoredThemePreference,
+  storeThemePreference,
+  type ThemePreference,
+} from '../theme';
 
 export interface UiState {
   rightPanelCollapsed: boolean;
   activeArtifactTab: string;
   showThinkingOverride: boolean | null;
   readSeqMap: Record<string, number>;
+  /** UI-only preference kept in localStorage, not in the backend Prefs contract. */
+  themePreference: ThemePreference;
 
+  setThemePreference: (preference: ThemePreference) => void;
   setRightPanelCollapsed: (collapsed: boolean) => void;
   toggleRightPanel: () => void;
   setActiveArtifactTab: (tab: string) => void;
@@ -35,6 +44,13 @@ export const useUiStore = create<UiState>()((set, get) => ({
   activeArtifactTab: 'Task',
   showThinkingOverride: null,
   readSeqMap: {},
+  themePreference: readStoredThemePreference(),
+
+  setThemePreference: (preference: ThemePreference) => {
+    storeThemePreference(preference);
+    applyTheme(preference);
+    set({ themePreference: preference });
+  },
 
   setRightPanelCollapsed: (collapsed: boolean) => {
     if (typeof window !== 'undefined' && window.localStorage) {

@@ -225,6 +225,7 @@ WS   : 实时事件推送 + 发送消息 + 中止运行（单连接订阅多个�
   stream:      { userFrameTemplate, multiTurnStdin, eventTypeMap{}, permissionEvent{match, replyTemplate} | null,
                  imageInput{supported, template} },
   paths:       { dataRoots[], conversationDirPattern, transcriptRelPath, artifactRules[] },
+  transcript:  { taskResultPattern } | 缺省,   // 1.5 后台命令结果（SYSTEM_MESSAGE）的匹配正则
   settings:    { files[{scope, pathTemplate}], alwaysProceed{jsonPath, value} },
   credentials: { preferredIsolation: 'credential_snapshot', wincredTargetPatterns[], credentialFiles[] },
   login:       { argv[], ... },            // 1.15 只用 argv 在终端窗口中启动 agy，其余字段不再使用
@@ -235,7 +236,8 @@ WS   : 实时事件推送 + 发送消息 + 中止运行（单连接订阅多个�
 
 规则：
 - 代码中**不允许**出现硬编码的 agy 路径、键名、命令输出格式，一律从 profile 读取
-- 启动时比较 `agy --version` 与 `profile.agyVersion`，不一致时在 capabilities 中标出，前端显示"agy 已升级，建议重新探测"
+- 启动时比较 `agy --version` 与 `profile.agyVersion`，不一致时在 capabilities 中标出（`agyVersion` / `profileAgyVersion`）。对话视图不因此弹提示条
+- **2026-10-03 修订**：去掉 ManagerView 顶部「agy 已升级，建议重新探测」。CLI 与 profile 版本差本身不影响当前运行，横幅对日常使用没有帮助
 
 ### 2.5 服务职责边界
 
@@ -244,6 +246,7 @@ WS   : 实时事件推送 + 发送消息 + 中止运行（单连接订阅多个�
 | `run-supervisor` | 运行状态机、并发上限、同会话互斥、超时、"恰好一次完成"守卫、孤儿进程清理、向 account 服务申请租约 | 解析 agy 输出 |
 | `autoapprove` | 运行前确保 settings 放行；把 permission 事件交给 runner 自动回复；卡死看门狗 | 知道 settings 文件在哪（由 SettingsPort 负责） |
 | `event-bus` | 分配 seq、合并文本 delta、批量写库、推送 | 解析 agy 输出 |
+| `transcript-follow` | 运行期间追踪主会话 transcript，stdout 被压住时补发消息与工具事件（按 id 与 stdout 去重），并向 run-supervisor 报告进展 | 解析 transcript（由 BrainPort 负责）；思考内容 |
 | `account` | 账号库、租约（读写锁）、切换、登录编排 | 凭据怎么存（由 CredentialPort 负责） |
 | `quota` | 按账号缓存、限流、失败时保留旧数据、广播 | 怎么拿 token、接口长什么样（由 QuotaProbePort 负责） |
 | `checkpoint` | 影子 git 快照、diff、回滚 | 用户自己的 git 仓库（完全不碰） |
@@ -314,7 +317,7 @@ queued ──► starting ──► running ──► completed
 |---|---|---|
 | API 客户端层 | `frontend/src/api/` | `http.ts`：按 `ApiEndpoints` 类型化的 fetch 封装；`ws.ts`：心跳、指数退避重连、按 lastSeq 重新订阅 |
 | 状态层 | `frontend/src/stores/` | zustand：session（每个会话一个槽位）、workspace、prefs、quota、account、connection、ui |
-| 纯逻辑 | `frontend/src/domain/` | `timelineReducer.ts`：事件 → 时间线条目的纯函数 |
+| 纯逻辑 | `frontend/src/domain/` | `timelineReducer.ts`：事件 → 时间线条目的纯函数；`displayRows.ts`：条目 → 展示行（Worked 分段、同类计数）的纯函数 |
 | 页面层 | `frontend/src/views/` | ManagerView、AccountsView、SettingsView |
 | 组件层 | `frontend/src/components/` | 无状态展示组件：思考块、工具卡片、终端输出、子 agent 卡片、Markdown、输入框、附件、Artifacts、额度、账号、diff 等 |
 
@@ -323,7 +326,7 @@ queued ──► starting ──► running ──► completed
 ### 2.11 界面布局（对标 Antigravity）
 
 ```text
-┌ 顶栏：工作区 ▾ │ 模型 ▾ effort ▾ mode ▾ │ 额度环 │ 账号 ▾ │ 连接状态 ┐
+┌ 顶栏：工作区 ▾ │ 额度环 │ 账号 ▾ │ 连接状态 ┐
 ├──────────┬────────────────────────────────┬──────────────────────────┤
 │ 收件箱    │ ▸ Thought for 12s（默认折叠）    │ [Task][Plan][Walkthrough] │
 │ ● 运行中  │ ▸ Edited src/a.ts  +12 −3      │ [Media][Changes]          │
@@ -504,6 +507,8 @@ git push -u origin main
 #### 1.5 agy 数据目录与 transcript 🟡
 - **交付物**：`integrations/agy/brain-fs.ts`（按 profile 定位会话目录、列出磁盘会话、按 `artifactRules` 识别 artifacts、清理会话文件——**只删除**匹配 `conversationDirPattern` 且 id 为 UUID 的路径）；`transcript.ts`（解析与增量追踪，按步骤序号去重，`stop()` 释放资源）；实现 `BrainPort`
 - **完成标准**：清理函数对路径穿越、非 UUID、符号链接一律拒绝；追踪用"逐行追加写入的临时文件"测试
+- **2026-10-01 修订**：实测 agy 的 stream-json 按步骤顺序输出，某个后台工具步骤一直处于 RUNNING（如 `ssh` 等密码）时，其后所有 stdout 事件都被压住，而 transcript 仍实时写入。为此新增：`transcript.ts` 的 `RunTranscriptMapper`（只用于运行期间的主会话：本次运行的 USER_INPUT 之后，PLANNER_RESPONSE 正文 → `message.delta`+`message.done`，其 tool_calls 按顺序与后续 GENERIC 结果步骤配对 → `tool.started`/`tool.finished`；id 与 stream 适配器相同，均由会话级步骤序号生成——`stepMessageId`/`stepToolCallId`；不产出思考；transcript.jsonl 中被二次 JSON 编码的参数会解码，并去掉 `toolAction`/`toolSummary`）；`BrainPort.followRunTranscript`（可选能力，每个新步骤产出一批事件，空批即"有进展"心跳）。服务层 `services/transcript-follow.ts` 负责消费：transcript 事件等待 3 秒宽限期，期间 stdout 已发过同一 id 则丢弃；stdout 后到的、已由 transcript 完整发出的消息丢弃（前端按追加拼接 delta，不能重复），已由 transcript 标记结束的工具不再回到运行中；`toEvents` 仍只产出思考（导入历史不变）
+- **2026-10-01 修订**：后台命令在 transcript 里的 GENERIC 步骤一直停在 RUNNING，真正的结果出现在之后的 SYSTEM_MESSAGE 步骤中（`Task id "<会话>/task-N" finished with result: …`，N 即该 GENERIC 步骤序号）。`RunTranscriptMapper` 记录运行中的工具，用 profile 新增的 `transcript.taskResultPattern`（命名分组 `step`、`exitCode`、`output`）匹配 SYSTEM_MESSAGE，产出该工具的 `tool.finished`（退出码非 0 时为 failed，`error` 为 `exit code X`）；profile 未配置该字段时不处理。stdout 路径不变，仍以 stdout 为准
 
 #### 1.6 进程与 RunSupervisor 🔴
 - **交付物**：`integrations/agy/process.ts`（实现 `AgyRunnerPort`：spawn 不用 shell、`windowsHide`、按 profile 模板写 user 帧、stdout 按行切分并交给适配器、终止进程树、支持注入额外环境变量——用于 home 隔离）；`services/run-supervisor.ts`（§2.8 状态机、同会话互斥、并发上限、超时、租约申请与释放、pid 入库、启动时清理孤儿进程、"恰好一次完成"守卫）
@@ -515,11 +520,13 @@ git push -u origin main
   - 同会话双击发送绕过互斥（检查与写入必须在同一段同步代码中）
   - 运行异常退出时账号租约没有释放，导致之后永远无法切换账号
 - **完成标准**：fake-agy 覆盖正常、非零退出、中止、超时、并发上限、双击、租约获取失败；每种情况恰好一条 `run.completed`，租约数归零，无残留进程
+- **2026-10-01 修订**：默认不再设运行总时长上限（原 10 分钟会强杀正常的长任务，`timeoutMs` 仍可按次传入）；卡死改由 1.7 的看门狗处理，其无输出时长取 prefs 的 `stallTimeoutSeconds`（默认 180 秒，有命令类工具运行时放宽 3 倍），每次运行开始时读取，修改后下一次运行生效
 
 #### 1.7 自动同意四层兜底 🔴
 - **交付物**：L1 参数由 1.6 固定带上；L2 `integrations/agy/settings.ts`（实现 `SettingsPort.ensureAlwaysProceed(scope, homeDir?)`：按 profile 读合并写，原子替换，保留其他字段）；L3 由 runner 根据 `profile.stream.permissionEvent` 自动回复，服务层只接收 `autoapprove.injected` 事件；L4 `services/autoapprove/watchdog.ts`（无输出超时 → stalled → 尝试注入 → 再超时 → `AGY_STALLED`；有命令类工具运行时计时放宽 3 倍）
 - **潜在死穴**：把长命令（如依赖安装）误判为卡死；settings 被 IDE 同时写入导致文件损坏
 - **完成标准**：settings 写入前后其他字段不变；fake-agy 覆盖 permission 事件与卡死两条链路
+- **2026-10-01 修订**：stdout 被压住时 agy 并未卡死，看门狗不能只看 stdout。新增 `Watchdog.touch()` 与 `RunSupervisor.noteActivity(runId)`：`transcript-follow` 每读到本次运行的一个新 transcript 步骤就调用一次，重置无输出计时与 stalled 状态（见 1.5 修订）
 
 #### 1.8 EventBus 与 WS 网关 🔴
 - **交付物**：`services/event-bus.ts`（每会话串行队列、连续 seq、delta 在 50ms 窗口内合并、每 50ms 或 100 条批量写库、写库成功后再推送）；`routes/ws/gateway.ts`（鉴权、订阅时补发与实时的无缝衔接、ack/nack、心跳、慢客户端断开）
@@ -546,6 +553,7 @@ git push -u origin main
 #### 1.13 模型、偏好、系统接口 🟢
 - **交付物**：`integrations/agy/catalog.ts`（按 profile 执行版本与模型命令并解析）；`services/model.ts`（缓存 10 分钟）、`services/prefs.ts`；system 路由（capabilities 的 features 来自 profile；比较 agy 版本与 profile 版本）
 - **完成标准**：agy 未安装时 capabilities 返回 `agyPath: null`，不会报 500
+- **2026-10-03 修订**：`agy models` 返回「Please sign in」时映射为 `AGY_NOT_AUTHENTICATED`；列模型前尽量从默认账号快照恢复 live 凭据；成功列表写入 `DATA_DIR/models-cache.json`，CLI 失败时回退缓存。若缓存文件尚不存在，启动时用 `fixtures/agy/catalog/models.txt`（本机探测结果）种子一份，避免空列表把账号/模型显示成「未登录」。有效磁盘缓存命中时不再每次恢复凭据并打 CLI。输入栏模型选择器在失败后把原因放到 title，仍显示上次选中的模型 id
 
 #### 1.14 凭据快照与账号服务 🔴
 - **前置证据**：VERIFY.md 的 V7（凭据条目名、编码格式、相关文件）必须有本机探测结论，没有就停下
@@ -571,6 +579,7 @@ git push -u origin main
 - **交付物**：`integrations/agy/oauth-client.ts`（从 agy 程序中读取 OAuth 客户端标识，只保存在内存）；`quota-api.ts`（实现 `QuotaProbePort`：读取 live 凭据中的 refresh token → 换取 access token（内存缓存，过期前复用）→ 调用额度接口 → 解析成 `QuotaSnapshot`）；`services/quota.ts`（按账号缓存并写入 `quota_cache`、每账号 1 分钟限流、同时到达的请求合并为一次、失败时返回旧数据并标 `stale`、从未成功则 `source='unavailable'`、`account.changed` 时作废缓存、`quota.updated` 广播）
 - **潜在死穴**：token 或客户端标识出现在日志、错误信息、数据库或 API 响应中；接口结构变化导致解析出错误数据 → 解析失败就整体放弃，不输出部分结果；查询返回时账号已切换 → 按账号名缓存，丢弃与请求账号不一致的结果；查询期间与切换账号竞争 → 读取 live 凭据时持读锁
 - **完成标准**：解析器对脱敏 fixtures 做快照测试；限流、合并、stale、unavailable、切换作废都有测试；测试日志中搜不到 token
+- **2026-10-03 修订**：额度探测超时改为 20 秒，`loadCodeAssist` 单独 5 秒以免串行吃满两次超时；从未成功时 `unavailable.description` 写入超时/未登录原因，面板展示该说明而不是只显示问号。启动入口若检测到 `HTTPS_PROXY`/`HTTP_PROXY` 且未设置 `NODE_USE_ENV_PROXY`，会带该标志重拉进程，让 Node fetch 走代理（否则访问 Google 额度接口会一直超时）
 
 #### 1.18 后端装配与启动 🟡
 - **交付物**：`app.ts`（手写构造注入：先创建 integrations 实现，再注入 services，最后注册路由）；`main.ts`（配置 → 迁移 → 加载 profile → 清理孤儿进程 → 监听）；生产模式静态托管前端；优雅关闭
@@ -593,6 +602,14 @@ git push -u origin main
 | 2.11 🟢 额度与账号 | 顶栏额度环；额度面板（分组、桶、倒计时、置灰、过期提示、不可用提示、刷新）；账号菜单与管理页（各账号运行数、终端窗口登录流程） |
 | 2.12 🟡 检查点界面 | 检查点列表、diff 查看、带二次确认的回滚 |
 | 2.13 🟡 对话视图组装 | 虚拟滚动、动态行高、自动跟随与"回到底部"、断线提示条 |
+
+- **2026-10-01 修订（2.1 主题）**：新增浅色主题。`theme.css` 的 `:root` 为深色，`:root[data-theme='light']` 覆盖同名变量；`tailwind.config.js` 的语义颜色经 `color-mix` 支持透明度修饰（Tailwind 3 不能直接给 `var()` 加透明度，原先的 `bg-accent/20` 等类不会生成）。偏好（浅色 / 深色 / 跟随系统）只是界面偏好，存 localStorage 的 `agy-studio-theme`，不进 prefs 契约；`index.html` 内联脚本在首帧前设置 `data-theme` 防闪烁；顶栏 `ThemeToggle` 切换；Shiki 同时加载 `github-light` 与 `tokyo-night`，深色时用 `--shiki-dark`。组件**不得**再写 Tailwind 色板色（`emerald-400`、`rose-500/10` 等）和十六进制颜色，状态色一律用 `status-{success|warning|error|info}`、`-subtle`、`-text`，代码背景用 `bg-bg-code`；遮罩层的 `bg-black/*` 除外
+- **2026-10-01 修订（2.4 展示投影）**：reducer 不变（仍按步骤产出条目）。新增 `domain/displayRows.ts` 的纯函数 `buildDisplayRows(items, { activeRunId, thinkingHidden })`，把条目投影为展示行：用户消息、助手消息（旁白与最终回复，始终平铺可见）、运行分隔、错误、卡死提示各占一行；两条消息之间同一 run 的连续工作（工具——`tool_group` 先拆平——、思考、子 agent）合成一个 Worked 行，时长从首个步骤开始到下一条消息（运行中的末尾块无终点、实时计时）；Worked 内相邻同类工具（`domain/toolLabels.ts` 的类别：command / edit / view / explore / browser / mcp / subagent / other）合并计数为一组，"Ran 2 commands"；助手身份每个 run 只在第一行显示
+- **2026-10-01 修订（2.6 / 2.13 行组件）**：对话视图不再一条步骤一个卡片，改用 `components/timeline/rows/` 的无状态行组件：`WorkedBlock`（"Worked for 42s ›"，运行中自动展开，显示 "Working… Xs"）、`ToolGroupRow`、`ToolRow`（"Ran <命令>"、"Edited <图标> 文件名 +N −M"、"Viewed …"、"Explored …"，增删行数仅在后端给出时显示）、`ToolDetail`（点开后的命令输出、diff 或工具输出）、`ThinkingRow`、`UserMessageRow`、`AssistantMessageRow`；三级展开（Worked → 分组 → 单个工具）的用户选择仍保存在 ManagerView，键为 Worked key、`group-<首个 toolCallId>`、toolCallId 或思考 id。子 agent 卡片由 ManagerView 通过 `renderSubagent` 传入，行组件不 import store / api。原有卡片组件保留给 Playground 与子 agent 嵌套时间线使用
+- **2026-10-03 修订（2.13）**：去掉对话视图顶部「agy 已升级，建议重新探测」横幅。CLI 与 profile 版本仍写在 capabilities 里，界面不再提示
+- **2026-10-03 修订（2.8）**：对话输入栏不再展示 Effort、Mode、Agent。日常使用固定走会话/后端默认；契约里的 `effort`/`mode`/`agent` 字段保留，Playground 仍可单独渲染这些选择器。模型只在输入栏选择，并写回 prefs.defaultModel；顶栏不再放模型选择器。模型列表拉取失败时显示未登录等原因，空列表且已结束请求时不再一直显示「加载模型中」
+- **2026-10-03 修订（2.6）**：助手回复右上角提供「复制」整段内容；Markdown 代码块复制按钮改为中文；连续的框线字符（┌│└ 等）拆成可单独复制的引用块
+- **2026-10-03 修订（2.11）**：额度面板把接口英文标签译成中文（来源、套餐档、分组名、桶名），界面文案全部中文。探测失败时展示 `description`（超时、未登录）而不是只显示问号
 
 #### 3.1 端到端测试 🟡 / 3.2 启动脚本与 README 🟢
 - 3.1：Playwright + fake-agy，覆盖发送与流式显示、子 agent、中止、刷新后历史完整、断网重连、附件、回滚、登录流程
@@ -1181,7 +1198,7 @@ git push -u origin main
 - 距底部 < 80px 时自动跟随；上滑后停止跟随并显示"回到底部"（附新消息数）
 - 打开会话直接定位到底部
 - 底部固定 Composer；顶部会话标题（双击重命名）
-- 连接非 open 时顶部黄色提示条"连接中断，正在重连…"；capabilities 显示 agy 版本与 profile 版本不一致时显示提示"agy 已升级，建议重新探测"
+- 连接非 open 时顶部黄色提示条"连接中断，正在重连…"
 约束：只改 ManagerView.tsx 及其私有子组件；不要修改 contracts/。
 验收：Playground 构造 2000 条事件滚动流畅；流式输出时滚动位置不跳。
 完成后提示我执行：git add . && git commit -m "feat: 完成模块 2.13 对话视图组装"

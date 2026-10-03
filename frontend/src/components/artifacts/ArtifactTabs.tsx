@@ -363,7 +363,7 @@ export function ArtifactTabs({
           {listLoading && <LoadingSpinner className="h-3 w-3 animate-spin text-accent" />}
           {highlightedTab && (
             <span
-              className="rounded bg-amber-500/20 px-1.5 py-0.5 font-mono text-[10px] text-amber-500 font-semibold animate-pulse"
+              className="rounded bg-status-warning-subtle px-1.5 py-0.5 font-mono text-[10px] text-status-warning-text font-semibold animate-pulse"
               data-testid="artifact-updated-indicator"
             >
               {highlightedTab} 已更新
@@ -427,7 +427,7 @@ export function ArtifactTabs({
                   : isActive
                   ? 'bg-accent/15 text-accent shadow-sm'
                   : 'text-text-secondary hover:bg-bg-surface hover:text-text-primary cursor-pointer'
-              } ${isTabHighlighted ? 'ring-2 ring-amber-500/70' : ''}`}
+              } ${isTabHighlighted ? 'ring-2 ring-status-warning/70' : ''}`}
             >
               <span>{tab.label}</span>
               {/* 若该标签有内容则展示小圆点提示 */}

@@ -310,6 +310,35 @@ export class AccountService {
   }
 
   /**
+   * If live CLI credentials are missing, restore the default account snapshot so
+   * `agy models` and similar commands can run. No-op when already present, busy, or no snapshot.
+   */
+  async ensureDefaultLiveCredentials(options?: { force?: boolean }): Promise<void> {
+    try {
+      if (!options?.force && (await this.credentialStore.isPresent())) return;
+      const defaultAcc = this.accountsRepo.findDefault();
+      if (!defaultAcc || !this.credentialStore.hasSnapshot(defaultAcc.name)) return;
+
+      const writeLease = this.leaseLock.tryWrite();
+      if (!writeLease) return;
+
+      try {
+        const snapshot = await this.credentialStore.loadSnapshot(defaultAcc.name);
+        this.credentialStore.assertRestorable(snapshot);
+        await this.credentialStore.restore(snapshot);
+        this.logger.info({ accountName: defaultAcc.name }, 'Restored default account credentials for CLI');
+      } finally {
+        writeLease.release();
+      }
+    } catch (err) {
+      this.logger.warn(
+        { err: (err as Error).message },
+        'Could not restore default live credentials',
+      );
+    }
+  }
+
+  /**
    * Hook called when a run finishes to sync back refreshed live credentials into the account snapshot.
    */
   async onRunCompleted(accountName: string | null): Promise<void> {

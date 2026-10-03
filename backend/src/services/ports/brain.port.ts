@@ -1,4 +1,4 @@
-import type { Artifact, ISODateString, TranscriptStep } from '@agy-studio/contracts';
+import type { AgentEvent, Artifact, ISODateString, TranscriptStep } from '@agy-studio/contracts';
 
 export interface DiskConversationSummary {
   id: string;
@@ -17,6 +17,20 @@ export interface TranscriptTailHandle {
 }
 
 export interface ArtifactWatchHandle {
+  stop(): void;
+}
+
+export interface RunTranscriptOptions {
+  runId: string;
+  runStartedAt: ISODateString;
+}
+
+export interface RunTranscriptHandle {
+  /**
+   * One batch per new transcript step of this run, in step order. A batch may be empty
+   * (thinking, system messages): it still proves agy is making progress.
+   */
+  batches: AsyncIterable<AgentEvent[]>;
   stop(): void;
 }
 
@@ -56,6 +70,16 @@ export interface BrainPort {
    * Enforces strict UUID and directory boundary checks.
    */
   purgeConversation(conversationId: string, dataRoot?: string): Promise<void>;
+
+  /**
+   * Follows the main conversation's transcript during a run and maps its steps to the same
+   * message / tool events (same ids) that the stdout stream produces.
+   */
+  followRunTranscript?(
+    conversationId: string,
+    options: RunTranscriptOptions,
+    dataRoot?: string,
+  ): Promise<RunTranscriptHandle>;
 
   /**
    * Resolves the conversation directory on disk.

@@ -1,7 +1,7 @@
 import React from 'react';
 import { renderToString } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Capabilities, Session } from '@agy-studio/contracts';
+import type { Session } from '@agy-studio/contracts';
 import type {
   AssistantMessageItem,
   ErrorItem,
@@ -18,7 +18,8 @@ import { useConnectionStore } from '../stores/connection.store';
 import { useSessionStore } from '../stores/session.store';
 import { useWorkspaceStore } from '../stores/workspace.store';
 import { createInitialTimelineState } from '../domain/timelineReducer';
-import { ManagerView, TimelineItemDispatcher } from './ManagerView';
+import { buildDisplayRows } from '../domain/displayRows';
+import { DisplayRowView, ManagerView } from './ManagerView';
 
 // ----------------------------------------------------------------------------
 // Mock 测试数据
@@ -316,41 +317,6 @@ describe('ManagerView & Timeline Components', () => {
       const htmlOpen = renderToString(<ManagerView />);
       expect(htmlOpen).not.toContain('data-testid="reconnecting-banner"');
     });
-
-    it('当 agy 版本与 profile 版本不一致时显示升级提示条', () => {
-      const mismatchedCapabilities: Capabilities = {
-        agyPath: '/usr/bin/agy',
-        agyVersion: '1.2.14',
-        profileAgyVersion: '1.2.12',
-        autoApprove: true,
-        modes: ['code'],
-        features: {} as any,
-      };
-
-      const html = renderToString(
-        <ManagerView mockCapabilities={mismatchedCapabilities} />,
-      );
-      expect(html).toContain('data-testid="upgrade-notice-banner"');
-      expect(html).toContain('agy 已升级，建议重新探测');
-      expect(html).toContain('CLI: 1.2.14');
-      expect(html).toContain('Profile: 1.2.12');
-    });
-
-    it('当 agy 版本与 profile 版本一致时不显示升级提示条', () => {
-      const matchingCapabilities: Capabilities = {
-        agyPath: '/usr/bin/agy',
-        agyVersion: '1.2.12',
-        profileAgyVersion: '1.2.12',
-        autoApprove: true,
-        modes: ['code'],
-        features: {} as any,
-      };
-
-      const html = renderToString(
-        <ManagerView mockCapabilities={matchingCapabilities} />,
-      );
-      expect(html).not.toContain('data-testid="upgrade-notice-banner"');
-    });
   });
 
   // ==========================================================================
@@ -406,84 +372,132 @@ describe('ManagerView & Timeline Components', () => {
   });
 
   // ==========================================================================
-  // 4. 虚拟列表与各类条目渲染映射测试
+  // 4. 展示行渲染 (DisplayRowView)：消息平铺、步骤收进 Worked 块
   // ==========================================================================
-  describe('时间线条目组件映射分发 (TimelineItemDispatcher)', () => {
-    it('正确将用户消息、附件映射到 UserMessage', () => {
-      const html = renderToString(
-        <TimelineItemDispatcher item={mockUserItem} sessionId="sess-1" />,
-      );
+  describe('展示行渲染 (DisplayRowView)', () => {
+    const renderRows = (
+      items: TimelineItem[],
+      choices?: Record<string, boolean>,
+      activeRunId: string | null = null,
+    ) =>
+      buildDisplayRows(items, { activeRunId })
+        .map((row) =>
+          renderToString(
+            <DisplayRowView
+              row={row}
+              sessionId="sess-1"
+              expandedChoices={choices}
+              onExpandedChange={() => {}}
+            />,
+          ),
+        )
+        .join('\n');
+
+    it('用户消息与附件平铺显示', () => {
+      const html = renderRows([mockUserItem]);
       expect(html).toContain('data-testid="timeline-item-user-item-u1"');
       expect(html).toContain('请帮我实现虚拟列表动态高度自适应');
       expect(html).toContain('requirements.docx');
     });
 
-    it('正确将思考块映射到 ThinkingBlock', () => {
-      const html = renderToString(
-        <TimelineItemDispatcher item={mockThinkingItem} sessionId="sess-1" />,
-      );
-      expect(html).toContain('data-testid="timeline-item-thinking-item-th1"');
+    it('思考与工具收进收起的 Worked 块，时长从首个步骤算到下一条旁白', () => {
+      const html = renderRows([mockUserItem, mockThinkingItem, mockToolItem, mockAssistantItem]);
+      expect(html).toContain('data-testid="worked-block"');
+      // 10:00:01 → 10:00:16
+      expect(html).toContain('Worked for 15s');
+      expect(html).toContain('aria-expanded="false"');
+      expect(html).not.toContain('data-testid="worked-children"');
+      // 旁白始终在块外可见
+      expect(html).toContain('时间线与虚拟滚动模块已组装完毕');
+    });
+
+    it('展开 Worked 块后显示紧凑行：思考、Edited 文件名与增删行数', () => {
+      const html = renderRows([mockThinkingItem, mockToolItem], {
+        'worked-item-th1': true,
+      });
+      expect(html).toContain('data-testid="worked-children"');
       expect(html).toContain('Thought for 4s');
+      expect(html).toContain('Edited');
+      expect(html).toContain('ManagerView');
+      expect(html).toContain('data-testid="line-delta"');
+      expect(html).toContain('+45');
+      expect(html).toContain('-10');
+      expect(html).not.toContain('data-testid="tool-detail"');
     });
 
-    it('正确将工具卡片映射到 ToolCard', () => {
-      const html = renderToString(
-        <TimelineItemDispatcher item={mockToolItem} sessionId="sess-1" />,
-      );
-      expect(html).toContain('data-testid="timeline-item-tool-item-t1"');
-      expect(html).toContain('ManagerView.tsx');
+    it('恢复工具行的展开选择（按 toolCallId）显示详情', () => {
+      const html = renderRows([mockToolItem], { 'worked-tc-fe1': true, 'tc-fe1': true });
+      expect(html).toContain('data-testid="tool-detail"');
+      expect(html).toContain('File updated successfully');
     });
 
-    it('正确将连续工具组映射到 ToolGroupCard', () => {
-      const html = renderToString(
-        <TimelineItemDispatcher item={mockToolGroupItem} sessionId="sess-1" />,
-      );
-      expect(html).toContain('data-testid="timeline-item-tool-group-item-tg1"');
-      expect(html).toContain('Viewed 1 file');
+    it('相邻同类工具合并计数，组与组内工具都能恢复展开', () => {
+      const second: ToolItem = {
+        ...mockToolGroupItem.tools[0],
+        id: 'sub-t2',
+        toolCallId: 'tc-2',
+        tool: { ...mockToolGroupItem.tools[0].tool, toolCallId: 'tc-2', target: 'src/b.ts' },
+      };
+      const items = [{ ...mockToolGroupItem, tools: [mockToolGroupItem.tools[0], second] }];
+      const collapsed = renderRows(items, { 'worked-tc-1': true });
+      expect(collapsed).toContain('Viewed 2 files');
+      expect(collapsed).not.toContain('data-testid="tool-group-children"');
+
+      const expanded = renderRows(items, { 'worked-tc-1': true, 'group-tc-1': true, 'tc-2': true });
+      expect(expanded).toContain('data-testid="tool-group-children"');
+      expect(expanded).toContain('a.ts');
+      expect(expanded).toContain('b.ts');
+      expect(expanded).toContain('data-testid="tool-detail"');
     });
 
-    it('正确将子 Agent 映射到 SubagentCardContainer', () => {
-      const html = renderToString(
-        <TimelineItemDispatcher item={mockSubagentItem} sessionId="sess-1" />,
-      );
+    it('运行中的末尾 Worked 块自动展开并显示 Working…', () => {
+      const running: ToolItem = {
+        ...mockToolItem,
+        tool: { ...mockToolItem.tool, status: 'running', endedAt: null },
+      };
+      const html = renderRows([mockUserItem, running], undefined, 'run-1');
+      expect(html).toContain('data-active="true"');
+      expect(html).toContain('Working…');
+      expect(html).toContain('Editing');
+      expect(html).toContain('data-testid="worked-children"');
+    });
+
+    it('Worked 块里的子 Agent 通过容器渲染', () => {
+      const html = renderRows([mockSubagentItem], { 'worked-item-sub1': true });
       expect(html).toContain('data-testid="timeline-item-subagent-item-sub1"');
       expect(html).toContain('Code Reviewer');
     });
 
-    it('正确将助手回复映射到 AssistantMessage & Markdown', () => {
-      const html = renderToString(
-        <TimelineItemDispatcher item={mockAssistantItem} sessionId="sess-1" />,
-      );
-      expect(html).toContain('data-testid="timeline-item-assistant-item-a1"');
-      expect(html).toContain('时间线与虚拟滚动模块已组装完毕');
+    it('助手身份每个 run 只出现一次', () => {
+      const second: AssistantMessageItem = {
+        ...mockAssistantItem,
+        id: 'item-a2',
+        messageId: 'msg-a2',
+        text: '继续执行下一步。',
+      };
+      const nextRun: AssistantMessageItem = {
+        ...mockAssistantItem,
+        id: 'item-a3',
+        messageId: 'msg-a3',
+        runId: 'run-2',
+        text: '下一轮',
+      };
+      const html = renderRows([mockUserItem, mockAssistantItem, mockToolItem, second, nextRun]);
+      expect(html.match(/data-testid="assistant-identity"/g)).toHaveLength(2);
+      expect(html).toContain('继续执行下一步');
     });
 
-    it('正确将运行结束映射到 RunDivider', () => {
-      const html = renderToString(
-        <TimelineItemDispatcher item={mockRunDividerItem} sessionId="sess-1" />,
-      );
+    it('运行结束、错误与卡滞提示保持原有组件', () => {
+      const html = renderRows([mockRunDividerItem, mockErrorItem, mockStalledItem]);
       expect(html).toContain('data-testid="timeline-item-run-divider-item-rd1"');
       expect(html).toContain('Completed');
-    });
-
-    it('正确将错误信息映射到 ErrorNotice', () => {
-      const html = renderToString(
-        <TimelineItemDispatcher item={mockErrorItem} sessionId="sess-1" />,
-      );
       expect(html).toContain('data-testid="timeline-item-error-item-err1"');
       expect(html).toContain('会话正忙，请稍后重试');
-    });
-
-    it('正确将卡滞等待映射到 StalledNotice', () => {
-      const html = renderToString(
-        <TimelineItemDispatcher item={mockStalledItem} sessionId="sess-1" />,
-      );
       expect(html).toContain('data-testid="timeline-item-stalled-item-stall1"');
-      expect(html).toContain('Agent 运行已卡滞或处于等待中');
       expect(html).toContain('无输出 30s');
     });
 
-    it('在 ManagerView 中完整渲染 9 类条目的虚拟容器', () => {
+    it('在 ManagerView 中渲染展示行的虚拟容器', () => {
       useSessionStore.setState({
         activeSessionId: 'sess-manager-1',
         slots: {
@@ -508,10 +522,8 @@ describe('ManagerView & Timeline Components', () => {
 
       expect(html).toContain('data-testid="virtual-timeline-container"');
       expect(html).toContain('data-testid="timeline-item-user-item-u1"');
-      expect(html).toContain('data-testid="timeline-item-thinking-item-th1"');
+      expect(html).toContain('data-testid="worked-block"');
       expect(html).toContain('data-testid="timeline-item-assistant-item-a1"');
-      expect(html).toContain('data-testid="timeline-item-tool-item-t1"');
-      expect(html).toContain('data-testid="timeline-item-subagent-item-sub1"');
       expect(html).toContain('data-testid="timeline-item-run-divider-item-rd1"');
       expect(html).toContain('data-testid="timeline-item-error-item-err1"');
       expect(html).toContain('data-testid="timeline-item-stalled-item-stall1"');

@@ -58,11 +58,11 @@ export function StatusDot({
 
   let colorClass = 'bg-text-tertiary'; // default gray / idle
   if (normStatus === 'succeeded' || normStatus === 'success' || normStatus === 'completed') {
-    colorClass = 'bg-[#10b981]'; // success emerald
+    colorClass = 'bg-status-success'; // success emerald
   } else if (normStatus === 'failed' || normStatus === 'error') {
-    colorClass = 'bg-[#ef4444]'; // error red
+    colorClass = 'bg-status-error'; // error red
   } else if (normStatus === 'warning' || normStatus === 'stalled') {
-    colorClass = 'bg-[#f59e0b]'; // warning amber
+    colorClass = 'bg-status-warning'; // warning amber
   } else if (normStatus === 'aborted') {
     colorClass = 'bg-text-tertiary border border-border-strong';
   }

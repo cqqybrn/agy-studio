@@ -6,6 +6,7 @@ import { RunSupervisor } from '../../src/services/run-supervisor.js';
 import type { AppError } from '../../src/utils/errors.js';
 import {
   createDatabase,
+  PrefsRepository,
   RunsRepository,
   SessionsRepository,
   WorkspacesRepository,
@@ -259,6 +260,32 @@ describe('Watchdog', () => {
     watchdog.stop();
   });
 
+  it('touch() (activity seen outside stdout) resets the idle timer and stalled state', async () => {
+    const emittedEvents: AgentEvent[] = [];
+    const watchdog = new Watchdog({
+      runId: 'run-1',
+      sessionId: 'session-1',
+      runner: { send: async () => {}, kill: async () => {} },
+      stallTimeoutSeconds: 2,
+      onEvent: (ev) => {
+        emittedEvents.push(ev);
+      },
+    });
+
+    await vi.advanceTimersByTimeAsync(1500);
+    watchdog.touch();
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(watchdog.isCurrentlyStalled()).toBe(false);
+    expect(emittedEvents).toHaveLength(0);
+
+    await vi.advanceTimersByTimeAsync(600);
+    expect(watchdog.isCurrentlyStalled()).toBe(true);
+    watchdog.touch();
+    expect(watchdog.isCurrentlyStalled()).toBe(false);
+
+    watchdog.stop();
+  });
+
   it('recovers from stalled state when new runner output arrives', async () => {
     const emittedEvents: AgentEvent[] = [];
     const mockRunner: Pick<RunnerProcess, 'send' | 'kill'> = {
@@ -477,6 +504,88 @@ describe('Watchdog', () => {
       const runRecord = runsRepo.findById(runId);
       expect(runRecord?.status).toBe('failed');
       expect(runRecord?.error?.code).toBe('AGY_STALLED');
+    });
+
+    it('takes stallTimeoutSeconds from prefs and keeps a run alive while noteActivity() reports progress', async () => {
+      vi.useRealTimers();
+
+      const db = createDatabase(':memory:');
+      const runsRepo = new RunsRepository(db);
+      const sessionsRepo = new SessionsRepository(db);
+      const prefsRepo = new PrefsRepository(db);
+      prefsRepo.update({ stallTimeoutSeconds: 0.15 });
+      const now = new Date().toISOString();
+      const ws = new WorkspacesRepository(db).create({
+        id: 'ws-prefs',
+        name: 'ws',
+        path: 'G:/new',
+        isGitRepo: false,
+        createdAt: now,
+        lastOpenedAt: now,
+      });
+      const session = sessionsRepo.create({
+        id: 'sess-prefs',
+        workspaceId: ws.id,
+        accountName: 'default',
+        title: 'prefs watchdog',
+        agyConversationId: null,
+        status: 'idle',
+        model: null,
+        effort: null,
+        mode: null,
+        source: 'studio',
+        lastRunId: null,
+        lastSeq: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      let resolveDone: (() => void) | null = null;
+      const donePromise = new Promise<void>((resolve) => {
+        resolveDone = resolve;
+      });
+      const runnerProcess: RunnerProcess = {
+        pid: 99998,
+        events: {
+          [Symbol.asyncIterator]() {
+            return {
+              async next() {
+                await donePromise;
+                return { done: true, value: undefined };
+              },
+            };
+          },
+        },
+        exited: new Promise(() => {}),
+        send: async () => {},
+        closeInput: () => {},
+        kill: async () => {
+          resolveDone?.();
+        },
+      };
+
+      const events: AgentEvent[] = [];
+      const supervisor = new RunSupervisor({
+        runsRepo,
+        sessionsRepo,
+        runner: { start: async () => runnerProcess } as any,
+        profile: { stream: { multiTurnStdin: true, permissionEvent: null } } as any,
+        acquireLease: () => ({ accountName: 'default', release: () => {} }),
+        prefsRepo,
+        onEvent: (_s, _r, ev) => {
+          events.push(ev);
+        },
+      });
+
+      const { runId, completion } = await supervisor.start(session.id, { prompt: 'long task' });
+      const heartbeat = setInterval(() => supervisor.noteActivity(runId), 50);
+      await new Promise((r) => setTimeout(r, 500));
+      clearInterval(heartbeat);
+      expect(events.some((e) => e.type === 'run.stalled' || e.type === 'run.completed')).toBe(false);
+
+      await completion;
+      const completed = events.find((e) => e.type === 'run.completed');
+      expect((completed as any).error?.code).toBe('AGY_STALLED');
     });
   });
 });

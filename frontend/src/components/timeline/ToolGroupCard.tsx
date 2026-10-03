@@ -1,12 +1,18 @@
-import React, { useState } from 'react';
+import React from 'react';
 import type { ToolGroupItem } from '../../domain/timeline.types';
 import { ChevronDownIcon, ChevronRightIcon, LayersIcon } from './icons';
 import { StatusDot } from './StatusDot';
 import { ToolCard } from './ToolCard';
+import { useExpandState } from './useExpandState';
 
 export interface ToolGroupCardProps {
   item: ToolGroupItem;
   defaultExpanded?: boolean;
+  expanded?: boolean;
+  onExpandedChange?: (next: boolean) => void;
+  /** User choices for the tools inside the group, keyed by toolCallId. */
+  toolExpanded?: Readonly<Record<string, boolean>>;
+  onToolExpandedChange?: (toolCallId: string, next: boolean) => void;
   className?: string;
 }
 
@@ -47,9 +53,13 @@ export function formatGroupSummary(tools: ToolGroupItem['tools']): string {
 export function ToolGroupCard({
   item,
   defaultExpanded = false,
+  expanded,
+  onExpandedChange,
+  toolExpanded,
+  onToolExpandedChange,
   className = '',
 }: ToolGroupCardProps) {
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const [isExpanded, toggleExpanded] = useExpandState(defaultExpanded, expanded, onExpandedChange);
 
   const tools = item.tools || [];
   const summaryText = formatGroupSummary(tools);
@@ -65,13 +75,13 @@ export function ToolGroupCard({
   return (
     <div
       className={`my-1.5 rounded-md border border-border-default bg-bg-surface/30 text-xs transition-colors hover:border-border-strong ${
-        groupStatus === 'failed' ? 'border-red-500/30 bg-red-950/5' : ''
+        groupStatus === 'failed' ? 'border-status-error/30 bg-status-error-subtle' : ''
       } ${className}`}
       data-testid="tool-group-card"
     >
       <button
         type="button"
-        onClick={() => setIsExpanded((prev) => !prev)}
+        onClick={toggleExpanded}
         className="flex w-full items-center justify-between px-3 py-2 text-left text-text-secondary hover:text-text-primary transition-colors select-none focus:outline-none"
         aria-expanded={isExpanded}
         data-testid="tool-group-toggle-btn"
@@ -111,6 +121,12 @@ export function ToolGroupCard({
                 key={subTool.id || subTool.toolCallId}
                 item={subTool}
                 defaultExpanded={false}
+                expanded={toolExpanded?.[subTool.toolCallId]}
+                onExpandedChange={
+                  onToolExpandedChange
+                    ? (next) => onToolExpandedChange(subTool.toolCallId, next)
+                    : undefined
+                }
               />
             ))
           ) : (

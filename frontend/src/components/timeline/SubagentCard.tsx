@@ -253,11 +253,11 @@ export function SubagentCard({
           {/* 错误与重试 */}
           {!isLoading && error && (
             <div
-              className="my-2 rounded border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-400 flex items-center justify-between gap-2"
+              className="my-2 rounded border border-status-error/30 bg-status-error-subtle p-3 text-xs text-status-error-text flex items-center justify-between gap-2"
               data-testid="subagent-error"
             >
               <div className="flex items-center gap-2 min-w-0">
-                <AlertCircleIcon className="w-4 h-4 shrink-0 text-red-400" />
+                <AlertCircleIcon className="w-4 h-4 shrink-0 text-status-error-text" />
                 <span className="truncate">{error}</span>
               </div>
               {onRetry && (
@@ -265,7 +265,7 @@ export function SubagentCard({
                   type="button"
                   onClick={onRetry}
                   data-testid="subagent-retry-btn"
-                  className="px-2.5 py-1 shrink-0 rounded bg-red-500/20 hover:bg-red-500/30 text-red-300 font-medium transition-colors cursor-pointer text-xs"
+                  className="px-2.5 py-1 shrink-0 rounded bg-status-error-subtle hover:bg-status-error/30 text-status-error-text font-medium transition-colors cursor-pointer text-xs"
                 >
                   重试
                 </button>
@@ -376,7 +376,7 @@ export function SubagentCard({
 
                           {/* 4. 错误信息 */}
                           {step.error && (
-                            <div className="rounded border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-400">
+                            <div className="rounded border border-status-error/30 bg-status-error-subtle p-2 text-xs text-status-error-text">
                               {step.error}
                             </div>
                           )}

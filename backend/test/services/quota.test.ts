@@ -181,7 +181,7 @@ describe('QuotaService', () => {
     });
 
     it('returns source: unavailable and empty groups when probe fails and no cache exists', async () => {
-      mockProbe.probe = vi.fn().mockRejectedValue(new Error('Auth failed'));
+      mockProbe.probe = vi.fn().mockRejectedValue(new Error('No live credentials found; log in to agy first'));
       const service = createService();
 
       const result = await service.get('fresh-acc');
@@ -189,6 +189,7 @@ describe('QuotaService', () => {
       expect(result.stale).toBe(false);
       expect(result.groups).toEqual([]);
       expect(result.accountName).toBe('fresh-acc');
+      expect(result.description).toContain('未登录或凭据已失效');
     });
   });
 

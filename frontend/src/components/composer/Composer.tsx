@@ -1,15 +1,14 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
-import type { AgentInfo, AgentMode, Effort } from '@agy-studio/contracts';
-import { getAgents, uploadAttachments } from '../../api/endpoints';
+import type { AgentMode, Effort } from '@agy-studio/contracts';
+import { uploadAttachments } from '../../api/endpoints';
 import { useCurrentModelId, useModelsStore } from '../../stores/models.store';
+import { usePrefsStore } from '../../stores/prefs.store';
 import { useSessionStore, type SendMessageOptions } from '../../stores/session.store';
 import { useWorkspaceStore } from '../../stores/workspace.store';
-import { AgentPicker, DEFAULT_AGENT_ID } from './AgentPicker';
+import { DEFAULT_AGENT_ID } from './AgentPicker';
 import { AttachmentChip } from './AttachmentChip';
 import { compressImageIfNeeded, formatFileSize } from './compress';
-import { EffortPicker } from './EffortPicker';
 import { ModelPicker } from './ModelPicker';
-import { ModePicker } from './ModePicker';
 import {
   COMPOSER_LIMITS,
   type ComposerAttachment,
@@ -85,6 +84,16 @@ export function clearDraft(sessionId?: string): void {
 /**
  * Options sent with a message; the built-in default agent is sent as "no agent".
  */
+/** WebSocket ack timeout: run usually still starts, so do not surface as a send failure. */
+export function isIgnorableSendTimeout(err: unknown): boolean {
+  return Boolean(
+    err &&
+      typeof err === 'object' &&
+      'code' in err &&
+      (err as { code: unknown }).code === 'AGY_TIMEOUT',
+  );
+}
+
 export function buildSendOptions(selection: {
   attachmentIds: string[];
   model?: string;
@@ -112,9 +121,6 @@ export function Composer({
   mode: propMode,
   agent: propAgent,
   onModelChange,
-  onEffortChange,
-  onModeChange,
-  onAgentChange,
   onSend,
   onAbort,
   className = '',
@@ -138,12 +144,15 @@ export function Composer({
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [selectedModel, setSelectedModel] = useState<string | undefined>(propModel);
   const models = useModelsStore((s) => s.models);
+  const modelsLoading = useModelsStore((s) => s.loading);
+  const modelsFetched = useModelsStore((s) => s.fetched);
+  const modelsError = useModelsStore((s) => s.error);
   const currentModelId = useCurrentModelId();
+  const updatePrefs = usePrefsStore((s) => s.updatePrefs);
   const effectiveModel = selectedModel ?? currentModelId;
   const [selectedEffort, setSelectedEffort] = useState<Effort | undefined>(propEffort);
   const [selectedMode, setSelectedMode] = useState<AgentMode | undefined>(propMode);
-  const [selectedAgent, setSelectedAgent] = useState<string>(propAgent ?? DEFAULT_AGENT_ID);
-  const [agents, setAgents] = useState<AgentInfo[] | undefined>(undefined);
+  const [selectedAgent] = useState<string>(propAgent ?? DEFAULT_AGENT_ID);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState<boolean>(false);
 
@@ -194,25 +203,6 @@ export function Composer({
   useEffect(() => {
     if (propMode !== undefined) setSelectedMode(propMode);
   }, [propMode]);
-  useEffect(() => {
-    if (propAgent !== undefined) setSelectedAgent(propAgent);
-  }, [propAgent]);
-
-  // Load agents available for the current workspace; the built-in default stays usable on failure
-  const agentsWorkspaceId = propWorkspaceId ?? currentWorkspace?.id;
-  useEffect(() => {
-    let cancelled = false;
-    getAgents(agentsWorkspaceId ? { workspaceId: agentsWorkspaceId } : undefined)
-      .then((list) => {
-        if (!cancelled && Array.isArray(list)) setAgents(list);
-      })
-      .catch(() => {
-        if (!cancelled) setAgents(undefined);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [agentsWorkspaceId]);
 
   // Handle draft saving on text change
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -405,14 +395,7 @@ export function Composer({
       agent: selectedAgent,
     });
 
-    try {
-      if (onSend) {
-        await onSend(trimmed, options);
-      } else if (sessionId) {
-        await storeSend(sessionId, trimmed, options);
-      }
-
-      // Success: clear input, draft, attachments
+    const markSent = () => {
       setText('');
       clearDraft(sessionId);
       setAttachments([]);
@@ -420,7 +403,20 @@ export function Composer({
       if (textareaRef.current) {
         textareaRef.current.style.height = '40px';
       }
+    };
+
+    try {
+      if (onSend) {
+        await onSend(trimmed, options);
+      } else if (sessionId) {
+        await storeSend(sessionId, trimmed, options);
+      }
+      markSent();
     } catch (err: unknown) {
+      if (isIgnorableSendTimeout(err)) {
+        markSent();
+        return;
+      }
       const errorMsg = err instanceof Error ? err.message : '发送失败，请重试';
       setValidationError(errorMsg);
     }
@@ -559,13 +555,13 @@ export function Composer({
       {validationError && (
         <div
           data-testid="composer-validation-error"
-          className="mx-3 mt-2 flex items-center justify-between rounded-md bg-red-950/40 border border-red-500/30 px-2.5 py-1 text-xs text-red-300"
+          className="mx-3 mt-2 flex items-center justify-between rounded-md bg-status-error-subtle border border-status-error/30 px-2.5 py-1 text-xs text-status-error-text"
         >
           <span>{validationError}</span>
           <button
             type="button"
             onClick={() => setValidationError(null)}
-            className="text-red-400 hover:text-red-200"
+            className="text-status-error-text hover:text-status-error-text"
             aria-label="关闭错误提示"
           >
             ×
@@ -674,38 +670,14 @@ export function Composer({
           <ModelPicker
             value={effectiveModel}
             models={models}
+            loading={modelsLoading}
+            fetched={modelsFetched}
+            error={modelsError}
             disabled={disabled || isRunning}
             onChange={(m) => {
               setSelectedModel(m);
               onModelChange?.(m);
-            }}
-          />
-
-          <EffortPicker
-            value={selectedEffort}
-            disabled={disabled || isRunning}
-            onChange={(ef) => {
-              setSelectedEffort(ef);
-              onEffortChange?.(ef);
-            }}
-          />
-
-          <ModePicker
-            value={selectedMode}
-            disabled={disabled || isRunning}
-            onChange={(md) => {
-              setSelectedMode(md);
-              onModeChange?.(md);
-            }}
-          />
-
-          <AgentPicker
-            value={selectedAgent}
-            agents={agents}
-            disabled={disabled || isRunning}
-            onChange={(ag) => {
-              setSelectedAgent(ag);
-              onAgentChange?.(ag);
+              void updatePrefs({ defaultModel: m }).catch(() => {});
             }}
           />
         </div>
@@ -717,7 +689,7 @@ export function Composer({
               type="button"
               data-testid="composer-stop-button"
               onClick={handleAbort}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3.5 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-red-500 active:scale-95 transition-all"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-status-error px-3.5 py-1.5 text-xs font-medium text-accent-foreground shadow-sm hover:bg-status-error/90 active:scale-95 transition-all"
               title="中止当前运行"
             >
               <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
@@ -731,7 +703,7 @@ export function Composer({
               data-testid="composer-send-button"
               disabled={isSendDisabled}
               onClick={handleSend}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-accent-hover active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-accent transition-all"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-xs font-medium text-accent-foreground shadow-sm hover:bg-accent-hover active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-accent transition-all"
               title={isUploadingAny ? '附件上传中…' : '发送 (Enter)'}
             >
               <span>发送</span>

@@ -1,11 +1,31 @@
 import http from 'node:http';
+import { spawnSync } from 'node:child_process';
 import process from 'node:process';
 import { buildApp } from './app.js';
 import { loadConfig } from './utils/config.js';
 import { logger } from './utils/logger.js';
 
+function hasEnvProxy(): boolean {
+  return Boolean(
+    process.env.HTTPS_PROXY ||
+      process.env.https_proxy ||
+      process.env.HTTP_PROXY ||
+      process.env.http_proxy,
+  );
+}
+
+/** Node 的 fetch 默认不读 HTTPS_PROXY；额度接口在需要代理的网络下会一直超时。 */
+function reexecWithEnvProxyIfNeeded(): void {
+  if (!hasEnvProxy() || process.env.NODE_USE_ENV_PROXY === '1') return;
+  logger.info('Relaunching with NODE_USE_ENV_PROXY=1 so outbound fetch uses HTTPS_PROXY');
+  const r = spawnSync(process.execPath, [...process.execArgv, ...process.argv.slice(1)], {
+    stdio: 'inherit',
+    env: { ...process.env, NODE_USE_ENV_PROXY: '1' },
+  });
+  process.exit(r.status ?? 1);
+}
+
 export async function bootstrap(): Promise<void> {
-  // Node 的 fetch 默认不读取 HTTPS_PROXY / HTTP_PROXY；额度接口在需要代理的网络下会一直超时
   (http as typeof http & { setGlobalProxyFromEnv?: () => void }).setGlobalProxyFromEnv?.();
   const config = loadConfig();
   const { app, container, close } = buildApp({ config });
@@ -58,6 +78,7 @@ export async function bootstrap(): Promise<void> {
 
 // Automatically start if executed as entrypoint
 if (process.argv[1] && (process.argv[1].endsWith('main.ts') || process.argv[1].endsWith('main.js'))) {
+  reexecWithEnvProxyIfNeeded();
   bootstrap().catch((err) => {
     logger.fatal({ err }, 'Failed to start AGY Studio backend');
     process.exit(1);

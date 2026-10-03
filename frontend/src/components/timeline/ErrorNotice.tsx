@@ -14,12 +14,12 @@ export function ErrorNotice({ item, className = '' }: ErrorNoticeProps) {
   const hasDetails = Boolean(error.details && Object.keys(error.details).length > 0);
 
   const bannerColor = isRetryable
-    ? 'border-amber-500/40 bg-amber-950/20 text-amber-200'
-    : 'border-rose-500/40 bg-rose-950/20 text-rose-200';
+    ? 'border-status-warning/40 bg-status-warning-subtle text-status-warning-text'
+    : 'border-status-error/40 bg-status-error-subtle text-status-error-text';
 
   const badgeColor = isRetryable
-    ? 'border-amber-500/30 bg-amber-500/15 text-amber-300'
-    : 'border-rose-500/30 bg-rose-500/15 text-rose-300';
+    ? 'border-status-warning/30 bg-status-warning-subtle text-status-warning-text'
+    : 'border-status-error/30 bg-status-error-subtle text-status-error-text';
 
   return (
     <div
@@ -40,7 +40,7 @@ export function ErrorNotice({ item, className = '' }: ErrorNoticeProps) {
               {error.code}
             </span>
             {isRetryable && (
-              <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-400 font-sans border border-amber-500/20">
+              <span className="rounded bg-status-warning-subtle px-1.5 py-0.5 text-[10px] text-status-warning-text font-sans border border-status-warning/20">
                 可重试 / Retryable
               </span>
             )}
@@ -67,7 +67,7 @@ export function ErrorNotice({ item, className = '' }: ErrorNoticeProps) {
               </button>
 
               {showDetails && (
-                <pre className="mt-2 max-h-40 overflow-auto rounded border border-border-default bg-[#0a0d14] p-2 font-mono text-[10px] text-text-secondary leading-relaxed whitespace-pre-wrap">
+                <pre className="mt-2 max-h-40 overflow-auto rounded border border-border-default bg-bg-code p-2 font-mono text-[10px] text-text-secondary leading-relaxed whitespace-pre-wrap">
                   {JSON.stringify(error.details, null, 2)}
                 </pre>
               )}

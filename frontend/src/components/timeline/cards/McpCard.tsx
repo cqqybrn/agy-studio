@@ -1,20 +1,25 @@
-import React, { useState } from 'react';
+import React from 'react';
 import type { ToolCall } from '@agy-studio/contracts';
 import { ChevronDownIcon, ChevronRightIcon, CpuIcon } from '../icons';
 import { StatusDot } from '../StatusDot';
+import { useExpandState } from '../useExpandState';
 
 export interface McpCardProps {
   tool: ToolCall;
   defaultExpanded?: boolean;
+  expanded?: boolean;
+  onExpandedChange?: (next: boolean) => void;
   className?: string;
 }
 
 export function McpCard({
   tool,
   defaultExpanded = false,
+  expanded,
+  onExpandedChange,
   className = '',
 }: McpCardProps) {
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const [isExpanded, toggleExpanded] = useExpandState(defaultExpanded, expanded, onExpandedChange);
 
   // MCP tool names often follow mcp__<server>__<method> or <server>:<tool>
   let serverName = '';
@@ -39,13 +44,13 @@ export function McpCard({
   return (
     <div
       className={`my-1.5 rounded-md border border-border-default bg-bg-surface/50 text-xs transition-colors hover:border-border-strong ${
-        tool.status === 'failed' ? 'border-red-500/40 bg-red-950/10' : ''
+        tool.status === 'failed' ? 'border-status-error/40 bg-status-error-subtle' : ''
       } ${className}`}
       data-testid="mcp-card"
     >
       <button
         type="button"
-        onClick={() => setIsExpanded((prev) => !prev)}
+        onClick={toggleExpanded}
         className="flex w-full items-center justify-between px-3 py-2 text-left text-text-secondary hover:text-text-primary transition-colors select-none focus:outline-none"
         aria-expanded={isExpanded}
         data-testid="mcp-toggle-btn"
@@ -82,7 +87,7 @@ export function McpCard({
       {isExpanded && (
         <div className="border-t border-border-subtle bg-bg-app/40 p-3 space-y-3">
           {tool.error && (
-            <div className="rounded bg-rose-500/10 border border-rose-500/30 p-2 text-xs font-mono text-rose-300">
+            <div className="rounded bg-status-error-subtle border border-status-error/30 p-2 text-xs font-mono text-status-error-text">
               {tool.error}
             </div>
           )}
@@ -91,7 +96,7 @@ export function McpCard({
             <div className="text-[10px] font-sans text-text-tertiary uppercase tracking-wider mb-1">
               Parameters
             </div>
-            <pre className="max-h-48 overflow-auto rounded border border-border-default bg-[#0a0d14] p-2 font-mono text-[11px] leading-relaxed text-text-secondary">
+            <pre className="max-h-48 overflow-auto rounded border border-border-default bg-bg-code p-2 font-mono text-[11px] leading-relaxed text-text-secondary">
               {JSON.stringify(input, null, 2)}
             </pre>
           </div>
@@ -101,7 +106,7 @@ export function McpCard({
               <div className="text-[10px] font-sans text-text-tertiary uppercase tracking-wider mb-1">
                 Response
               </div>
-              <pre className="max-h-48 overflow-auto rounded border border-border-default bg-[#0a0d14] p-2 font-mono text-[11px] leading-relaxed text-text-secondary whitespace-pre-wrap">
+              <pre className="max-h-48 overflow-auto rounded border border-border-default bg-bg-code p-2 font-mono text-[11px] leading-relaxed text-text-secondary whitespace-pre-wrap">
                 {tool.output}
               </pre>
             </div>

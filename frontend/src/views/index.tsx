@@ -1699,7 +1699,7 @@ export function PlaygroundView() {
             <button
               type="button"
               onClick={handleGenerateDense2000}
-              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white shadow hover:bg-accent/90 transition-colors"
+              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground shadow hover:bg-accent-hover transition-colors"
               data-testid="generate-dense-btn"
             >
               🚀 生成 2000+ 条密集时间线数据
@@ -1710,7 +1710,7 @@ export function PlaygroundView() {
               onClick={handleToggleStreaming}
               className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                 isStreaming
-                  ? 'bg-amber-600 text-white hover:bg-amber-700'
+                  ? 'bg-status-warning text-accent-foreground hover:bg-status-warning/80'
                   : 'border border-border-default bg-bg-surface text-text-primary hover:border-border-strong'
               }`}
               data-testid="toggle-streaming-btn"

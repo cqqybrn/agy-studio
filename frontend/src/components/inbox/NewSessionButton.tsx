@@ -80,7 +80,7 @@ export function NewSessionButton({
         data-testid="new-session-btn"
         onClick={handleClick}
         disabled={isCreating}
-        className={`flex items-center justify-center gap-1.5 rounded bg-accent px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-accent-hover disabled:opacity-50 transition-colors ${className}`}
+        className={`flex items-center justify-center gap-1.5 rounded bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground shadow-sm hover:bg-accent-hover disabled:opacity-50 transition-colors ${className}`}
       >
         <span>+</span>
         <span>{isCreating ? '创建中...' : '新建会话'}</span>
@@ -159,7 +159,7 @@ export function NewSessionButton({
                   type="submit"
                   data-testid="confirm-create-session-btn"
                   disabled={isCreating}
-                  className="rounded bg-accent px-4 py-1.5 font-medium text-white hover:bg-accent-hover disabled:opacity-50 transition-colors"
+                  className="rounded bg-accent px-4 py-1.5 font-medium text-accent-foreground hover:bg-accent-hover disabled:opacity-50 transition-colors"
                 >
                   {isCreating ? '创建中...' : '确认创建'}
                 </button>

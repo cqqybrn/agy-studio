@@ -161,7 +161,7 @@ export class QuotaApiClient implements QuotaProbePort {
     this.profile = options.profile;
     this.fetchFn = options.fetchFn ?? globalThis.fetch;
     this.logger = options.logger;
-    this.requestTimeoutMs = options.requestTimeoutMs ?? 10_000;
+    this.requestTimeoutMs = options.requestTimeoutMs ?? 20_000;
   }
 
   clearTokenCache(): void {
@@ -191,7 +191,10 @@ export class QuotaApiClient implements QuotaProbePort {
     } catch (err: unknown) {
       const e = err as Error;
       if (controller.signal.aborted || e.name === 'AbortError') {
-        throw new AppError('QUOTA_FETCH_FAILED', 'Quota request timed out after 10 seconds');
+        throw new AppError(
+          'QUOTA_FETCH_FAILED',
+          `Quota request timed out after ${Math.round(timeoutMs / 1000)} seconds`,
+        );
       }
       throw new AppError('QUOTA_FETCH_FAILED', redactSecrets(e.message));
     } finally {
@@ -388,19 +391,23 @@ export class QuotaApiClient implements QuotaProbePort {
     const userAgent = this.getUserAgent();
 
     try {
-      const res = await this.fetchWithTimeout(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'User-Agent': userAgent,
-        },
-        body: JSON.stringify({
-          metadata: {
-            ideType: this.profile?.quota?.ideType ?? 'ANTIGRAVITY',
+      const res = await this.fetchWithTimeout(
+        url,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            'User-Agent': userAgent,
           },
-        }),
-      });
+          body: JSON.stringify({
+            metadata: {
+              ideType: this.profile?.quota?.ideType ?? 'ANTIGRAVITY',
+            },
+          }),
+        },
+        Math.min(5_000, this.requestTimeoutMs),
+      );
 
       if (res.status === 200) {
         const data = (await res.json()) as {

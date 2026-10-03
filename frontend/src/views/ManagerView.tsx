@@ -1,35 +1,24 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import type { Attachment, Capabilities, Session } from '@agy-studio/contracts';
-import type {
-  AssistantMessageItem,
-  ErrorItem,
-  RunDividerItem,
-  StalledNoticeItem,
-  SubagentItem,
-  ThinkingItem,
-  TimelineItem,
-  ToolGroupItem,
-  ToolItem,
-  UserMessageItem,
-} from '../domain/timeline.types';
+import type { SubagentItem, TimelineItem } from '../domain/timeline.types';
+import { buildDisplayRows, type DisplayRow } from '../domain/displayRows';
 import { Composer } from '../components/composer';
 import {
+  AssistantIdentity,
+  AssistantMessageRow,
   ErrorNotice,
-  MessageMarkdown,
   RunDivider,
   StalledNotice,
   StatusDot,
   SubagentCardContainer,
-  ThinkingBlock,
-  ToolCard,
-  ToolGroupCard,
+  UserMessageRow,
+  WorkedBlock,
 } from '../components/timeline';
 import { useConnectionStore } from '../stores/connection.store';
 import { useSessionStore } from '../stores/session.store';
 import { useUiStore } from '../stores/ui.store';
 import { useWorkspaceStore } from '../stores/workspace.store';
-import { getCapabilities, updateSession as apiUpdateSession } from '../api/endpoints';
+import { updateSession as apiUpdateSession } from '../api/endpoints';
 import type { WsStatus } from '../api/ws';
 
 export interface ManagerViewProps {
@@ -39,153 +28,83 @@ export interface ManagerViewProps {
   initialItems?: TimelineItem[];
   /** 可选自定义类名 */
   className?: string;
-  /** 可选显式注入的 capabilities（用于测试或 Playground 覆盖） */
-  mockCapabilities?: Capabilities | null;
   /** 可选显式注入的连接状态（用于测试覆盖） */
   connectionStatus?: WsStatus;
 }
 
 // ============================================================================
-// 单项时间线条目分发器 (TimelineItemDispatcher)
-// 严格按规范将 9 类条目映射到对应组件
+// 展示行渲染 (DisplayRowView)：消息平铺，工作步骤收进 Worked 块
 // ============================================================================
 
-export interface TimelineItemDispatcherProps {
-  item: TimelineItem;
+export interface DisplayRowViewProps {
+  row: DisplayRow;
   sessionId?: string;
-  thinkingHidden?: boolean;
+  /**
+   * 展开/收起的用户选择，键为 Worked 块 key、分组 key、toolCallId 或思考 id。
+   * 保存在虚拟列表之外，行滚出再滚回时仍能恢复。
+   */
+  expandedChoices?: Readonly<Record<string, boolean>>;
+  onExpandedChange?: (key: string, next: boolean) => void;
 }
 
-export function TimelineItemDispatcher({
-  item,
+export function DisplayRowView({
+  row,
   sessionId,
-  thinkingHidden = false,
-}: TimelineItemDispatcherProps) {
-  switch (item.kind) {
-    case 'user_message': {
-      const userItem = item as UserMessageItem;
+  expandedChoices,
+  onExpandedChange,
+}: DisplayRowViewProps) {
+  const renderSubagent = useCallback(
+    (item: SubagentItem) => (
+      <div className="my-1" data-testid={`timeline-item-subagent-${item.id}`}>
+        <SubagentCardContainer item={item} sessionId={sessionId} />
+      </div>
+    ),
+    [sessionId],
+  );
+
+  switch (row.kind) {
+    case 'user_message':
+      return <UserMessageRow item={row.item} />;
+
+    case 'assistant_message':
       return (
-        <div className="py-2.5" data-testid={`timeline-item-user-${userItem.id}`}>
-          <div className="flex items-start gap-3">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/20 text-accent font-semibold text-xs select-none">
-              U
-            </div>
-            <div className="min-w-0 flex-1 space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-text-primary">User</span>
-                {userItem.createdAt && (
-                  <span className="text-[11px] text-text-tertiary font-mono">
-                    {new Date(userItem.createdAt).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit',
-                    })}
-                  </span>
-                )}
-              </div>
-
-              {/* 附件展示 */}
-              {userItem.attachments && userItem.attachments.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 pt-0.5">
-                  {userItem.attachments.map((att) => (
-                    <div
-                      key={att.id}
-                      className="inline-flex items-center gap-1.5 rounded-md border border-border-default bg-bg-surface px-2.5 py-1 text-xs text-text-secondary"
-                      title={att.originalName}
-                    >
-                      <span className="text-text-tertiary">📎</span>
-                      <span className="max-w-[200px] truncate">{att.originalName}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* 用户文本 */}
-              <div className="rounded-lg border border-border-default/60 bg-bg-surface px-3.5 py-2.5 text-xs text-text-primary leading-relaxed shadow-sm">
-                <MessageMarkdown content={userItem.text} />
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    case 'assistant_message': {
-      const asstItem = item as AssistantMessageItem;
-      return (
-        <div className="py-2.5" data-testid={`timeline-item-assistant-${asstItem.id}`}>
-          <div className="flex items-start gap-3">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-white font-semibold text-xs shadow-sm select-none">
-              A
-            </div>
-            <div className="min-w-0 flex-1 space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-text-primary">Assistant</span>
-                {!asstItem.isComplete && (
-                  <span className="flex items-center gap-1 text-[11px] text-accent">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
-                    <span>生成中…</span>
-                  </span>
-                )}
-              </div>
-              <div className="rounded-lg border border-border-default bg-bg-surface/60 px-4 py-3 text-xs leading-relaxed text-text-primary">
-                <MessageMarkdown content={asstItem.text} streaming={!asstItem.isComplete} />
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    case 'thinking':
-      return (
-        <div data-testid={`timeline-item-thinking-${item.id}`}>
-          <ThinkingBlock item={item as ThinkingItem} hidden={thinkingHidden} />
+        <div>
+          {row.showIdentity && <AssistantIdentity streaming={!row.item.isComplete} />}
+          <AssistantMessageRow item={row.item} />
         </div>
       );
 
-    case 'tool':
+    case 'worked':
       return (
-        <div data-testid={`timeline-item-tool-${item.id}`}>
-          <ToolCard item={item as ToolItem} />
-        </div>
-      );
-
-    case 'tool_group':
-      return (
-        <div data-testid={`timeline-item-tool-group-${item.id}`}>
-          <ToolGroupCard item={item as ToolGroupItem} />
-        </div>
-      );
-
-    case 'subagent':
-      return (
-        <div data-testid={`timeline-item-subagent-${item.id}`}>
-          <SubagentCardContainer
-            item={item as SubagentItem}
-            sessionId={sessionId}
+        <div className="py-0.5" data-testid={`timeline-row-${row.key}`}>
+          {row.showIdentity && <AssistantIdentity streaming={row.active} />}
+          <WorkedBlock
+            row={row}
+            expandedChoices={expandedChoices}
+            onExpandedChange={onExpandedChange}
+            renderSubagent={renderSubagent}
           />
         </div>
       );
 
     case 'run_divider':
       return (
-        <div data-testid={`timeline-item-run-divider-${item.id}`}>
-          <RunDivider item={item as RunDividerItem} />
+        <div data-testid={`timeline-item-run-divider-${row.item.id}`}>
+          <RunDivider item={row.item} />
         </div>
       );
 
     case 'error':
       return (
-        <div data-testid={`timeline-item-error-${item.id}`}>
-          <ErrorNotice item={item as ErrorItem} />
+        <div data-testid={`timeline-item-error-${row.item.id}`}>
+          <ErrorNotice item={row.item} />
         </div>
       );
 
     case 'stalled_notice':
       return (
-        <div data-testid={`timeline-item-stalled-${item.id}`}>
-          <StalledNotice item={item as StalledNoticeItem} />
+        <div data-testid={`timeline-item-stalled-${row.item.id}`}>
+          <StalledNotice item={row.item} />
         </div>
       );
 
@@ -202,7 +121,6 @@ export function ManagerView({
   sessionId: explicitSessionId,
   initialItems,
   className = '',
-  mockCapabilities,
   connectionStatus: propConnectionStatus,
 }: ManagerViewProps) {
   // Store 状态订阅（在 SSR / Node 测试环境下 fallback 到 getState() 获取最新状态）
@@ -227,49 +145,34 @@ export function ManagerView({
     return slot?.timeline.items ?? [];
   }, [initialItems, slot?.timeline.items]);
 
+  const activeRunId = slot?.activeRunId ?? null;
+  const thinkingHidden = showThinkingOverride === false;
+  const rows = useMemo(
+    () => buildDisplayRows(items, { activeRunId, thinkingHidden }),
+    [items, activeRunId, thinkingHidden],
+  );
+
   const currentSession = useMemo(() => {
     return sessionList.find((s) => s.id === activeSessionId) ?? null;
   }, [sessionList, activeSessionId]);
 
-  // Capabilities 状态
-  const [capabilities, setCapabilities] = useState<Capabilities | null>(
-    mockCapabilities ?? null,
+  // 卡片展开/收起的用户选择，按会话保存；虚拟列表卸载行后仍能恢复
+  const [expandedChoicesBySession, setExpandedChoicesBySession] = useState<
+    Record<string, Record<string, boolean>>
+  >({});
+  const expandedChoices = activeSessionId
+    ? expandedChoicesBySession[activeSessionId]
+    : undefined;
+  const handleExpandedChange = useCallback(
+    (key: string, next: boolean) => {
+      if (!activeSessionId) return;
+      setExpandedChoicesBySession((prev) => ({
+        ...prev,
+        [activeSessionId]: { ...prev[activeSessionId], [key]: next },
+      }));
+    },
+    [activeSessionId],
   );
-
-  useEffect(() => {
-    if (mockCapabilities !== undefined) {
-      setCapabilities(mockCapabilities);
-      return;
-    }
-    let mounted = true;
-    getCapabilities()
-      .then((cap) => {
-        if (mounted) setCapabilities(cap);
-      })
-      .catch(() => {
-        // 后端可能未启动或探测失败，静默处理
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [mockCapabilities]);
-
-  // 是否检测到 agy 版本升级（profileAgyVersion 与 agyVersion 不一致）
-  const isAgyUpgradeDetected = useMemo(() => {
-    const caps = mockCapabilities !== undefined ? mockCapabilities : capabilities;
-    if (!caps) return false;
-    if (
-      caps.agyVersion &&
-      caps.profileAgyVersion &&
-      caps.agyVersion !== caps.profileAgyVersion
-    ) {
-      return true;
-    }
-    // 兼容可能配置在 features 或 mock 上的标记
-    if ((caps as any).versionMismatch === true) return true;
-    if ((caps.features as any)?.versionMismatch === true) return true;
-    return false;
-  }, [capabilities, mockCapabilities]);
 
   // 会话标题重命名状态
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -328,9 +231,9 @@ export function ManagerView({
 
   // TanStack Virtual 虚拟滚动实例
   const rowVirtualizer = useVirtualizer({
-    count: items.length,
+    count: rows.length,
     getScrollElement: () => scrollContainerRef.current,
-    estimateSize: () => 80,
+    estimateSize: () => 48,
     overscan: 5,
     initialRect: { width: 800, height: 600 },
   });
@@ -379,8 +282,8 @@ export function ManagerView({
       // 双帧缓冲确保 DOM 挂载和高度测量完毕
       requestAnimationFrame(() => {
         el.scrollTop = el.scrollHeight;
-        if (items.length > 0) {
-          rowVirtualizer.scrollToIndex(items.length - 1, { align: 'end' });
+        if (rows.length > 0) {
+          rowVirtualizer.scrollToIndex(rows.length - 1, { align: 'end' });
         }
       });
     }
@@ -423,8 +326,6 @@ export function ManagerView({
     }
   };
 
-  const effectiveCapabilities = mockCapabilities !== undefined ? mockCapabilities : capabilities;
-
   return (
     <div
       className={`flex h-full w-full flex-col overflow-hidden bg-bg-app text-text-primary ${className}`}
@@ -436,33 +337,16 @@ export function ManagerView({
       {/* ★ B-11：排除 connecting 初始状态，只在明确的断线/重连时显示 */}
       {(connectionStatus === 'reconnecting' || connectionStatus === 'closed') && (
         <div
-          className="flex shrink-0 items-center justify-between border-b border-amber-500/30 bg-amber-500/15 px-4 py-2 text-xs text-amber-300"
+          className="flex shrink-0 items-center justify-between border-b border-status-warning/30 bg-status-warning-subtle px-4 py-2 text-xs text-status-warning-text"
           data-testid="reconnecting-banner"
         >
           <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+            <span className="h-2 w-2 rounded-full bg-status-warning animate-pulse" />
             <span className="font-medium">连接中断，正在重连…</span>
           </div>
-          <span className="font-mono text-[11px] text-amber-300/80">
+          <span className="font-mono text-[11px] opacity-80">
             {`WS: ${connectionStatus}`}
           </span>
-        </div>
-      )}
-
-      {/* 1.2 agy 版本升级提示条 */}
-      {isAgyUpgradeDetected && (
-        <div
-          className="flex shrink-0 items-center justify-between border-b border-blue-500/30 bg-blue-500/15 px-4 py-2 text-xs text-blue-300"
-          data-testid="upgrade-notice-banner"
-        >
-          <div className="flex items-center gap-2">
-            <span className="font-medium">agy 已升级，建议重新探测</span>
-            {effectiveCapabilities?.agyVersion && effectiveCapabilities?.profileAgyVersion && (
-              <span className="font-mono text-[11px] text-blue-200/80">
-                {`(CLI: ${effectiveCapabilities.agyVersion} / Profile: ${effectiveCapabilities.profileAgyVersion})`}
-              </span>
-            )}
-          </div>
         </div>
       )}
 
@@ -550,7 +434,7 @@ export function ManagerView({
                 <button
                   type="button"
                   onClick={handleCreateNewSession}
-                  className="rounded-lg bg-accent px-4 py-2 text-xs font-medium text-white shadow hover:bg-accent/90 transition-colors"
+                  className="rounded-lg bg-accent px-4 py-2 text-xs font-medium text-accent-foreground shadow hover:bg-accent-hover transition-colors"
                   data-testid="empty-create-session-btn"
                 >
                   + 新建会话
@@ -591,11 +475,11 @@ export function ManagerView({
               data-testid="virtual-timeline-container"
             >
               {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                const item = items[virtualRow.index];
-                if (!item) return null;
+                const row = rows[virtualRow.index];
+                if (!row) return null;
                 return (
                   <div
-                    key={item.id ?? virtualRow.index}
+                    key={row.key}
                     data-index={virtualRow.index}
                     ref={rowVirtualizer.measureElement}
                     style={{
@@ -605,13 +489,16 @@ export function ManagerView({
                       width: '100%',
                       transform: `translateY(${virtualRow.start}px)`,
                     }}
-                    className="pb-3"
+                    className="pb-1"
                   >
-                    <TimelineItemDispatcher
-                      item={item}
-                      sessionId={activeSessionId}
-                      thinkingHidden={showThinkingOverride === false}
-                    />
+                    <div className="mx-auto max-w-3xl">
+                      <DisplayRowView
+                        row={row}
+                        sessionId={activeSessionId}
+                        expandedChoices={expandedChoices}
+                        onExpandedChange={handleExpandedChange}
+                      />
+                    </div>
                   </div>
                 );
               })}
@@ -630,7 +517,7 @@ export function ManagerView({
             <span>↓ 回到底部</span>
             {newMessageCount > 0 && (
               <span
-                className="flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-white"
+                className="flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-accent-foreground"
                 data-testid="unread-badge"
               >
                 {newMessageCount}

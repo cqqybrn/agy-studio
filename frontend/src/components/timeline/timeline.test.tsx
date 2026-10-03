@@ -45,15 +45,15 @@ describe('Timeline Atomic Components', () => {
     it('renders correct dot styles for success, error, stalled, and idle', () => {
       const htmlSuccess = renderToString(<StatusDot status="succeeded" />);
       expect(htmlSuccess).toContain('data-testid="status-dot-succeeded"');
-      expect(htmlSuccess).toContain('bg-[#10b981]');
+      expect(htmlSuccess).toContain('bg-status-success');
 
       const htmlFailed = renderToString(<StatusDot status="failed" />);
       expect(htmlFailed).toContain('data-testid="status-dot-failed"');
-      expect(htmlFailed).toContain('bg-[#ef4444]');
+      expect(htmlFailed).toContain('bg-status-error');
 
       const htmlStalled = renderToString(<StatusDot status="stalled" />);
       expect(htmlStalled).toContain('data-testid="status-dot-stalled"');
-      expect(htmlStalled).toContain('bg-[#f59e0b]');
+      expect(htmlStalled).toContain('bg-status-warning');
 
       const htmlIdle = renderToString(<StatusDot status="idle" />);
       expect(htmlIdle).toContain('data-testid="status-dot-idle"');
@@ -192,11 +192,60 @@ describe('Timeline Atomic Components', () => {
         endedAt: '2026-09-28T10:00:01.000Z',
       };
 
-      const html = renderToString(<ToolCard tool={toolCall} />);
+      const html = renderToString(<ToolCard tool={toolCall} defaultExpanded={true} />);
       expect(html).toContain('data-testid="command-card"');
       expect(html).toContain('npm run test -w frontend');
       expect(html).toContain('PASS src/test.ts');
       expect(html).toContain('title="Copy command"');
+    });
+
+    describe('CommandCard auto expand / collapse', () => {
+      const baseCommand: ToolCall = {
+        toolCallId: 'tc-auto',
+        name: 'run_command',
+        kind: 'run_command',
+        input: { CommandLine: 'npm test' },
+        target: 'npm test',
+        output: 'OUTPUT-LINE',
+        error: null,
+        status: 'running',
+        fileChanges: [],
+        startedAt: '2026-09-28T10:00:00.000Z',
+        endedAt: null,
+      };
+
+      it('is expanded while running so live output is visible', () => {
+        const html = renderToString(<ToolCard tool={baseCommand} />);
+        expect(html).toContain('aria-expanded="true"');
+        expect(html).toContain('OUTPUT-LINE');
+      });
+
+      it('collapses to a single header line once succeeded', () => {
+        const html = renderToString(
+          <ToolCard tool={{ ...baseCommand, status: 'succeeded' }} />
+        );
+        expect(html).toContain('aria-expanded="false"');
+        expect(html).toContain('npm test');
+        expect(html).not.toContain('OUTPUT-LINE');
+      });
+
+      it('stays expanded on failure so the error is visible', () => {
+        const html = renderToString(
+          <ToolCard tool={{ ...baseCommand, status: 'failed', error: 'Exit code 1' }} />
+        );
+        expect(html).toContain('aria-expanded="true"');
+        expect(html).toContain('OUTPUT-LINE');
+      });
+
+      it('respects an explicit user choice over the automatic state', () => {
+        const kept = renderToString(
+          <ToolCard tool={{ ...baseCommand, status: 'succeeded' }} expanded={true} />
+        );
+        expect(kept).toContain('OUTPUT-LINE');
+
+        const closed = renderToString(<ToolCard tool={baseCommand} expanded={false} />);
+        expect(closed).not.toContain('OUTPUT-LINE');
+      });
     });
 
     it('shows the tool name, not raw input keys, when the backend found no target', () => {
@@ -237,7 +286,7 @@ describe('Timeline Atomic Components', () => {
       };
 
       const html = renderToString(<ToolCard tool={toolCall} />);
-      expect(html).toContain('border-red-500/50');
+      expect(html).toContain('border-status-error/50');
       expect(html).toContain('data-testid="status-dot-failed"');
     });
 
@@ -479,8 +528,24 @@ const greeting: string = "Hello World";
       expect(html).toContain('data-testid="code-block"');
       expect(html).toContain('data-language="typescript"');
       expect(html).toContain('data-testid="copy-code-btn"');
-      expect(html).toContain('Copy code');
+      expect(html).toContain('复制代码');
       expect(html).toContain('Hello World');
+    });
+
+    it('renders consecutive box-drawing lines as a copyable block', () => {
+      const content = [
+        '记住三条铁律：',
+        '┌──────────┐',
+        '│ 法则一   │',
+        '└──────────┘',
+        '然后继续。',
+      ].join('\n');
+      const html = renderToString(<MessageMarkdown content={content} />);
+      expect(html).toContain('data-testid="ascii-box"');
+      expect(html).toContain('data-testid="copy-box-btn"');
+      expect(html).toContain('法则一');
+      expect(html).toContain('记住三条铁律');
+      expect(html).toContain('然后继续');
     });
 
     it('still renders code blocks as plain text while streaming', () => {

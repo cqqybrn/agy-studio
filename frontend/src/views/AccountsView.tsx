@@ -133,7 +133,7 @@ export function AccountsView({
               setActionError(null);
               setIsLoginModalOpen(true);
             }}
-            className="flex items-center gap-1.5 rounded-lg border border-accent bg-accent hover:bg-accent-hover px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors"
+            className="flex items-center gap-1.5 rounded-lg border border-accent bg-accent hover:bg-accent-hover px-3.5 py-1.5 text-xs font-semibold text-accent-foreground shadow-sm transition-colors"
             data-testid="login-new-account-btn"
           >
             <span>+</span>
@@ -145,7 +145,7 @@ export function AccountsView({
       {/* 提示条 */}
       {actionError && (
         <div
-          className="mt-4 flex items-center justify-between rounded-lg border border-color-error/30 bg-color-error-subtle/40 px-4 py-2.5 text-xs text-color-error animate-in fade-in"
+          className="mt-4 flex items-center justify-between rounded-lg border border-color-error/30 bg-status-error-subtle/40 px-4 py-2.5 text-xs text-color-error animate-in fade-in"
           data-testid="accounts-action-error"
         >
           <div className="flex items-center gap-2">
@@ -182,7 +182,7 @@ export function AccountsView({
       )}
 
       {error && !actionError && (
-        <div className="mt-4 rounded-lg border border-color-error/30 bg-color-error-subtle/40 px-4 py-2.5 text-xs text-color-error">
+        <div className="mt-4 rounded-lg border border-color-error/30 bg-status-error-subtle/40 px-4 py-2.5 text-xs text-color-error">
           获取账号数据失败: {error}
         </div>
       )}
@@ -323,7 +323,7 @@ export function AccountsView({
                               <button
                                 type="button"
                                 onClick={() => handleDelete(acc.name)}
-                                className="rounded bg-color-error px-2 py-0.8 text-[11px] font-medium text-white hover:bg-color-error/90 transition-colors"
+                                className="rounded bg-status-error px-2 py-0.8 text-[11px] font-medium text-accent-foreground hover:bg-status-error/90 transition-colors"
                                 data-testid={`confirm-delete-${acc.name}`}
                               >
                                 确定
@@ -518,7 +518,7 @@ export function LoginModal({ onClose, onSuccess }: LoginModalProps) {
         {/* 错误提示 */}
         {errorMessage && (
           <div
-            className="mt-3 rounded-lg border border-color-error/30 bg-color-error-subtle/40 p-2.5 text-xs text-color-error"
+            className="mt-3 rounded-lg border border-color-error/30 bg-status-error-subtle/40 p-2.5 text-xs text-color-error"
             data-testid="login-error-message"
           >
             {errorMessage}
@@ -557,7 +557,7 @@ export function LoginModal({ onClose, onSuccess }: LoginModalProps) {
               <button
                 type="submit"
                 disabled={isStarting || !saveAs.trim()}
-                className="flex items-center gap-1.5 rounded-lg border border-accent bg-accent hover:bg-accent-hover px-4 py-2 text-xs font-semibold text-white transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-lg border border-accent bg-accent hover:bg-accent-hover px-4 py-2 text-xs font-semibold text-accent-foreground transition-colors disabled:opacity-50"
                 data-testid="start-login-submit"
               >
                 {isStarting && <span className="animate-spin">🔄</span>}
@@ -658,7 +658,7 @@ export function LoginModal({ onClose, onSuccess }: LoginModalProps) {
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full rounded-lg border border-accent bg-accent py-2 text-xs font-semibold text-white hover:bg-accent-hover transition-colors"
+                className="w-full rounded-lg border border-accent bg-accent py-2 text-xs font-semibold text-accent-foreground hover:bg-accent-hover transition-colors"
                 data-testid="login-complete-btn"
               >
                 完成
@@ -670,7 +670,7 @@ export function LoginModal({ onClose, onSuccess }: LoginModalProps) {
         {/* 失败或超时状态 */}
         {(step === 'failed' || step === 'timeout') && (
           <div className="mt-4 space-y-4 text-center py-2" data-testid="login-failed-step">
-            <div className="flex h-12 w-12 mx-auto items-center justify-center rounded-full bg-color-error/20 text-color-error text-2xl font-bold">
+            <div className="flex h-12 w-12 mx-auto items-center justify-center rounded-full bg-status-error/20 text-color-error text-2xl font-bold">
               ✕
             </div>
             <div>
@@ -697,7 +697,7 @@ export function LoginModal({ onClose, onSuccess }: LoginModalProps) {
                   setErrorMessage(null);
                   setStep('input');
                 }}
-                className="rounded-lg border border-accent bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-hover"
+                className="rounded-lg border border-accent bg-accent px-4 py-2 text-xs font-semibold text-accent-foreground hover:bg-accent-hover"
                 data-testid="login-retry-btn"
               >
                 重新登录

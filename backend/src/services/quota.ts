@@ -74,20 +74,34 @@ export class QuotaService {
     this.logger.debug({ accountName }, 'Invalidated quota cache due to account.changed');
   }
 
-  private createUnavailableSnapshot(accountName: string | null): QuotaSnapshot {
+  private createUnavailableSnapshot(
+    accountName: string | null,
+    description: string | null = null,
+  ): QuotaSnapshot {
     return {
       source: 'unavailable',
       accountName,
       email: null,
       planTier: null,
       title: 'Model Quotas',
-      description: null,
+      description,
       groups: [],
       credits: { available: false, balance: null },
       fetchedAt: this.now().toISOString(),
       cached: false,
       stale: false,
     };
+  }
+
+  private describeProbeFailure(err: unknown): string {
+    const safeMsg = redactSecrets((err as Error).message ?? String(err));
+    if (/timed out/i.test(safeMsg)) {
+      return '查询超时：无法在限定时间内连上 Google 额度接口，请检查网络后重试';
+    }
+    if (/not authenticated|log in|sign in|no live credentials|no refresh token/i.test(safeMsg)) {
+      return '未登录或凭据已失效，请到账号页重新登录后再查额度';
+    }
+    return safeMsg || '额度接口暂不可用';
   }
 
   async get(accountName?: string, refresh?: boolean): Promise<QuotaSnapshot> {
@@ -141,13 +155,15 @@ export class QuotaService {
           stale: true,
         };
       }
-      return this.createUnavailableSnapshot(targetAccount);
+      return this.createUnavailableSnapshot(targetAccount, '账号正在切换，暂时无法读取额度凭据');
     }
 
     let probeResult: QuotaSnapshot | null = null;
+    let probeError: unknown;
     try {
       probeResult = await this.quotaProbe.probe(targetAccount);
     } catch (err: unknown) {
+      probeError = err;
       const safeMsg = redactSecrets((err as Error).message);
       this.logger.warn({ err: safeMsg, account: targetAccount }, 'Quota probe failed');
     } finally {
@@ -162,7 +178,9 @@ export class QuotaService {
         'Discarded late quota probe result due to account switch/invalidation',
       );
       const currentCache = this.quotaCacheRepo.get(cacheKey, 'quota_api');
-      return currentCache ? { ...currentCache.snapshot, cached: true } : this.createUnavailableSnapshot(targetAccount);
+      return currentCache
+        ? { ...currentCache.snapshot, cached: true }
+        : this.createUnavailableSnapshot(targetAccount);
     }
 
     // 5. If probe succeeded, write to cache and publish global event
@@ -194,6 +212,9 @@ export class QuotaService {
       };
     }
 
-    return this.createUnavailableSnapshot(targetAccount);
+    return this.createUnavailableSnapshot(
+      targetAccount,
+      probeError ? this.describeProbeFailure(probeError) : null,
+    );
   }
 }

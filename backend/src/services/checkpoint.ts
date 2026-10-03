@@ -138,7 +138,7 @@ export class CheckpointService {
     this.sessionsRepo = options.sessionsRepo;
     this.supervisor = options.supervisor;
     this.dataDir = options.dataDir ?? getConfig().dataDir;
-    this.defaultTimeoutMs = options.defaultTimeoutMs ?? 15_000;
+    this.defaultTimeoutMs = options.defaultTimeoutMs ?? 3_000;
     this.logger = options.logger;
   }
 
@@ -316,7 +316,7 @@ export class CheckpointService {
 
   /**
    * Captures a snapshot of the workspace into the shadow bare git repo.
-   * Times out after timeoutMs (defaults to 15,000ms), returning null on timeout/failure without blocking.
+   * Times out after timeoutMs (defaults to 3,000ms), returning null on timeout/failure without blocking.
    */
   async snapshot(
     workspaceId: string,

@@ -12,6 +12,9 @@ export interface ToolCardProps {
   item?: ToolItem;
   tool?: ToolCall;
   defaultExpanded?: boolean;
+  /** Explicit user choice kept by the parent (survives virtualized row remounts). */
+  expanded?: boolean;
+  onExpandedChange?: (next: boolean) => void;
   className?: string;
 }
 
@@ -19,6 +22,8 @@ export function ToolCard({
   item,
   tool: explicitTool,
   defaultExpanded,
+  expanded,
+  onExpandedChange,
   className = '',
 }: ToolCardProps) {
   const tool = explicitTool || item?.tool;
@@ -27,64 +32,30 @@ export function ToolCard({
     return null;
   }
 
+  const shared = { tool, defaultExpanded, expanded, onExpandedChange, className };
+
   switch (tool.kind) {
     case 'view_file':
     case 'edit_file':
     case 'write_file':
-      return (
-        <FileEditCard
-          tool={tool}
-          defaultExpanded={defaultExpanded}
-          className={className}
-        />
-      );
+      return <FileEditCard {...shared} />;
 
     case 'run_command':
-      return (
-        <CommandCard
-          tool={tool}
-          defaultExpanded={defaultExpanded ?? true}
-          className={className}
-        />
-      );
+      return <CommandCard {...shared} />;
 
     case 'search':
-      return (
-        <SearchCard
-          tool={tool}
-          defaultExpanded={defaultExpanded}
-          className={className}
-        />
-      );
+      return <SearchCard {...shared} />;
 
     case 'browser':
-      return (
-        <BrowserCard
-          tool={tool}
-          defaultExpanded={defaultExpanded}
-          className={className}
-        />
-      );
+      return <BrowserCard {...shared} />;
 
     case 'mcp':
-      return (
-        <McpCard
-          tool={tool}
-          defaultExpanded={defaultExpanded}
-          className={className}
-        />
-      );
+      return <McpCard {...shared} />;
 
     case 'other':
     case 'subagent':
     default:
-      return (
-        <GenericToolCard
-          tool={tool}
-          defaultExpanded={defaultExpanded}
-          className={className}
-        />
-      );
+      return <GenericToolCard {...shared} />;
   }
 }
 

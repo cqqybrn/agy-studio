@@ -130,7 +130,7 @@ export function AddWorkspaceDialog({
               type="submit"
               data-testid="create-workspace-submit"
               disabled={loading || !path.trim()}
-              className="rounded bg-accent px-4 py-1.5 font-medium text-white hover:bg-accent-hover disabled:opacity-50 transition-colors"
+              className="rounded bg-accent px-4 py-1.5 font-medium text-accent-foreground hover:bg-accent-hover disabled:opacity-50 transition-colors"
             >
               {loading ? '添加中...' : '添加'}
             </button>

@@ -18,10 +18,18 @@ const defaultCommandExecutor: CommandExecutor = (bin: string, argv: string[]) =>
     execFile(
       bin,
       argv,
-      { encoding: 'utf-8', windowsHide: true, shell: process.platform === 'win32' },
+      {
+        encoding: 'utf-8',
+        windowsHide: true,
+        shell: process.platform === 'win32',
+        timeout: 20_000,
+      },
       (err, stdout, stderr) => {
         if (err) {
-          reject(err);
+          const execErr = err as NodeJS.ErrnoException & { stdout?: string; stderr?: string };
+          execErr.stdout = stdout ?? execErr.stdout;
+          execErr.stderr = stderr ?? execErr.stderr;
+          reject(execErr);
         } else {
           resolve({ stdout: stdout ?? '', stderr: stderr ?? '' });
         }
@@ -29,6 +37,19 @@ const defaultCommandExecutor: CommandExecutor = (bin: string, argv: string[]) =>
     );
   });
 };
+
+function catalogCommandError(err: unknown, action: string): AppError {
+  const e = err as { message?: string; stdout?: string; stderr?: string };
+  const text = [e.message, e.stdout, e.stderr].filter(Boolean).join('\n');
+  if (/please sign in/i.test(text) || /sign in to view/i.test(text)) {
+    return new AppError(
+      'AGY_NOT_AUTHENTICATED',
+      'Agy CLI is not signed in; open Accounts and log in, or launch agy to sign in',
+      { cause: err },
+    );
+  }
+  return new AppError('AGY_NOT_INSTALLED', `Failed to execute ${action}: ${text}`, { cause: err });
+}
 
 /**
  * Searches for a usable agy binary from candidate paths, AGY_BIN, or PATH.
@@ -184,11 +205,7 @@ export class AgyCatalog implements ModelCatalogPort {
       const res = await this.executor(targetBin, argv);
       stdout = res.stdout;
     } catch (err: any) {
-      throw new AppError(
-        'AGY_NOT_INSTALLED',
-        `Failed to execute agy models: ${err?.message ?? String(err)}`,
-        { cause: err },
-      );
+      throw catalogCommandError(err, 'agy models');
     }
 
     return parseModelsOutput(stdout, this.profile.catalog?.modelsParser ?? 'text-v1');

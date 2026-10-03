@@ -32,6 +32,9 @@ export interface ModelPickerProps {
   models?: Model[];
   disabled?: boolean;
   className?: string;
+  loading?: boolean;
+  fetched?: boolean;
+  error?: string | null;
 }
 
 export interface EffortPickerProps {

@@ -149,7 +149,8 @@ export class RunSupervisor {
     this.profile = options.profile;
     this.acquireLease = options.acquireLease;
     this.maxConcurrentRuns = options.maxConcurrentRuns ?? 3;
-    this.defaultTimeoutMs = options.defaultTimeoutMs ?? 10 * 60 * 1000;
+    // 0 = no wall-clock limit: long tasks are legitimate, stuck runs are ended by the watchdog
+    this.defaultTimeoutMs = options.defaultTimeoutMs ?? 0;
     this.logger = options.logger;
     this.settings = options.settings;
     this.autoApprove =
@@ -459,7 +460,10 @@ export class RunSupervisor {
       }
 
       // 启动 watchdog 监控卡死
-      const stallTimeoutSec = input.stallTimeoutSeconds ?? this.stallTimeoutSeconds;
+      const stallTimeoutSec =
+        input.stallTimeoutSeconds ??
+        this.stallTimeoutSeconds ??
+        this.prefsRepo?.get().stallTimeoutSeconds;
       if (stallTimeoutSec && stallTimeoutSec > 0) {
         activeState.watchdog = new Watchdog({
           runId,
@@ -657,6 +661,14 @@ export class RunSupervisor {
       new AppError('AGY_ABORTED', 'Run was aborted by user').toApiError(),
     );
     return true;
+  }
+
+  /**
+   * Reports progress of an active run seen outside its stdout (e.g. transcript steps on disk),
+   * so the watchdog does not treat a held-back stdout as a stalled run.
+   */
+  noteActivity(runId: string): void {
+    this.activeRunsMap.get(runId)?.watchdog?.touch();
   }
 
   /**

@@ -1,14 +1,17 @@
 /**
- * Antigravity 风格深色主题变量
- * 对标 Antigravity 现代 Agent IDE：低对比面板、细边框、科技蓝强调色、等宽终端字体
+ * 主题变量：深色（默认，Antigravity 风格）与浅色（data-theme="light"）
+ * 组件只能使用这里的语义变量（经 tailwind.config.js 映射），不得直接写 Tailwind 色板或十六进制颜色
  */
 :root {
+  color-scheme: dark;
+
   /* 背景层次 */
   --bg-app: #0b0d11;              /* 整体底色，近黑微蓝 */
   --bg-panel: #12151b;            /* 面板背景（左栏收件箱、顶栏、右栏） */
   --bg-surface: #181c24;          /* 悬浮层、卡片、输入框背景 */
   --bg-surface-hover: #1f242f;    /* 卡片/按钮 hover */
   --bg-surface-active: #272d3b;   /* 选中态 */
+  --bg-code: #080a0f;             /* 终端输出、代码块背景 */
 
   /* 边框系统 */
   --border-subtle: #1c212b;       /* 次要微弱分割线 */
@@ -27,13 +30,19 @@
   --accent-subtle: rgba(37, 99, 235, 0.15);
   --accent-foreground: #ffffff;
 
-  /* 状态色 */
+  /* 状态色：底色/图标用 --color-*，文字用 --color-*-text（保证在当前背景上可读） */
   --color-success: #10b981;
   --color-success-subtle: rgba(16, 185, 129, 0.15);
+  --color-success-text: #34d399;
   --color-warning: #f59e0b;
   --color-warning-subtle: rgba(245, 158, 11, 0.15);
+  --color-warning-text: #fbbf24;
   --color-error: #ef4444;
   --color-error-subtle: rgba(239, 68, 68, 0.15);
+  --color-error-text: #fb7185;
+  --color-info: #3b82f6;
+  --color-info-subtle: rgba(59, 130, 246, 0.15);
+  --color-info-text: #93c5fd;
 
   /* 等宽字体 */
   --font-mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
@@ -59,4 +68,68 @@
   --border: 220 20% 18%;
   --input: 220 20% 18%;
   --ring: 221 83% 53%;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg-app: #ffffff;
+  --bg-panel: #f7f7f8;
+  --bg-surface: #f3f4f6;
+  --bg-surface-hover: #eceef1;
+  --bg-surface-active: #e3e6eb;
+  --bg-code: #f6f8fa;
+
+  --border-subtle: #eef0f3;
+  --border-default: #e2e5ea;
+  --border-strong: #c9ced6;
+
+  --text-primary: #1f2328;
+  --text-secondary: #59636e;
+  --text-tertiary: #8b949e;
+  --text-inverse: #ffffff;
+
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-subtle: rgba(37, 99, 235, 0.1);
+  --accent-foreground: #ffffff;
+
+  --color-success: #1a7f37;
+  --color-success-subtle: rgba(26, 127, 55, 0.1);
+  --color-success-text: #1a7f37;
+  --color-warning: #bf8700;
+  --color-warning-subtle: rgba(191, 135, 0, 0.12);
+  --color-warning-text: #9a6700;
+  --color-error: #cf222e;
+  --color-error-subtle: rgba(207, 34, 46, 0.1);
+  --color-error-text: #cf222e;
+  --color-info: #0969da;
+  --color-info-subtle: rgba(9, 105, 218, 0.1);
+  --color-info-text: #0969da;
+
+  --background: 0 0% 100%;
+  --foreground: 213 13% 14%;
+  --card: 220 14% 96%;
+  --card-foreground: 213 13% 14%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 213 13% 14%;
+  --primary: 221 83% 53%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 14% 96%;
+  --secondary-foreground: 213 13% 14%;
+  --muted: 220 14% 93%;
+  --muted-foreground: 212 10% 39%;
+  --accent-ui: 220 13% 91%;
+  --accent-ui-foreground: 213 13% 14%;
+  --destructive: 356 72% 47%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 220 13% 90%;
+  --input: 220 13% 90%;
+  --ring: 221 83% 53%;
+}
+
+/* Shiki 双主题：内联颜色为浅色主题，深色主题改用 --shiki-dark */
+:root:not([data-theme='light']) .shiki,
+:root:not([data-theme='light']) .shiki span {
+  color: var(--shiki-dark) !important;
 }

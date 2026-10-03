@@ -135,6 +135,29 @@ describe('AgyCatalog & CLI parser integration', () => {
     expect(ver).toBeNull();
   });
 
+  it('CLI 提示 Please sign in 时抛出 AGY_NOT_AUTHENTICATED', async () => {
+    const mockExecutor = async () => {
+      const err = new Error(
+        'Command failed: Please sign in to view available models. Launch the CLI without arguments to sign in.',
+      ) as Error & { stdout?: string; stderr?: string };
+      err.stderr = 'Please sign in to view available models.';
+      throw err;
+    };
+
+    const catalog = new AgyCatalog({
+      defaultBin: process.execPath,
+      executor: mockExecutor,
+    });
+
+    try {
+      await catalog.listModels();
+      expect.fail('should throw');
+    } catch (err: any) {
+      expect(err).toBeInstanceOf(AppError);
+      expect(err.code).toBe('AGY_NOT_AUTHENTICATED');
+    }
+  });
+
   it('使用自定义 executor 成功获取和解析模型', async () => {
     const mockExecutor = async (_bin: string, argv: string[]) => {
       if (argv.includes('models')) {

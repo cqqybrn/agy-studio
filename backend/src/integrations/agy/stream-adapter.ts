@@ -237,6 +237,18 @@ export function extractToolTarget(kind: ToolKind, input: Record<string, unknown>
 }
 
 /**
+ * Timeline ids are derived from agy's conversation-wide step index, so the same step read from
+ * stdout or from the transcript on disk maps to the same timeline item.
+ */
+export function stepMessageId(runId: string, stepIndex: number): string {
+  return `msg-${runId}-${stepIndex}`;
+}
+
+export function stepToolCallId(runId: string, stepIndex: number): string {
+  return `tool-${runId}-${stepIndex}`;
+}
+
+/**
  * Converts raw token usage from agy stream into contract TokenUsage.
  */
 function toTokenUsage(raw?: RawUsage): TokenUsage | undefined {
@@ -394,7 +406,7 @@ export function adapt(line: unknown, ctx: AdaptContext): AdaptResult {
         }
 
         case 'agent_response': {
-          const messageId = `msg-${ctx.runId}-${step.step_index}`;
+          const messageId = stepMessageId(ctx.runId, step.step_index);
           const hasDelta = typeof step.text_delta === 'string' && step.text_delta.length > 0;
           if (hasDelta) {
             events.push({
@@ -414,7 +426,7 @@ export function adapt(line: unknown, ctx: AdaptContext): AdaptResult {
 
         case 'tool':
         case 'subagent': {
-          const toolCallId = `tool-${ctx.runId}-${step.step_index}`;
+          const toolCallId = stepToolCallId(ctx.runId, step.step_index);
           const toolName = step.tool_name ?? step.tool_info?.name ?? 'unknown_tool';
           const kind =
             step.step_type === 'subagent' ? 'subagent' : resolveToolKind(toolName, ctx.profile);

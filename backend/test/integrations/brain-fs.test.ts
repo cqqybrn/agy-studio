@@ -15,7 +15,8 @@ import { AppError } from '../../src/utils/errors.js';
 
 const BRAIN_SAMPLE_DIR = path.resolve(__dirname, '../../../fixtures/agy/fs/brain-sample');
 const SUBAGENT_STREAM = path.resolve(__dirname, '../../../fixtures/agy/stream/subagent/stdout.jsonl');
-const PROFILE_PATHS: PathsConfig = loadProfile(path.resolve(__dirname, '../../agy-profile.json')).paths;
+const PROFILE = loadProfile(path.resolve(__dirname, '../../agy-profile.json'));
+const PROFILE_PATHS: PathsConfig = PROFILE.paths;
 
 /** Copies the recorded brain-sample into <dataRoot>/brain/<conversationId>, the real on-disk layout. */
 async function installBrainSample(dataRoot: string, conversationId: string): Promise<string> {
@@ -138,6 +139,52 @@ describe('Integrations: brain-fs.ts', () => {
         { stepIndex: 3, type: 'SYSTEM_MESSAGE' },
         { stepIndex: 4, type: 'PLANNER_RESPONSE' },
       ]);
+    });
+  });
+
+  describe('followRunTranscript', () => {
+    it('yields one batch per new step, mapped to this run\'s events, including steps appended later', async () => {
+      const brain = new BrainFs(PROFILE);
+      const convId = '88888888-8888-4888-8888-888888888888';
+      const file = path.join(dataRoot, 'brain', convId, '.system_generated', 'logs', 'transcript.jsonl');
+      await fs.promises.mkdir(path.dirname(file), { recursive: true });
+      const line = (raw: Record<string, unknown>) => `${JSON.stringify(raw)}\n`;
+      await fs.promises.writeFile(
+        file,
+        line({ step_index: 0, type: 'USER_INPUT', created_at: '2026-10-01T08:00:00Z', content: 'go' }) +
+          line({
+            step_index: 1,
+            type: 'PLANNER_RESPONSE',
+            created_at: '2026-10-01T08:00:01Z',
+            content: 'Connecting.',
+            tool_calls: [{ name: 'run_command', args: { CommandLine: '"ssh host"' } }],
+          }),
+        'utf-8',
+      );
+
+      const handle = await brain.followRunTranscript(
+        convId,
+        { runId: 'run-9', runStartedAt: '2026-10-01T08:00:00.300Z' },
+        dataRoot,
+      );
+      const batches: string[][] = [];
+      try {
+        for await (const batch of handle.batches) {
+          batches.push(batch.map((e) => e.type));
+          if (batches.length === 2) {
+            await fs.promises.appendFile(
+              file,
+              line({ step_index: 2, type: 'GENERIC', status: 'RUNNING', created_at: '2026-10-01T08:00:02Z' }),
+              'utf-8',
+            );
+          }
+          if (batches.length === 3) break;
+        }
+      } finally {
+        handle.stop();
+      }
+
+      expect(batches).toEqual([[], ['message.delta', 'message.done'], ['tool.started']]);
     });
   });
 

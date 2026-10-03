@@ -73,7 +73,7 @@ export function MediaGallery({
                   onClick={() => setPreviewImage(image)}
                   className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-lg border bg-bg-surface transition-all duration-300 hover:border-accent hover:shadow-md ${
                     isHigh
-                      ? 'border-amber-500 ring-2 ring-amber-500/50'
+                      ? 'border-status-warning ring-2 ring-status-warning/50'
                       : 'border-border-default'
                   }`}
                   data-testid={`image-card-${image.id}`}
@@ -123,7 +123,7 @@ export function MediaGallery({
                   key={video.id}
                   className={`flex flex-col overflow-hidden rounded-lg border bg-bg-surface p-2.5 transition-all duration-300 ${
                     isHigh
-                      ? 'border-amber-500 ring-2 ring-amber-500/50'
+                      ? 'border-status-warning ring-2 ring-status-warning/50'
                       : 'border-border-default'
                   }`}
                   data-testid={`video-card-${video.id}`}

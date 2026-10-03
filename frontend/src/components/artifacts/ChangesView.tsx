@@ -226,17 +226,17 @@ export function ChangesView({
       {/* 顶部状态提示栏：回滚成功提示 */}
       {rollbackSuccessMsg && (
         <div
-          className="flex items-center justify-between border-b border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-emerald-300"
+          className="flex items-center justify-between border-b border-status-success/30 bg-status-success-subtle px-3 py-2 text-status-success-text"
           data-testid="rollback-success-msg"
         >
           <div className="flex items-center gap-2">
-            <CheckCircleIcon className="h-4 w-4 shrink-0 text-emerald-400" />
+            <CheckCircleIcon className="h-4 w-4 shrink-0 text-status-success-text" />
             <span className="font-medium">{rollbackSuccessMsg}</span>
           </div>
           <button
             type="button"
             onClick={() => setRollbackSuccessMsg(null)}
-            className="rounded p-0.5 text-emerald-400 hover:bg-emerald-500/20"
+            className="rounded p-0.5 text-status-success-text hover:bg-status-success-subtle"
             title="关闭提示"
           >
             ✕
@@ -247,11 +247,11 @@ export function ChangesView({
       {/* 顶部全局错误提示 */}
       {(error || rollbackErrorMsg) && !rollbackTarget && (
         <div
-          className="flex items-center justify-between border-b border-rose-500/30 bg-rose-500/10 px-3 py-2 text-rose-300"
+          className="flex items-center justify-between border-b border-status-error/30 bg-status-error-subtle px-3 py-2 text-status-error-text"
           data-testid="rollback-error-msg"
         >
           <div className="flex items-center gap-2">
-            <AlertTriangleIcon className="h-4 w-4 shrink-0 text-rose-400" />
+            <AlertTriangleIcon className="h-4 w-4 shrink-0 text-status-error-text" />
             <span>{error || rollbackErrorMsg}</span>
           </div>
           <button
@@ -260,7 +260,7 @@ export function ChangesView({
               setError(null);
               setRollbackErrorMsg(null);
             }}
-            className="rounded p-0.5 text-rose-400 hover:bg-rose-500/20"
+            className="rounded p-0.5 text-status-error-text hover:bg-status-error-subtle"
             title="关闭提示"
           >
             ✕
@@ -271,10 +271,10 @@ export function ChangesView({
       {/* 运行中警告栏 */}
       {isRunning && (
         <div
-          className="flex items-center gap-2 border-b border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-300"
+          className="flex items-center gap-2 border-b border-status-warning/20 bg-status-warning-subtle px-3 py-1.5 text-[11px] text-status-warning-text"
           data-testid="running-status-notice"
         >
-          <LoadingSpinner className="h-3 w-3 animate-spin text-amber-400 shrink-0" />
+          <LoadingSpinner className="h-3 w-3 animate-spin text-status-warning-text shrink-0" />
           <span>当前会话正在运行中，回滚操作已锁定。</span>
         </div>
       )}
@@ -370,7 +370,7 @@ export function ChangesView({
                       className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
                         isRunning
                           ? 'cursor-not-allowed border-border-subtle bg-bg-panel/50 text-text-tertiary opacity-50'
-                          : 'border-amber-500/30 bg-amber-500/10 text-amber-300 hover:border-amber-500/60 hover:bg-amber-500/20'
+                          : 'border-status-warning/30 bg-status-warning-subtle text-status-warning-text hover:border-status-warning/60 hover:bg-status-warning-subtle'
                       }`}
                     >
                       <span>{isRunning ? '运行中无法回滚' : '回滚到此检查点'}</span>
@@ -396,17 +396,17 @@ export function ChangesView({
 
                     {diffError && (
                       <div
-                        className="rounded border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300 flex items-center justify-between"
+                        className="rounded border border-status-error/30 bg-status-error-subtle p-3 text-xs text-status-error-text flex items-center justify-between"
                         data-testid="diff-error"
                       >
                         <div className="flex items-center gap-2">
-                          <AlertTriangleIcon className="h-4 w-4 text-rose-400 shrink-0" />
+                          <AlertTriangleIcon className="h-4 w-4 text-status-error-text shrink-0" />
                           <span>{`加载差异失败: ${diffError}`}</span>
                         </div>
                         <button
                           type="button"
                           onClick={() => void fetchDiffForCheckpoint(cp.id)}
-                          className="rounded border border-rose-500/40 px-2 py-0.5 text-xs text-rose-200 hover:bg-rose-500/20"
+                          className="rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error-text hover:bg-status-error-subtle"
                         >
                           重试
                         </button>
@@ -435,7 +435,7 @@ export function ChangesView({
           <div className="w-full max-w-md rounded-lg border border-border-strong bg-bg-panel shadow-2xl overflow-hidden">
             {/* 模态框顶部 */}
             <div className="flex items-center justify-between border-b border-border-default bg-bg-surface px-4 py-3">
-              <div className="flex items-center gap-2 text-amber-400 font-semibold text-sm">
+              <div className="flex items-center gap-2 text-status-warning-text font-semibold text-sm">
                 <AlertTriangleIcon className="h-4 w-4" />
                 <span>确认回滚到此检查点？</span>
               </div>
@@ -482,10 +482,10 @@ export function ChangesView({
 
               {/* 关键警示文案（严格符合说明要求） */}
               <div
-                className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200 leading-relaxed"
+                className="rounded-md border border-status-warning/30 bg-status-warning-subtle p-3 text-xs text-status-warning-text leading-relaxed"
                 data-testid="rollback-warning-text"
               >
-                <div className="font-semibold text-amber-300 mb-1 flex items-center gap-1.5">
+                <div className="font-semibold text-status-warning-text mb-1 flex items-center gap-1.5">
                   <AlertTriangleIcon className="h-3.5 w-3.5" />
                   <span>注意：</span>
                 </div>
@@ -495,10 +495,10 @@ export function ChangesView({
               {/* 回滚报错提示 */}
               {rollbackErrorMsg && (
                 <div
-                  className="rounded border border-rose-500/30 bg-rose-500/10 p-2.5 text-xs text-rose-300 flex items-start gap-2"
+                  className="rounded border border-status-error/30 bg-status-error-subtle p-2.5 text-xs text-status-error-text flex items-start gap-2"
                   data-testid="rollback-error-msg"
                 >
-                  <XCircleIcon className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
+                  <XCircleIcon className="h-4 w-4 shrink-0 text-status-error-text mt-0.5" />
                   <div className="flex-1">
                     <p className="font-medium">回滚失败：</p>
                     <p className="mt-0.5 opacity-90">{rollbackErrorMsg}</p>
@@ -523,7 +523,7 @@ export function ChangesView({
                 disabled={rollingBack || isRunning}
                 onClick={handleConfirmRollback}
                 data-testid="confirm-rollback-btn"
-                className="flex items-center gap-1.5 rounded-md bg-amber-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-amber-500 transition-colors shadow-sm disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-md bg-status-warning px-4 py-1.5 text-xs font-medium text-accent-foreground hover:bg-status-warning/90 transition-colors shadow-sm disabled:opacity-50"
               >
                 {rollingBack && <LoadingSpinner className="h-3.5 w-3.5 animate-spin" />}
                 <span>{rollingBack ? '正在回滚...' : '确认回滚'}</span>

@@ -8,4 +8,7 @@ export * from './ErrorNotice';
 export * from './StalledNotice';
 export * from './SubagentCard';
 export * from './SubagentCardContainer';
+export * from './CopyButton';
+export * from './asciiBox';
 export * from './icons';
+export * from './rows';

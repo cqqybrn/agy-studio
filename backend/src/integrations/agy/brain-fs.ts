@@ -1,4 +1,5 @@
 import type {
+  AgentEvent,
   Artifact,
   ArtifactKind,
   TranscriptStep,
@@ -9,6 +10,8 @@ import type {
   ArtifactWatchHandle,
   BrainPort,
   DiskConversationSummary,
+  RunTranscriptHandle,
+  RunTranscriptOptions,
   TranscriptTailHandle,
   TranscriptTailOptions,
 } from '../../services/ports/brain.port.js';
@@ -25,7 +28,12 @@ import {
   type PathResolveOptions,
 } from './paths.js';
 import type { AgyProfile, PathsConfig } from './profile/schema.js';
-import { extractSubagentConversationIds, parseLine, tail } from './transcript.js';
+import {
+  extractSubagentConversationIds,
+  parseLine,
+  RunTranscriptMapper,
+  tail,
+} from './transcript.js';
 
 export { getDefaultPaths, resolveDataRoots } from './paths.js';
 
@@ -308,11 +316,13 @@ async function removeInsideRoot(
 
 export class BrainFs implements BrainPort {
   readonly paths: PathsConfig;
+  private readonly profile?: AgyProfile;
 
   constructor(profileOrPaths?: AgyProfile | PathsConfig) {
     if (profileOrPaths) {
       if ('paths' in profileOrPaths) {
         this.paths = profileOrPaths.paths;
+        this.profile = profileOrPaths;
       } else {
         this.paths = profileOrPaths;
       }
@@ -433,6 +443,26 @@ export class BrainFs implements BrainPort {
       },
       this.paths,
     );
+  }
+
+  /**
+   * Follow the main conversation's transcript for one run, mapped to timeline events.
+   */
+  async followRunTranscript(
+    conversationId: string,
+    options: RunTranscriptOptions,
+    dataRoot?: string,
+  ): Promise<RunTranscriptHandle> {
+    const handle = tail(conversationId, { dataRoot }, this.paths);
+    const mapper = new RunTranscriptMapper({ ...options, profile: this.profile });
+
+    async function* batches(): AsyncGenerator<AgentEvent[], void, unknown> {
+      for await (const step of handle.steps) {
+        yield mapper.push(step);
+      }
+    }
+
+    return { batches: batches(), stop: () => handle.stop() };
   }
 
   /**

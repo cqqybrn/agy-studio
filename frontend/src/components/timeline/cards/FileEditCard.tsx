@@ -1,20 +1,25 @@
-import React, { useState } from 'react';
+import React from 'react';
 import type { ToolCall } from '@agy-studio/contracts';
 import { ChevronDownIcon, ChevronRightIcon, FileCodeIcon } from '../icons';
 import { StatusDot } from '../StatusDot';
+import { useExpandState } from '../useExpandState';
 
 export interface FileEditCardProps {
   tool: ToolCall;
   defaultExpanded?: boolean;
+  expanded?: boolean;
+  onExpandedChange?: (next: boolean) => void;
   className?: string;
 }
 
 export function FileEditCard({
   tool,
   defaultExpanded = false,
+  expanded,
+  onExpandedChange,
   className = '',
 }: FileEditCardProps) {
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const [isExpanded, toggleExpanded] = useExpandState(defaultExpanded, expanded, onExpandedChange);
 
   const input = tool.input || {};
   const filePath = tool.target || tool.fileChanges[0]?.path || tool.name;
@@ -52,14 +57,14 @@ export function FileEditCard({
   return (
     <div
       className={`my-1.5 rounded-md border border-border-default bg-bg-surface/50 text-xs transition-colors hover:border-border-strong ${
-        tool.status === 'failed' ? 'border-red-500/40 bg-red-950/10' : ''
+        tool.status === 'failed' ? 'border-status-error/40 bg-status-error-subtle' : ''
       } ${className}`}
       data-testid="file-edit-card"
       data-kind={tool.kind}
     >
       <button
         type="button"
-        onClick={() => setIsExpanded((prev) => !prev)}
+        onClick={toggleExpanded}
         className="flex w-full items-center justify-between px-3 py-2 text-left text-text-secondary hover:text-text-primary transition-colors select-none focus:outline-none"
         aria-expanded={isExpanded}
         data-testid="file-edit-toggle-btn"
@@ -87,12 +92,12 @@ export function FileEditCard({
           {(additions > 0 || deletions > 0) && (
             <div className="flex items-center gap-1 font-mono text-[11px]">
               {additions > 0 && (
-                <span className="rounded bg-emerald-500/10 px-1 py-0.2 text-emerald-400 border border-emerald-500/20">
+                <span className="rounded bg-status-success-subtle px-1 py-0.2 text-status-success-text border border-status-success/20">
                   {`+${additions}`}
                 </span>
               )}
               {deletions > 0 && (
-                <span className="rounded bg-rose-500/10 px-1 py-0.2 text-rose-400 border border-rose-500/20">
+                <span className="rounded bg-status-error-subtle px-1 py-0.2 text-status-error-text border border-status-error/20">
                   {`−${deletions}`}
                 </span>
               )}
@@ -105,7 +110,7 @@ export function FileEditCard({
       {isExpanded && (
         <div className="border-t border-border-subtle bg-bg-app/40 p-3 space-y-2">
           {tool.error && (
-            <div className="rounded bg-rose-500/10 border border-rose-500/30 p-2 text-xs font-mono text-rose-300">
+            <div className="rounded bg-status-error-subtle border border-status-error/30 p-2 text-xs font-mono text-status-error-text">
               {tool.error}
             </div>
           )}
@@ -114,20 +119,20 @@ export function FileEditCard({
             <div className="space-y-1.5 font-mono text-xs">
               {input.old_string !== undefined && (
                 <div>
-                  <div className="text-[10px] font-sans text-rose-400 uppercase tracking-wider mb-0.5">
+                  <div className="text-[10px] font-sans text-status-error-text uppercase tracking-wider mb-0.5">
                     Original Text
                   </div>
-                  <pre className="max-h-40 overflow-x-auto rounded border border-rose-500/20 bg-rose-950/20 p-2 text-text-secondary whitespace-pre-wrap">
+                  <pre className="max-h-40 overflow-x-auto rounded border border-status-error/20 bg-status-error-subtle p-2 text-text-secondary whitespace-pre-wrap">
                     {String(input.old_string)}
                   </pre>
                 </div>
               )}
               {input.new_string !== undefined && (
                 <div>
-                  <div className="text-[10px] font-sans text-emerald-400 uppercase tracking-wider mb-0.5">
+                  <div className="text-[10px] font-sans text-status-success-text uppercase tracking-wider mb-0.5">
                     Replacement Text
                   </div>
-                  <pre className="max-h-40 overflow-x-auto rounded border border-emerald-500/20 bg-emerald-950/20 p-2 text-text-secondary whitespace-pre-wrap">
+                  <pre className="max-h-40 overflow-x-auto rounded border border-status-success/20 bg-status-success-subtle p-2 text-text-secondary whitespace-pre-wrap">
                     {String(input.new_string)}
                   </pre>
                 </div>
@@ -140,13 +145,13 @@ export function FileEditCard({
               <div className="text-[10px] text-text-tertiary uppercase tracking-wider mb-1">
                 Patch / Content
               </div>
-              <pre className="max-h-60 overflow-auto rounded border border-border-default bg-[#0a0d14] p-2.5 font-mono text-xs text-text-secondary leading-relaxed">
+              <pre className="max-h-60 overflow-auto rounded border border-border-default bg-bg-code p-2.5 font-mono text-xs text-text-secondary leading-relaxed">
                 {patchContent.split('\n').map((line, idx) => {
                   let lineClass = 'text-text-secondary';
                   if (line.startsWith('+') && !line.startsWith('+++')) {
-                    lineClass = 'text-emerald-400 bg-emerald-500/10';
+                    lineClass = 'text-status-success-text bg-status-success-subtle';
                   } else if (line.startsWith('-') && !line.startsWith('---')) {
-                    lineClass = 'text-rose-400 bg-rose-500/10';
+                    lineClass = 'text-status-error-text bg-status-error-subtle';
                   } else if (line.startsWith('@@')) {
                     lineClass = 'text-accent';
                   }

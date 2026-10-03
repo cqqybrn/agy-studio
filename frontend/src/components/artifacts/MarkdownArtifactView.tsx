@@ -135,7 +135,7 @@ export function MarkdownArtifactView({
       onMouseUp={handleMouseUp}
       className={`relative flex flex-col p-4 text-xs transition-colors duration-500 ${
         isHighlighted
-          ? 'rounded-lg bg-amber-500/10 ring-2 ring-amber-500/60 shadow-[0_0_12px_rgba(245,158,11,0.2)]'
+          ? 'rounded-lg bg-status-warning-subtle ring-2 ring-status-warning/60'
           : ''
       } ${className}`}
       data-testid="markdown-artifact-view"
@@ -143,7 +143,7 @@ export function MarkdownArtifactView({
     >
       {/* 刷新通知标牌 */}
       {isHighlighted && (
-        <div className="mb-3 flex items-center justify-between rounded bg-amber-500/15 px-3 py-1 text-amber-500">
+        <div className="mb-3 flex items-center justify-between rounded bg-status-warning-subtle px-3 py-1 text-status-warning-text">
           <span className="font-medium">内容刚刚已刷新</span>
           <span className="font-mono text-[10px]">实时同步</span>
         </div>
@@ -167,7 +167,7 @@ export function MarkdownArtifactView({
             <button
               type="button"
               onClick={handleOpenComment}
-              className="flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-white shadow-lg hover:bg-accent/90 focus:outline-none"
+              className="flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground shadow-lg hover:bg-accent-hover focus:outline-none"
               data-testid="plan-comment-btn"
             >
               <span>💬</span>
@@ -221,7 +221,7 @@ export function MarkdownArtifactView({
                   type="button"
                   disabled={isSending}
                   onClick={() => void handleSendComment()}
-                  className="rounded bg-accent px-2.5 py-1 text-[11px] font-medium text-white hover:bg-accent/90 disabled:opacity-50"
+                  className="rounded bg-accent px-2.5 py-1 text-[11px] font-medium text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
                   data-testid="plan-comment-submit-btn"
                 >
                   {isSending ? '发送中...' : '发送'}

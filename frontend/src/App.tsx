@@ -3,9 +3,9 @@ import type { Session } from '@agy-studio/contracts';
 import { RouterProvider, useRouter } from './router';
 import { AccountsView, ManagerView, PlaygroundView, SettingsView } from './views';
 import { useWorkspaceStore } from './stores/workspace.store';
-import { useCurrentModelId, useModelsStore } from './stores/models.store';
-import { usePrefsStore } from './stores/prefs.store';
-import { ModelPicker } from './components/composer';
+import { useUiStore } from './stores/ui.store';
+import { applyTheme, watchSystemTheme } from './theme';
+import { ThemeToggle } from './components/common/ThemeToggle';
 import {
   InboxList,
   ImportSessionsButton,
@@ -27,16 +27,21 @@ const MAX_RIGHT_WIDTH = 640;
 function TopBar() {
   const { path, navigate } = useRouter();
   const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
-  const models = useModelsStore((s) => s.models);
-  const currentModelId = useCurrentModelId();
-  const updatePrefs = usePrefsStore((s) => s.updatePrefs);
+  const themePreference = useUiStore((s) => s.themePreference);
+  const setThemePreference = useUiStore((s) => s.setThemePreference);
+
+  useEffect(() => {
+    applyTheme(themePreference);
+    if (themePreference !== 'system') return undefined;
+    return watchSystemTheme(() => applyTheme('system'));
+  }, [themePreference]);
 
   return (
     <header className="flex h-12 w-full shrink-0 items-center justify-between border-b border-border-default bg-bg-panel px-4 text-xs select-none">
       {/* 左侧：工作区选择与导航 */}
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2 font-medium text-text-primary">
-          <span className="flex h-5 w-5 items-center justify-center rounded bg-accent text-[11px] font-bold text-white shadow-sm">
+          <span className="flex h-5 w-5 items-center justify-center rounded bg-accent text-[11px] font-bold text-accent-foreground shadow-sm">
             A
           </span>
           <span className="tracking-wide">AGY Studio</span>
@@ -109,26 +114,12 @@ function TopBar() {
             </button>
           )}
         </nav>
-
-        <div className="h-3.5 w-px bg-border-subtle mx-1" />
-
-        <div
-          className="flex items-center gap-1.5 text-text-secondary"
-          data-testid="model-selector"
-        >
-          <span className="text-text-tertiary">模型:</span>
-          <ModelPicker
-            value={currentModelId}
-            models={models}
-            onChange={(id) => {
-              void updatePrefs({ defaultModel: id }).catch(() => {});
-            }}
-          />
-        </div>
       </div>
 
       {/* 右侧：额度环、账号、连接状态 */}
       <div className="flex items-center gap-3">
+        <ThemeToggle value={themePreference} onChange={setThemePreference} />
+
         {/* 额度指示器与弹出面板 */}
         <QuotaRing />
 

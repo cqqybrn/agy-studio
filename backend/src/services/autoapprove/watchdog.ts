@@ -141,12 +141,19 @@ export class Watchdog {
       this.activeSubagents.delete(event.conversationId);
     }
 
-    // New runner output received: reset stalled state
+    this.touch();
+  }
+
+  /**
+   * Records progress observed outside stdout (e.g. new transcript steps while stdout is held back
+   * behind a step that never finishes), resetting the idle timer and stalled state.
+   */
+  touch(): void {
+    if (this.isStopped) return;
     this.lastOutputTime = Date.now();
     if (this.isStalled) {
       this.isStalled = false;
     }
-
     this.scheduleCheck();
   }
 

@@ -1,11 +1,23 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AGY Studio</title>
+    <script>
+      (function () {
+        var pref = 'dark';
+        try {
+          pref = localStorage.getItem('agy-studio-theme') || 'dark';
+        } catch (e) {}
+        if (pref === 'system') {
+          pref = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.dataset.theme = pref === 'light' ? 'light' : 'dark';
+      })();
+    </script>
   </head>
-  <body class="bg-gray-950 text-gray-100 min-h-screen">
+  <body class="bg-bg-app text-text-primary min-h-screen">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

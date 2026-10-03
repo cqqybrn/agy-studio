@@ -6,25 +6,39 @@ import { usePrefsStore } from './prefs.store';
 export interface ModelsState {
   models: Model[];
   loading: boolean;
+  fetched: boolean;
   error: string | null;
 
   fetchModels: (refresh?: boolean) => Promise<Model[]>;
 }
 
+function modelsErrorMessage(err: unknown): string {
+  if (err && typeof err === 'object' && 'code' in err) {
+    const code = (err as { code?: string }).code;
+    if (code === 'AGY_NOT_AUTHENTICATED') {
+      return 'agy 未登录，请到账号页登录后再刷新模型';
+    }
+    if (code === 'AGY_NOT_INSTALLED') {
+      return '未找到 agy，无法加载模型列表';
+    }
+  }
+  return err instanceof Error ? err.message : String(err);
+}
+
 export const useModelsStore = create<ModelsState>()((set) => ({
   models: [],
   loading: false,
+  fetched: false,
   error: null,
 
   fetchModels: async (refresh?: boolean) => {
     set({ loading: true, error: null });
     try {
       const models = await getModels(refresh ? { refresh: true } : undefined);
-      set({ models, loading: false });
+      set({ models, loading: false, fetched: true, error: null });
       return models;
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      set({ loading: false, error: msg });
+      set({ loading: false, fetched: true, error: modelsErrorMessage(err) });
       return [];
     }
   },

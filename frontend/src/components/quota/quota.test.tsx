@@ -9,6 +9,7 @@ import {
   formatResetCountdown,
   getMinRemainingFraction,
   getQuotaColorLevel,
+  localizeQuotaLabel,
   QuotaPanel,
   QuotaRing,
 } from './index';
@@ -165,9 +166,19 @@ describe('Quota Helper Functions (formatQuota)', () => {
 
   it('formats quota source correctly', () => {
     expect(formatQuotaSource('quota_api')).toBe('额度接口');
-    expect(formatQuotaSource('statusline')).toBe('Statusline');
-    expect(formatQuotaSource('cli_probe')).toBe('CLI 探针');
+    expect(formatQuotaSource('statusline')).toBe('状态行');
+    expect(formatQuotaSource('cli_probe')).toBe('命令行探测');
     expect(formatQuotaSource('unavailable')).toBe('不可用');
+  });
+
+  it('localizes English quota labels from the API', () => {
+    expect(localizeQuotaLabel('Model Quotas')).toBe('模型额度');
+    expect(localizeQuotaLabel('Google AI Pro')).toBe('Google AI 专业版');
+    expect(localizeQuotaLabel('Weekly Limit Remaining')).toBe('每周剩余额度');
+    expect(localizeQuotaLabel('Five Hour Limit Remaining')).toBe('五小时剩余额度');
+    expect(localizeQuotaLabel('Gemini Models')).toBe('Gemini 模型');
+    expect(localizeQuotaLabel('Claude and GPT models')).toBe('Claude 与 GPT 模型');
+    expect(localizeQuotaLabel('常用模型')).toBe('常用模型');
   });
 });
 
@@ -336,12 +347,22 @@ describe('QuotaPanel Component', () => {
   });
 
   it('renders unavailable state block when source is unavailable', () => {
-    const unavailSnap = createSnapshot({ source: 'unavailable', groups: [] });
+    const unavailSnap = createSnapshot({ source: 'unavailable', groups: [], description: null });
     const html = renderToString(<QuotaPanel snapshot={unavailSnap} />);
     expect(html).toContain('data-testid="quota-unavailable-state"');
     expect(html).toContain('额度暂不可用');
     expect(html).toContain('这不影响正常的会话交互与任务执行');
     expect(html).toContain('data-testid="refresh-quota-button"');
+  });
+
+  it('renders probe failure description in the unavailable block', () => {
+    const unavailSnap = createSnapshot({
+      source: 'unavailable',
+      groups: [],
+      description: '查询超时：无法在限定时间内连上 Google 额度接口，请检查网络后重试',
+    });
+    const html = renderToString(<QuotaPanel snapshot={unavailSnap} />);
+    expect(html).toContain('查询超时：无法在限定时间内连上 Google 额度接口');
   });
 
   it('renders loading state for refresh button', () => {

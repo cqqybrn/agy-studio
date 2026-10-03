@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type Database from 'better-sqlite3';
 import type { AgentMode, Model } from '@agy-studio/contracts';
@@ -166,5 +169,41 @@ describe('ModelService', () => {
     } catch (err: any) {
       expect(err.code).toBe('AGY_NOT_INSTALLED');
     }
+  });
+
+  it('catalog 失败时回退到磁盘缓存而不是报错', async () => {
+    const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agy-models-'));
+    fs.writeFileSync(
+      path.join(dataDir, 'models-cache.json'),
+      JSON.stringify({ models: mockModels }),
+    );
+    mockCatalogPort.listModels = vi
+      .fn()
+      .mockRejectedValue(new AppError('AGY_NOT_AUTHENTICATED', 'Please sign in'));
+
+    const modelService = new ModelService({
+      catalogPort: mockCatalogPort,
+      prefsService,
+      config: { host: '127.0.0.1', port: 8790, dataDir },
+    });
+
+    const models = await modelService.listModels();
+    expect(mockCatalogPort.listModels).not.toHaveBeenCalled();
+    expect(models.map((m) => m.id)).toEqual(mockModels.map((m) => m.id));
+  });
+
+  it('刷新前调用 ensureCredentials，再拉取模型列表', async () => {
+    const ensureCredentials = vi.fn().mockResolvedValue(undefined);
+
+    const modelService = new ModelService({
+      catalogPort: mockCatalogPort,
+      prefsService,
+      ensureCredentials,
+    });
+
+    const models = await modelService.listModels();
+    expect(ensureCredentials).toHaveBeenCalledTimes(1);
+    expect(mockCatalogPort.listModels).toHaveBeenCalledTimes(1);
+    expect(models.map((m) => m.id)).toEqual(mockModels.map((m) => m.id));
   });
 });

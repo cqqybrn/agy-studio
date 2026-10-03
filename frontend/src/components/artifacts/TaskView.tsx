@@ -130,7 +130,7 @@ export function TaskView({
     <div
       className={`flex flex-col gap-4 p-4 text-xs transition-colors duration-500 ${
         isHighlighted
-          ? 'rounded-lg bg-amber-500/10 ring-2 ring-amber-500/60 shadow-[0_0_12px_rgba(245,158,11,0.2)]'
+          ? 'rounded-lg bg-status-warning-subtle ring-2 ring-status-warning/60'
           : ''
       } ${className}`}
       data-testid="task-view"
@@ -142,7 +142,7 @@ export function TaskView({
           <div className="flex items-center gap-2">
             <span className="font-medium text-text-primary">任务完成度</span>
             {isHighlighted && (
-              <span className="rounded bg-amber-500/20 px-1.5 py-0.5 font-mono text-[10px] text-amber-500 font-semibold animate-pulse">
+              <span className="rounded bg-status-warning-subtle px-1.5 py-0.5 font-mono text-[10px] text-status-warning-text font-semibold animate-pulse">
                 已刷新
               </span>
             )}
@@ -159,7 +159,7 @@ export function TaskView({
         <div className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-bg-panel border border-border-default">
           <div
             className={`h-full transition-all duration-300 ${
-              isAllCompleted ? 'bg-[#10b981]' : 'bg-accent'
+              isAllCompleted ? 'bg-status-success' : 'bg-accent'
             }`}
             style={{ width: `${stats.percentage}%` }}
             data-testid="task-progress-bar"
@@ -196,7 +196,7 @@ export function TaskView({
                     <span
                       className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
                         item.completed
-                          ? 'border-[#10b981] bg-[#10b981] text-white'
+                          ? 'border-status-success bg-status-success text-accent-foreground'
                           : 'border-border-strong bg-bg-panel text-transparent group-hover:border-accent'
                       }`}
                     >

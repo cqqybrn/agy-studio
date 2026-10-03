@@ -166,7 +166,7 @@ describe('Artifacts Components & Integration', () => {
 
       const htmlAll = renderToString(<TaskView content={allCompletedMarkdown} />);
       expect(htmlAll).toContain('2 / 2 Completed · 100%');
-      expect(htmlAll).toContain('bg-[#10b981]');
+      expect(htmlAll).toContain('bg-status-success');
 
       const emptyParsed = parseTaskList('');
       expect(emptyParsed.stats.total).toBe(0);
