@@ -93,6 +93,20 @@ export async function createIndependentSession(page: Page): Promise<void> {
 }
 
 /**
+ * 展开时间线里所有折叠的 "Worked for Xs" 块与工具分组。
+ * 思考、工具调用、子 agent 卡片都收在这些折叠块里，运行结束后默认折叠。
+ */
+export async function expandWorkedBlocks(page: Page): Promise<void> {
+  const collapsed = page.locator(
+    '[data-testid="worked-toggle"][aria-expanded="false"], [data-testid="tool-group-toggle"][aria-expanded="false"]',
+  );
+  // 展开外层后才会出现内层分组，所以循环到没有折叠项为止（设上限防止死循环）
+  for (let i = 0; i < 20 && (await collapsed.count()) > 0; i++) {
+    await collapsed.first().click();
+  }
+}
+
+/**
  * 发送消息并等待响应开始
  */
 export async function sendMessage(page: Page, text: string): Promise<void> {
