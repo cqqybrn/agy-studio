@@ -36,7 +36,6 @@ describe('Prefs HTTP Routes', () => {
     expect(res.statusCode).toBe(200);
     const body: Prefs = JSON.parse(res.body);
     expect(body.showThinking).toBe(true);
-    expect(body.checkpointsEnabled).toBe(true);
     expect(body.maxConcurrentRuns).toBe(3);
     expect(body.stallTimeoutSeconds).toBe(180);
     expect(body.defaultModel).toBeNull();

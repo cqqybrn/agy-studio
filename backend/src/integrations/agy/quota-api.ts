@@ -308,7 +308,9 @@ export class QuotaApiClient implements QuotaProbePort {
         let errJson: { error?: string; error_description?: string } = {};
         try {
           errJson = (await res.json()) as typeof errJson;
-        } catch {}
+        } catch {
+          // non-JSON error body: fall through to the generic 401 handling
+        }
 
         if (errJson.error === 'invalid_client') {
           this.oauthClientManager.markSecretInvalid(creds.clientId, creds.clientSecret);
@@ -329,7 +331,9 @@ export class QuotaApiClient implements QuotaProbePort {
         let errJson: { error?: string; error_description?: string } = {};
         try {
           errJson = (await res.json()) as typeof errJson;
-        } catch {}
+        } catch {
+          // non-JSON error body: fall through to the generic 400 handling
+        }
 
         if (errJson.error === 'invalid_grant') {
           throw new AppError(

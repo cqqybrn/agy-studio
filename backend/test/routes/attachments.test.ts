@@ -190,7 +190,6 @@ describe('Attachments HTTP Routes', () => {
 
     it('rejects oversized image with ATTACHMENT_TOO_LARGE', async () => {
       // Mock an image larger than imageMaxBytes
-      const largeSize = UPLOAD_LIMITS.imageMaxBytes + 1024;
       const largeBuffer = Buffer.alloc(100); // We can simulate size check in test
       const { contentType, payload } = buildMultipartBody({ workspaceId }, [
         {
@@ -263,7 +262,7 @@ describe('Attachments HTTP Routes', () => {
       expect(res.body).toBe('dummy pdf binary');
       expect(res.headers['content-type']).toBe('application/pdf');
       expect(res.headers['x-content-type-options']).toBe('nosniff');
-      expect(res.headers['content-disposition']).toBe('inline; filename=\"manual.pdf\"');
+      expect(res.headers['content-disposition']).toBe('inline; filename="manual.pdf"');
     });
 
     it('returns 404 if attachment is not found', async () => {

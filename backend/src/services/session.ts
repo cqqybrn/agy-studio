@@ -227,8 +227,8 @@ export class SessionService implements SessionServicePort {
       }
       try {
         await this.brainPort.purgeConversation(session.agyConversationId, dataRoot);
-      } catch (err) {
-        // Log or handle purge error; continue deleting from repo
+      } catch {
+        // Purge failures must not block deleting the session from the repo
       }
     }
 
@@ -311,8 +311,9 @@ export class SessionService implements SessionServicePort {
         if (event.type === 'run.completed' && event.agyConversationId) {
           conversationId = event.agyConversationId;
         } else if (event.type === 'raw' && event.payload && typeof event.payload === 'object') {
-          const payload = event.payload as Record<string, any>;
-          conversationId = payload.conversationId || payload.conversation_id || null;
+          const payload = event.payload as { conversationId?: unknown; conversation_id?: unknown };
+          const id = payload.conversationId || payload.conversation_id;
+          conversationId = typeof id === 'string' ? id : null;
         }
 
         if (conversationId) {
@@ -415,14 +416,14 @@ export class SessionService implements SessionServicePort {
         const sessionId = createId('session');
 
         // 读取 transcript 转成事件写入 events 表
-        let envelopes: SessionEventEnvelope[] = [];
+        const envelopes: SessionEventEnvelope[] = [];
         let seq = 1;
 
         try {
           const handle = await this.brainPort.tailTranscript(conv.id, undefined, target.dataRoot);
           for await (const step of handle.steps) {
             // 将 transcript step 转换为事件
-            let text = step.content || '';
+            const text = step.content || '';
             const isUser = step.type.toLowerCase().includes('user');
 
             if (isUser) {

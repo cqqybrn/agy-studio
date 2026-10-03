@@ -58,6 +58,7 @@ export function parseLine(line: string): TranscriptStep | null {
     return null;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- walks untyped agy transcript JSON
   let raw: Record<string, any>;
   try {
     const parsed = JSON.parse(trimmed);
@@ -127,8 +128,11 @@ export function parseLine(line: string): TranscriptStep | null {
     content = raw.content.text;
   } else if (Array.isArray(raw.content)) {
     const texts = raw.content
-      .filter((c: any) => c && typeof c === 'object' && typeof c.text === 'string')
-      .map((c: any) => c.text);
+      .filter(
+        (c: unknown): c is { text: string } =>
+          !!c && typeof c === 'object' && typeof (c as { text?: unknown }).text === 'string',
+      )
+      .map((c: { text: string }) => c.text);
     if (texts.length > 0) {
       content = texts.join('\n');
     }
@@ -219,8 +223,9 @@ function pushSubagentConversationIds(subagents: unknown, out: string[]): void {
   }
   if (!Array.isArray(list)) return;
   for (const sa of list) {
-    if (sa && typeof sa === 'object' && typeof (sa as any).conversation_id === 'string') {
-      out.push((sa as any).conversation_id);
+    const id = sa && typeof sa === 'object' ? (sa as { conversation_id?: unknown }).conversation_id : undefined;
+    if (typeof id === 'string') {
+      out.push(id);
     }
   }
 }
@@ -236,6 +241,7 @@ export function extractSubagentConversationIds(text: string): string[] {
   for (const line of text.split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed) continue;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- walks untyped agy step JSON
     let raw: any;
     try {
       raw = JSON.parse(trimmed);

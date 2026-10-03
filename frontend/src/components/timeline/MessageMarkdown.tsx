@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { createHighlighter, type Highlighter } from 'shiki';
+import { createHighlighter, type BundledLanguage, type Highlighter } from 'shiki';
 import { CopyButton } from './CopyButton';
 import { splitMarkdownSegments } from './asciiBox';
 
@@ -73,16 +73,17 @@ export async function highlightCodeWithShiki(code: string, language: string): Pr
     const highlighter = await getHighlighterInstance();
     const lang = (language || '').toLowerCase().trim() || 'text';
 
-    const loadedLangs = highlighter.getLoadedLanguages();
-    if (lang !== 'text' && !loadedLangs.includes(lang as any)) {
+    const loadedLangs: string[] = highlighter.getLoadedLanguages();
+    if (lang !== 'text' && !loadedLangs.includes(lang)) {
       try {
-        await highlighter.loadLanguage(lang as any);
+        // Unknown names are rejected by loadLanguage and caught below
+        await highlighter.loadLanguage(lang as BundledLanguage);
       } catch {
         // 动态加载失败则降级到 text
       }
     }
 
-    const effectiveLang = highlighter.getLoadedLanguages().includes(lang as any) ? lang : 'text';
+    const effectiveLang = (highlighter.getLoadedLanguages() as string[]).includes(lang) ? lang : 'text';
     return highlighter.codeToHtml(code, {
       lang: effectiveLang,
       // Inline colors are the light theme; theme.css switches to --shiki-dark under the dark theme

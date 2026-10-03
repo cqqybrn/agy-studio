@@ -102,7 +102,6 @@ describe('timelineReducer', () => {
         runId: 'run_1',
         model: 'gemini-2.5',
         cwd: 'G:/new',
-        checkpointId: null,
       }),
       makeEnvelope(2, {
         type: 'user.message',
@@ -224,7 +223,6 @@ describe('timelineReducer', () => {
         runId: 'run_1',
         model: 'gemini-2.5',
         cwd: 'G:/new',
-        checkpointId: null,
       }),
       makeEnvelope(2, {
         type: 'user.message',
@@ -829,7 +827,6 @@ describe('timelineReducer', () => {
         runId: 'run_10',
         model: 'gemini-1.5-pro',
         cwd: 'G:/new',
-        checkpointId: 'chk_1',
       }, { runId: 'run_10' });
 
       const envComp = makeEnvelope(2, {
@@ -869,7 +866,6 @@ describe('timelineReducer', () => {
         runId: 'run_err',
         model: 'gemini',
         cwd: 'G:/new',
-        checkpointId: null,
       }, { runId: 'run_err' });
 
       const envErr = makeEnvelope(2, {
@@ -930,25 +926,10 @@ describe('timelineReducer', () => {
       expect(state.lastUsage?.totalTokens).toBe(85);
     });
 
-    it('safely ignores raw, artifact.updated, and autoapprove.injected events', () => {
+    it('safely ignores raw and autoapprove.injected events', () => {
       const envelopes = [
         makeEnvelope(1, { type: 'raw', payload: { foo: 'bar' } }),
         makeEnvelope(2, {
-          type: 'artifact.updated',
-          artifact: {
-            id: 'art_1',
-            sessionId: 'sess_1',
-            conversationId: 'conv_1',
-            kind: 'task',
-            name: 'task.md',
-            relativePath: 'task.md',
-            mimeType: 'text/markdown',
-            size: 200,
-            version: 1,
-            updatedAt: '2026-09-28T10:00:00.000Z',
-          },
-        }),
-        makeEnvelope(3, {
           type: 'autoapprove.injected',
           layer: 'watchdog',
           detail: 'Auto-approving terminal command',
@@ -957,7 +938,7 @@ describe('timelineReducer', () => {
 
       const state = reduceAll(envelopes);
       expect(state.items).toHaveLength(0);
-      expect(state.lastSeq).toBe(3);
+      expect(state.lastSeq).toBe(2);
     });
   });
 
@@ -997,7 +978,6 @@ describe('timelineReducer', () => {
           runId: 'run_turn_1',
           model: 'gemini-2.5',
           cwd: 'G:/new',
-          checkpointId: 'cp_101',
         }, { runId: 'run_turn_1', ts: '2026-09-28T10:00:01.000Z' }),
 
         // User asks to analyze repository
@@ -1211,7 +1191,7 @@ describe('timelineReducer', () => {
     function started(seq: number, runId: string) {
       return makeEnvelope(
         seq,
-        { type: 'run.started', runId, model: null, cwd: 'G:/new', checkpointId: null },
+        { type: 'run.started', runId, model: null, cwd: 'G:/new' },
         { runId }
       );
     }

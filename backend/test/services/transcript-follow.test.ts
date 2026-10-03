@@ -51,6 +51,10 @@ function tool(id: string, status: ToolCall['status']): ToolCall {
     name: 'run_command',
     kind: 'run_command',
     input: { CommandLine: 'ssh root@host' },
+    target: 'ssh root@host',
+    output: null,
+    error: null,
+    fileChanges: [],
     status,
     startedAt: '2026-10-01T08:00:00.000Z',
     endedAt: status === 'running' ? null : '2026-10-01T08:00:01.000Z',
@@ -161,7 +165,14 @@ describe('TranscriptFollowService', () => {
     transcript.push([{ type: 'tool.started', tool: tool('tool-run-1-4', 'running') }]);
     await vi.advanceTimersByTimeAsync(0);
 
-    service.filterStreamEvent(SESSION_ID, RUN_ID, { type: 'run.completed', runId: RUN_ID } as AgentEvent);
+    service.filterStreamEvent(SESSION_ID, RUN_ID, {
+      type: 'run.completed',
+      status: 'completed',
+      usage: null,
+      error: null,
+      durationMs: 0,
+      agyConversationId: null,
+    });
     expect(transcript.handle.stop).toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(3000);

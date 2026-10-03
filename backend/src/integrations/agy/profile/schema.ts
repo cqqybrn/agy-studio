@@ -42,17 +42,10 @@ export const SettingsConfigSchema = z.object({
   statusline: StatuslineSettingsConfigSchema,
 });
 
-export const ArtifactRuleSchema = z.object({
-  kind: z.enum(['task', 'implementation_plan', 'walkthrough', 'markdown', 'image', 'recording', 'other']),
-  glob: z.string(),
-  mimeType: z.string().optional(),
-});
-
 export const PathsConfigSchema = z.object({
   dataRoots: z.array(z.string()).min(1),
   conversationDirPattern: z.string(),
   transcriptRelPath: z.string(),
-  artifactRules: z.array(ArtifactRuleSchema),
 });
 
 export const TranscriptConfigSchema = z.object({

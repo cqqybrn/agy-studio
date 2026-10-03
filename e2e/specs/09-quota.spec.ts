@@ -15,8 +15,8 @@ test.describe('09. 额度数据显示与面板交互', () => {
     const quotaPanel = page.locator('[data-testid="quota-panel"]');
     await expect(quotaPanel).toBeVisible({ timeout: 10000 });
 
-    // 验证面板内详细内容：计划等级、额度桶等
-    await expect(quotaPanel).toContainText('Google AI Pro');
+    // 验证面板内详细内容：计划等级（面板已译成中文）、额度桶等
+    await expect(quotaPanel).toContainText('Google AI 专业版');
 
     const quotaBucket = quotaPanel.locator('[data-testid^="quota-bucket-"]').first();
     await expect(quotaBucket).toBeVisible({ timeout: 10000 });

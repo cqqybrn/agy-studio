@@ -129,6 +129,19 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    // The checkpoint (shadow git snapshot / rollback) feature was removed. Version 1 stays as it
+    // was because existing databases have already applied it.
+    version: 2,
+    name: 'drop_checkpoints',
+    up: (db: Database.Database) => {
+      db.exec(`
+        DROP TABLE IF EXISTS checkpoints;
+        ALTER TABLE runs DROP COLUMN checkpoint_id;
+        DELETE FROM prefs WHERE key = 'checkpointsEnabled';
+      `);
+    },
+  },
 ];
 
 export function runMigrations(db: Database.Database): void {

@@ -5,7 +5,6 @@ import type {
   CreateSessionBody,
   Effort,
   ImportSessionsBody,
-  ISODateString,
   Run,
   RunStatus,
   Session,
@@ -187,7 +186,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       };
     });
 
-    let allEvents: SessionEventEnvelope[] = [];
+    const allEvents: SessionEventEnvelope[] = [];
     let afterSeq = 0;
     let hasMore = true;
 

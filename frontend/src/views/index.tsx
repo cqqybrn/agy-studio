@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { Account, QuotaSnapshot, ToolCall, TranscriptStep, WhoAmI } from '@agy-studio/contracts';
+import type { Account, QuotaSnapshot, WhoAmI } from '@agy-studio/contracts';
 import {
   AttachmentChip,
   Composer,
@@ -1118,7 +1118,7 @@ export function PlaygroundView() {
   const [hideThinking, setHideThinking] = useState(false);
   const [denseItems, setDenseItems] = useState<TimelineItem[]>(() => generateDenseTimelineItems(20));
   const [isStreaming, setIsStreaming] = useState(false);
-  const streamTimerRef = React.useRef<any>(null);
+  const streamTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
 
   React.useEffect(() => {
     return () => {

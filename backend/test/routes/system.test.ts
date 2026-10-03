@@ -32,7 +32,6 @@ describe('System HTTP Routes', () => {
       dataRoots: ['/dummy'],
       conversationDirPattern: '/dummy/{{conversationId}}',
       transcriptRelPath: '.system_generated/logs/transcript.jsonl',
-      artifactRules: [],
     },
     settings: {
       files: [{ scope: 'user', pathTemplate: '/dummy/settings.json' }],

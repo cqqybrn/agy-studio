@@ -76,7 +76,6 @@ export interface Run {
   status: RunStatus;
   model: string | null;
   accountName: string | null;
-  checkpointId: string | null;
   usage: TokenUsage | null;
   error: ApiErrorBody | null;
   startedAt: ISODateString;
@@ -152,31 +151,6 @@ export interface TranscriptStep {
   error: string | null;
 }
 
-// ---------- Artifacts ----------
-
-export type ArtifactKind =
-  | 'task'
-  | 'implementation_plan'
-  | 'walkthrough'
-  | 'markdown'
-  | 'image'
-  | 'recording'
-  | 'other';
-
-export interface Artifact {
-  /** Stable id: url-safe encoding of `conversationId/relativePath`. */
-  id: string;
-  sessionId: string;
-  conversationId: string;
-  kind: ArtifactKind;
-  name: string;
-  relativePath: string;
-  mimeType: string;
-  size: number;
-  version: number;
-  updatedAt: ISODateString;
-}
-
 // ---------- Attachments ----------
 
 export type AttachmentKind = 'image' | 'file';
@@ -194,29 +168,6 @@ export interface Attachment {
   /** Text extracted from pdf/docx/xlsx; null when not applicable. */
   derivedTextPath: string | null;
   createdAt: ISODateString;
-}
-
-// ---------- Checkpoints ----------
-
-export interface Checkpoint {
-  id: string;
-  workspaceId: string;
-  sessionId: string;
-  runId: string;
-  commitSha: string;
-  filesChanged: number | null;
-  createdAt: ISODateString;
-}
-
-export interface CheckpointFileDiff {
-  path: string;
-  changeType: FileChange['changeType'];
-  patch: string;
-}
-
-export interface CheckpointDiff {
-  checkpointId: string;
-  files: CheckpointFileDiff[];
 }
 
 // ---------- Models / Prefs ----------
@@ -251,7 +202,6 @@ export interface Prefs {
   defaultMode: AgentMode | null;
   defaultWorkspaceId: string | null;
   showThinking: boolean;
-  checkpointsEnabled: boolean;
   maxConcurrentRuns: number;
   stallTimeoutSeconds: number;
 }

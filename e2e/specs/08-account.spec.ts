@@ -1,8 +1,12 @@
 import { test, expect } from '@playwright/test';
+import { waitForNoActiveRuns } from './helpers';
 
 test.describe('08. 账号管理与假终端登录', () => {
   test('通过假终端登录成功添加并保存新账号', async ({ page }) => {
     await page.goto('/');
+
+    // 有运行时登录会被拒绝（ACCOUNT_BUSY），先等前面用例留下的运行结束
+    await waitForNoActiveRuns(page);
 
     // 导航至账号页面
     const navAccountsBtn = page.locator('nav button:has-text("账号")');

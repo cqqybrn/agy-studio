@@ -229,7 +229,7 @@ describe('ProcessRunner Integration Tests', () => {
         onConversationId: (id) => seen.push(id),
       });
 
-      for await (const _ev of proc.events) {
+      for await (const _ of proc.events) {
         // drain
       }
       await proc.exited;

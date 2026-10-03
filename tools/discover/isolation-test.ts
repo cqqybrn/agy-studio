@@ -3,7 +3,6 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { RollbackGuard } from './rollback.js';
-import { takeSnapshot, diffSnapshots } from './fs-diff.js';
 import { queryCredentials, diffCredentials } from './cred-diff.js';
 
 export interface IsolationReport {

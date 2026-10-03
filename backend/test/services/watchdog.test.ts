@@ -439,7 +439,7 @@ describe('Watchdog', () => {
       const mockRunnerProcess: RunnerProcess = {
         pid: 99999,
         events: hangingEventsQueue,
-        exited: new Promise((res) => {
+        exited: new Promise(() => {
           // Keep active until killed
         }),
         send: async (prompt: string) => {

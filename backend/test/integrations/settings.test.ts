@@ -33,7 +33,9 @@ describe('Settings integration (AgySettings)', () => {
   afterEach(() => {
     try {
       fs.rmSync(tmpDir, { recursive: true, force: true });
-    } catch {}
+    } catch {
+      // ignore cleanup errors
+    }
     vi.restoreAllMocks();
   });
 

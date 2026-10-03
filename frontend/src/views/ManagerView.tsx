@@ -290,6 +290,8 @@ export function ManagerView({
   }, [activeSessionId]);
 
   // 新消息 / 内容增长时自动跟随或累加未读数
+  const lastItem = items[items.length - 1];
+  const lastItemText = lastItem && 'text' in lastItem ? lastItem.text : undefined;
   useEffect(() => {
     const el = scrollContainerRef.current;
     if (!el || items.length === 0) return;
@@ -311,7 +313,7 @@ export function ManagerView({
     }
 
     prevItemsLengthRef.current = items.length;
-  }, [items.length, items[items.length - 1]?.id, (items[items.length - 1] as any)?.text]);
+  }, [items.length, lastItem?.id, lastItemText]);
 
   // 处理空会话时的新建会话
   const handleCreateNewSession = async () => {

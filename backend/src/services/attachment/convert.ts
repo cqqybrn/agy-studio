@@ -76,16 +76,24 @@ export class AttachmentConverter {
       } finally {
         await parser.destroy();
       }
-    } else if (typeof (pdfParseModule as any).default === 'function') {
-      const parsed = await (pdfParseModule as any).default(buffer);
-      return parsed?.text ?? null;
+    } else {
+      // pdf-parse v1 exports a plain function as its default export
+      const legacy = (pdfParseModule as { default?: unknown }).default;
+      if (typeof legacy === 'function') {
+        const parsed = (await legacy(buffer)) as { text?: string } | null;
+        return parsed?.text ?? null;
+      }
     }
     return null;
   }
 
   private async extractDocx(filePath: string): Promise<string | null> {
     const buffer = fs.readFileSync(filePath);
-    const mammoth = (await import('mammoth')) as any;
+    // convertToMarkdown exists at runtime but is missing from mammoth's type declarations
+    const mammoth = (await import('mammoth')) as {
+      convertToMarkdown?: (input: { buffer: Buffer }) => Promise<{ value?: string }>;
+      extractRawText: (input: { buffer: Buffer }) => Promise<{ value?: string }>;
+    };
     if (typeof mammoth.convertToMarkdown === 'function') {
       const result = await mammoth.convertToMarkdown({ buffer });
       return result?.value ?? null;

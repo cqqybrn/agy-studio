@@ -28,6 +28,17 @@ export type SendFrameInput =
   | (Omit<Extract<ClientFrame, { type: 'session.send' }>, 'requestId'> & { requestId?: string })
   | (Omit<Extract<ClientFrame, { type: 'run.abort' }>, 'requestId'> & { requestId?: string });
 
+/** The part of the browser WebSocket API this client uses, so tests can inject a fake. */
+export interface WebSocketLike {
+  readonly readyState: number;
+  onopen: ((event: Event) => void) | null;
+  onclose: ((event: CloseEvent) => void) | null;
+  onerror: ((event: Event) => void) | null;
+  onmessage: ((event: MessageEvent) => void) | null;
+  send(data: string): void;
+  close(): void;
+}
+
 export interface WsClientOptions {
   url?: string | (() => string);
   token?: string | null | (() => string | null);
@@ -38,7 +49,8 @@ export interface WsClientOptions {
   reconnectMaxMs?: number;
   ackTimeoutMs?: number;
   jitter?: number | (() => number);
-  WebSocketClass?: any;
+  /** Injectable for tests; defaults to the global WebSocket. */
+  WebSocketClass?: new (url: string) => WebSocketLike;
   isPageHidden?: () => boolean;
 }
 
@@ -67,7 +79,7 @@ function generateRequestId(): string {
 
 export class WsClient {
   private status: WsStatus = 'connecting';
-  private ws: WebSocket | null = null;
+  private ws: WebSocketLike | null = null;
   private readonly options: WsClientOptions;
   private isClosed = false;
 

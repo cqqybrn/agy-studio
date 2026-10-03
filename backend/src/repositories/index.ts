@@ -5,7 +5,6 @@ export * from './sessions.js';
 export * from './runs.js';
 export * from './events.js';
 export * from './attachments.js';
-export * from './checkpoints.js';
 export * from './accounts.js';
 export * from './quota-cache.js';
 export * from './prefs.js';
