@@ -1,9 +1,13 @@
 # AGY Studio · 架构设计与分块派工（v2 · 零移植版）
 
 > 一个复刻 Antigravity Agent 界面的本地 WebUI：底层直接调用本机 `agy` CLI，敏感操作**全部自动同意**，
-> 可以看思考过程、子 agent、Artifacts、额度，并切换账号。
+> 可以看思考过程、子 agent、额度，并切换账号。
 >
 > 本文档按 `cursor-architect-copilot` 的六阶段流程编写。契约的唯一真相源是 `contracts/src/*.ts`，文档与代码冲突时以代码为准。
+>
+> **2026-10-04 变更：移除 Artifacts 面板与检查点（影子 git）。** 按产品决定整体删除：右侧面板（Task / Plan / Walkthrough / Media / Changes）、`services/artifact.ts`、`services/checkpoint.ts` 及其路由与仓库、`Artifact` / `Checkpoint` 类型、`artifact.updated` 事件、`CHECKPOINT_FAILED` 错误码、`Prefs.checkpointsEnabled`、`Run.checkpointId`、profile 的 `artifactRules`。界面由三栏改为两栏。子 agent transcript 接口保留，迁到 `services/subagent-transcript.ts` 与 `routes/http/subagents.routes.ts`。数据库新增第 2 版迁移 `drop_checkpoints`（删 `checkpoints` 表、`runs.checkpoint_id` 列、`checkpointsEnabled` 偏好）。不再内置回滚，README 要求用户发起任务前自行用 git 提交。下文模块 1.10、1.12、2.10、2.12 及其派工单只作历史记录。
+>
+> **2026-10-04 新增：编辑重问。** 用户可编辑已发送的消息：agy 的对话回退到该消息之前（agy 同时还原那些轮次里的文件改动），Studio 删除该消息起的全部事件与只属于它们的运行，再按新内容发送。新增端点 `POST /api/sessions/:sessionId/messages/:messageId/rewind`、全局事件 `session.reset`、端口 `ConversationRewindPort`（实现 `integrations/agy/rewind-terminal.ts`，依赖 `node-pty` 与 `@xterm/headless`）。详见 1.9、2.4 修订。
 >
 > | #    | agy-auto 怎么做                                              | agy-studio 现状                                              | 影响                                                         | 归属                            |
 > | :--- | :----------------------------------------------------------- | :----------------------------------------------------------- | :----------------------------------------------------------- | :------------------------------ |
@@ -44,9 +48,9 @@
 5. **模型**：选择模型、effort、mode；保存默认值
 6. **额度面板**：与官方一致的分组与 Weekly / 5h 桶，数据来自额度接口；接口失效时显示"不可用"
 7. **账号**：列出、登录（弹出终端窗口由用户在 agy 中完成）、切换、删除；采用凭据快照方式，切换账号时换快照，同一时间只有一个账号在运行
-8. **Artifacts 面板**：任务清单、实施计划、完成总结、截图与录屏
+8. ~~**Artifacts 面板**~~：已移除（2026-10-04）
 9. **附件**：图片和文件上传（通过路径注入给 agent），PDF/Word/Excel 服务端转成文本
-10. **检查点**：每次运行前用影子 git 仓库做快照，支持查看 diff 和一键回滚
+10. ~~**检查点**~~：已移除（2026-10-04），工作区安全交给用户自己的 git
 
 ### MVP 明确不做
 
@@ -61,7 +65,7 @@
 | 定时任务、Web Push、插件系统、PWA | 第二期 |
 | OpenAI 兼容接口、任何反代或中转 | 与目标无关 |
 | 原生多模态图片输入 | 先验证（V4），MVP 用路径注入 |
-| Docker 沙箱 | 第二期；MVP 用检查点回滚作为安全网 |
+| Docker 沙箱 | 第二期；MVP 不提供沙箱与回滚（检查点已于 2026-10-04 移除），由用户自己的 git 兜底 |
 
 ### 探测清单（阶段 0 的核心产出）
 
@@ -100,7 +104,7 @@
 | 文件 | 内容 |
 |---|---|
 | `errors.ts` | `ErrorCode` 联合类型、`ApiErrorBody`、错误码到 HTTP 状态码的映射 |
-| `domain.ts` | 领域模型：Workspace、Session、Run、ToolCall、SubagentInfo、TranscriptStep、Artifact、Attachment、Checkpoint、Model、Prefs、Account、QuotaSnapshot、Capabilities |
+| `domain.ts` | 领域模型：Workspace、Session、Run、ToolCall、SubagentInfo、TranscriptStep、Attachment、Model、Prefs、Account、QuotaSnapshot、Capabilities |
 | `events.ts` | 会话事件 `AgentEvent`（持久化、按 seq 回放）、`SessionEventEnvelope`、全局事件 `GlobalEvent` |
 | `ws.ts` | WebSocket 帧 `ClientFrame` / `ServerFrame` 与相关常量 |
 | `api.ts` | REST 端点表 `ApiEndpoints` 与上传限制 |
@@ -108,7 +112,7 @@
 ### 1.1 通信模型
 
 ```text
-REST : 查询与管理（会话列表、历史事件分页、额度、账号、附件上传、检查点）
+REST : 查询与管理（会话列表、历史事件分页、子 agent transcript、额度、账号、附件上传）
 WS   : 实时事件推送 + 发送消息 + 中止运行（单连接订阅多个会话）
 ```
 
@@ -130,7 +134,7 @@ WS   : 实时事件推送 + 发送消息 + 中止运行（单连接订阅多个�
 
 1. 每次运行恰好一条 `run.started`、恰好一条 `run.completed`，无论成功、失败还是中止
 2. `run.error` **不是**终止事件
-3. `seq` 在单个会话内从 1 开始连续递增，只由服务端分配
+3. `seq` 在单个会话内从 1 开始连续递增，只由服务端分配。唯一的例外是「编辑重问」截断历史：删除 `seq >= N` 的事件后从 N 重新分配，并广播 `session.reset`，客户端收到后丢弃该会话的本地状态重新加载
 4. 前端界面状态 = 按 seq 顺序对事件做纯函数 reduce 的结果
 5. 无法识别的 agy 输出一律转成 `raw` 事件，不允许抛异常中断整个流
 
@@ -140,11 +144,9 @@ WS   : 实时事件推送 + 发送消息 + 中止运行（单连接订阅多个�
 |---|---|
 | 系统 | `GET /api/health`、`GET /api/capabilities` |
 | 工作区 | `GET/POST /api/workspaces`、`DELETE /api/workspaces/:id` |
-| 会话 | `GET/POST /api/sessions`、`GET/PATCH/DELETE /api/sessions/:id`、`POST /api/sessions/import` |
+| 会话 | `GET/POST /api/sessions`、`GET/PATCH/DELETE /api/sessions/:id`、`POST /api/sessions/import`、`POST /api/sessions/:id/messages/:messageId/rewind` |
 | 事件与运行 | `GET /api/sessions/:id/events?afterSeq&limit`、`GET /api/sessions/:id/runs` |
 | 子 agent | `GET /api/sessions/:id/subagents/:conversationId/transcript` |
-| Artifacts | `GET /api/sessions/:id/artifacts`、`GET …/artifacts/:artifactId/raw` |
-| 检查点 | `GET /api/sessions/:id/checkpoints`、`GET /api/checkpoints/:id/diff`、`POST /api/checkpoints/:id/rollback` |
 | 附件 | `POST /api/attachments`、`GET /api/attachments/:id/raw` |
 | 模型与偏好 | `GET /api/models`、`GET/PUT /api/prefs` |
 | 额度 | `GET /api/quota?account&refresh` |
@@ -175,7 +177,7 @@ WS   : 实时事件推送 + 发送消息 + 中止运行（单连接订阅多个�
 │ routes：http 路由 · ws 网关 · internal 路由                               │
 │   ↓                                                                      │
 │ services：session · run-supervisor · autoapprove · event-bus             │
-│           artifact · attachment · checkpoint · account · quota           │
+│           subagent-transcript · attachment · account · quota             │
 │           model · prefs · workspace                                      │
 │   ↓ 只依赖 services/ports 中定义的接口                                     │
 │ integrations/agy（防腐层，唯一了解 agy 的地方）                             │
@@ -206,13 +208,14 @@ WS   : 实时事件推送 + 发送消息 + 中止运行（单连接订阅多个�
 | 端口 | 能力 | 实现（integrations/agy） |
 |---|---|---|
 | `AgyRunnerPort` | 启动一个 agy 运行进程，逐条产出 `AgentEvent`，写入后续消息，终止 | `process.ts` + `stream-adapter.ts` |
-| `BrainPort` | 定位会话目录、列出磁盘上的会话、读取 / 追踪 transcript、列出与监听 artifacts、清理会话文件 | `brain-fs.ts` + `transcript.ts` |
+| `BrainPort` | 定位会话目录、列出磁盘上的会话、读取 / 追踪 transcript、清理会话文件 | `brain-fs.ts` + `transcript.ts` |
 | `SettingsPort` | 确保 settings 为"总是放行" | `settings.ts` |
 | `CredentialPort` | 读取当前凭据状态、做快照、恢复、清空（`credential_snapshot` 模式） | `credential-store.ts` |
 | `LoginPort` | 弹出一个真实的终端窗口运行 agy 让用户自己登录，并检测登录完成 | `login-terminal.ts` |
 | `QuotaProbePort` | 读取当前账号的 token，调用额度接口，解析成 `QuotaSnapshot` | `quota-api.ts` |
 | `HomeIsolationPort`、`StatuslineParserPort` | 模块 1.3 已定义，当前设计**不实现**，保留端口文件供第二期使用 | — |
 | `ModelCatalogPort` | 获取模型列表、版本号、mode 可选值 | `catalog.ts` |
+| `ConversationRewindPort` | 把 agy 对话回退到某条用户消息之前（编辑重问） | `rewind-terminal.ts` |
 
 ### 2.4 agy-profile.json（agy 知识的数据化）
 
@@ -224,7 +227,7 @@ WS   : 实时事件推送 + 发送消息 + 中止运行（单连接订阅多个�
   binary:      { candidates[] },
   stream:      { userFrameTemplate, multiTurnStdin, eventTypeMap{}, permissionEvent{match, replyTemplate} | null,
                  imageInput{supported, template} },
-  paths:       { dataRoots[], conversationDirPattern, transcriptRelPath, artifactRules[] },
+  paths:       { dataRoots[], conversationDirPattern, transcriptRelPath },
   transcript:  { taskResultPattern } | 缺省,   // 1.5 后台命令结果（SYSTEM_MESSAGE）的匹配正则
   settings:    { files[{scope, pathTemplate}], alwaysProceed{jsonPath, value} },
   credentials: { preferredIsolation: 'credential_snapshot', wincredTargetPatterns[], credentialFiles[] },
@@ -249,7 +252,7 @@ WS   : 实时事件推送 + 发送消息 + 中止运行（单连接订阅多个�
 | `transcript-follow` | 运行期间追踪主会话 transcript，stdout 被压住时补发消息与工具事件（按 id 与 stdout 去重），并向 run-supervisor 报告进展 | 解析 transcript（由 BrainPort 负责）；思考内容 |
 | `account` | 账号库、租约（读写锁）、切换、登录编排 | 凭据怎么存（由 CredentialPort 负责） |
 | `quota` | 按账号缓存、限流、失败时保留旧数据、广播 | 怎么拿 token、接口长什么样（由 QuotaProbePort 负责） |
-| `checkpoint` | 影子 git 快照、diff、回滚 | 用户自己的 git 仓库（完全不碰） |
+| `subagent-transcript` | 校验子会话属于该会话，分页返回子 agent transcript（原在 artifact 服务中） | 读取 transcript 的细节（由 BrainPort 负责） |
 
 ### 2.6 账号模型与租约
 
@@ -300,10 +303,9 @@ queued ──► starting ──► running ──► completed
 |---|---|
 | `workspaces` | id, name, path(unique), is_git_repo, created_at, last_opened_at |
 | `sessions` | id, workspace_id, account_name, title, agy_conversation_id, status, model, effort, mode, source, last_run_id, last_seq, created_at, updated_at |
-| `runs` | id, session_id, status, model, account_name, checkpoint_id, pid, usage_json, error_json, started_at, ended_at |
+| `runs` | id, session_id, status, model, account_name, pid, usage_json, error_json, started_at, ended_at |
 | `events` | session_id, seq, run_id, ts, type, payload_json；主键 (session_id, seq) |
 | `attachments` | id, workspace_id, session_id, kind, original_name, mime_type, size, stored_path, derived_text_path, created_at |
-| `checkpoints` | id, workspace_id, session_id, run_id, commit_sha, files_changed, created_at |
 | `accounts` | name, type, isolation, email, note, saved_at, is_default（**不存凭据**） |
 | `quota_cache` | account_name, source, snapshot_json, fetched_at |
 | `prefs` | key, value_json |
@@ -319,7 +321,7 @@ queued ──► starting ──► running ──► completed
 | 状态层 | `frontend/src/stores/` | zustand：session（每个会话一个槽位）、workspace、prefs、quota、account、connection、ui |
 | 纯逻辑 | `frontend/src/domain/` | `timelineReducer.ts`：事件 → 时间线条目的纯函数；`displayRows.ts`：条目 → 展示行（Worked 分段、同类计数）的纯函数 |
 | 页面层 | `frontend/src/views/` | ManagerView、AccountsView、SettingsView |
-| 组件层 | `frontend/src/components/` | 无状态展示组件：思考块、工具卡片、终端输出、子 agent 卡片、Markdown、输入框、附件、Artifacts、额度、账号、diff 等 |
+| 组件层 | `frontend/src/components/` | 无状态展示组件：思考块、工具卡片、终端输出、子 agent 卡片、Markdown、输入框、附件、额度、账号等 |
 
 时间线条目（前端内部类型）：`UserMessageItem`、`ThinkingItem`、`AssistantMessageItem`、`ToolItem`、`ToolGroupItem`、`SubagentItem`、`RunDividerItem`、`ErrorItem`、`StalledNoticeItem`。
 
@@ -355,13 +357,13 @@ agy-studio/
 │  └─ src/
 │     ├─ main.ts · app.ts
 │     ├─ routes/
-│     │  ├─ http/{system,workspaces,sessions,artifacts,checkpoints,attachments,models,prefs,quota,accounts}.routes.ts
+│     │  ├─ http/{system,workspaces,sessions,subagents,attachments,models,prefs,quota,accounts}.routes.ts
 │     │  └─ ws/gateway.ts
 │     ├─ services/
 │     │  ├─ ports/{agy-runner,brain,settings,credential,login,quota-probe,model-catalog}.port.ts
 │     │  ├─ run-supervisor.ts · event-bus.ts · session.ts · workspace.ts
 │     │  ├─ autoapprove/{autoapprove,watchdog}.ts
-│     │  ├─ artifact.ts · attachment/{store,convert,prompt-inject}.ts · checkpoint.ts
+│     │  ├─ subagent-transcript.ts · attachment/{store,convert,prompt-inject}.ts
 │     │  ├─ account/{account,lease-lock}.ts · quota.ts · model.ts · prefs.ts
 │     ├─ integrations/agy/
 │     │  ├─ profile/{schema,loader}.ts
@@ -370,7 +372,7 @@ agy-studio/
 │     │  ├─ credential-store.ts · dpapi.ts
 │     │  ├─ login-terminal.ts · quota-api.ts · oauth-client.ts
 │     │  ├─ catalog.ts
-│     ├─ repositories/{db,migrations,workspaces,sessions,runs,events,attachments,checkpoints,accounts,quota-cache,prefs}.ts
+│     ├─ repositories/{db,migrations,workspaces,sessions,runs,events,attachments,accounts,quota-cache,prefs}.ts
 │     └─ utils/{config,logger,errors,proc-tree,jsonl-tail,backoff,rw-lock,ids}.ts
 ├─ frontend/
 │  └─ src/{main.tsx,App.tsx,theme.css,api/,stores/,domain/,views/,components/}
@@ -393,6 +395,7 @@ agy-studio/
 | 凭据 | `@napi-rs/keyring`（读写 Windows 凭据管理器）+ DPAPI 加密快照 |
 | 文件监听 | chokidar |
 | 进程 | `child_process.spawn`（不用 shell）；Windows 下 `taskkill /T /F` 终止进程树 |
+| 伪终端 | `node-pty` + `@xterm/headless`，仅用于驱动 agy 的交互式 `/rewind`（自带预编译文件，无需编译） |
 | 文档转换 | pdf-parse、mammoth、xlsx |
 | 前端 | Vite + React 18 + TS + Tailwind + shadcn/ui + zustand + react-markdown + shiki + `@tanstack/react-virtual` |
 | 测试 | vitest、Playwright（配合 fake-agy） |
@@ -436,9 +439,9 @@ git push -u origin main
 | 1.7 | 自动同意四层兜底 | 🔴 | 1.6 |
 | 1.8 | EventBus 与 WS 网关 | 🔴 | 1.2, 1.6 |
 | 1.9 | 会话与工作区服务、REST | 🟡 | 1.5, 1.8 |
-| 1.10 | Artifacts 服务与 REST | 🟡 | 1.5, 1.8 |
+| 1.10 | ~~Artifacts 服务与 REST~~（已移除） | 🟡 | 1.5, 1.8 |
 | 1.11 | 附件服务 | 🟡 | 1.2, 1.9 |
-| 1.12 | 检查点（影子 git） | 🔴 | 1.2, 1.6 |
+| 1.12 | ~~检查点（影子 git）~~（已移除） | 🔴 | 1.2, 1.6 |
 | 1.13 | 模型、偏好、系统接口 | 🟢 | 1.2, 1.3 |
 | 1.14 | 凭据快照与账号服务 | 🔴 | 1.2, 1.3, 1.6 |
 | 1.15 | 终端窗口登录 | 🟡 | 1.14 |
@@ -455,9 +458,9 @@ git push -u origin main
 | 2.7 | 子 agent 卡片 | 🟡 | 2.5, 2.6 |
 | 2.8 | 输入框与附件 | 🟡 | 2.5 |
 | 2.9 | 收件箱、工作区与新建会话 | 🟢 | 2.5 |
-| 2.10 | Artifacts 面板 | 🟡 | 2.5 |
+| 2.10 | ~~Artifacts 面板~~（已移除） | 🟡 | 2.5 |
 | 2.11 | 额度面板与账号界面 | 🟢 | 2.5 |
-| 2.12 | 检查点 diff 与回滚界面 | 🟡 | 2.5 |
+| 2.12 | ~~检查点 diff 与回滚界面~~（已移除） | 🟡 | 2.5 |
 | 2.13 | 对话视图组装 | 🟡 | 2.6–2.12 |
 | — | **集成检查点 B：前端联调，Opus 统一复查 🟡 模块** | | |
 | 3.1 | 端到端测试 | 🟡 | 1.18, 2.13 |
@@ -487,7 +490,7 @@ git push -u origin main
 - **说明**：探测脚本在运行任何会修改凭据或 settings 的操作前，必须先备份，结束后恢复
 
 #### 0.4 fake-agy 回放器 🟢
-- **交付物**：`tools/fake-agy/`：按场景回放 stdout，把 transcript 与 artifacts 写到 `FAKE_AGY_HOME` 下 profile 描述的位置；与真实 agy 一样，回放完 `result` 后等待 stdin 关闭才退出
+- **交付物**：`tools/fake-agy/`：按场景回放 stdout，把 transcript 写到 `FAKE_AGY_HOME` 下 profile 描述的位置；与真实 agy 一样，回放完 `result` 后等待 stdin 关闭才退出
 - **完成标准**：设置 `AGY_BIN=<fake-agy>` 与 `FAKE_AGY_HOME` 后，后端感知不到区别
 
 #### 1.1 后端工具层 🟢
@@ -507,7 +510,7 @@ git push -u origin main
 - **完成标准**：对每个 fixture 做快照测试；schema 校验失败的行产出 `raw`；适配器无副作用
 
 #### 1.5 agy 数据目录与 transcript 🟡
-- **交付物**：`integrations/agy/brain-fs.ts`（按 profile 定位会话目录、列出磁盘会话、按 `artifactRules` 识别 artifacts、清理会话文件——**只删除**匹配 `conversationDirPattern` 且 id 为 UUID 的路径）；`transcript.ts`（解析与增量追踪，按步骤序号去重，`stop()` 释放资源）；实现 `BrainPort`
+- **交付物**：`integrations/agy/brain-fs.ts`（按 profile 定位会话目录、列出磁盘会话、清理会话文件——**只删除**匹配 `conversationDirPattern` 且 id 为 UUID 的路径）；`transcript.ts`（解析与增量追踪，按步骤序号去重，`stop()` 释放资源）；实现 `BrainPort`
 - **完成标准**：清理函数对路径穿越、非 UUID、符号链接一律拒绝；追踪用"逐行追加写入的临时文件"测试
 - **2026-10-01 修订**：实测 agy 的 stream-json 按步骤顺序输出，某个后台工具步骤一直处于 RUNNING（如 `ssh` 等密码）时，其后所有 stdout 事件都被压住，而 transcript 仍实时写入。为此新增：`transcript.ts` 的 `RunTranscriptMapper`（只用于运行期间的主会话：本次运行的 USER_INPUT 之后，PLANNER_RESPONSE 正文 → `message.delta`+`message.done`，其 tool_calls 按顺序与后续 GENERIC 结果步骤配对 → `tool.started`/`tool.finished`；id 与 stream 适配器相同，均由会话级步骤序号生成——`stepMessageId`/`stepToolCallId`；不产出思考；transcript.jsonl 中被二次 JSON 编码的参数会解码，并去掉 `toolAction`/`toolSummary`）；`BrainPort.followRunTranscript`（可选能力，每个新步骤产出一批事件，空批即"有进展"心跳）。服务层 `services/transcript-follow.ts` 负责消费：transcript 事件等待 3 秒宽限期，期间 stdout 已发过同一 id 则丢弃；stdout 后到的、已由 transcript 完整发出的消息丢弃（前端按追加拼接 delta，不能重复），已由 transcript 标记结束的工具不再回到运行中；`toEvents` 仍只产出思考（导入历史不变）
 - **2026-10-01 修订**：后台命令在 transcript 里的 GENERIC 步骤一直停在 RUNNING，真正的结果出现在之后的 SYSTEM_MESSAGE 步骤中（`Task id "<会话>/task-N" finished with result: …`，N 即该 GENERIC 步骤序号）。`RunTranscriptMapper` 记录运行中的工具，用 profile 新增的 `transcript.taskResultPattern`（命名分组 `step`、`exitCode`、`output`）匹配 SYSTEM_MESSAGE，产出该工具的 `tool.finished`（退出码非 0 时为 failed，`error` 为 `exit code X`）；profile 未配置该字段时不处理。stdout 路径不变，仍以 stdout 为准
@@ -539,16 +542,19 @@ git push -u origin main
 #### 1.9 会话与工作区服务、REST 🟡
 - **交付物**：`services/session.ts`（创建时确定账号、发送、回填 conversation id、状态更新与 `session.upserted` 广播、删除与清理、从磁盘导入）；`services/workspace.ts`；对应路由
 - **完成标准**：端点与 `ApiEndpoints` 一致；运行中删除返回 `SESSION_BUSY`
+- **2026-10-04 修订**（编辑重问）：`SessionService.rewindToMessage(sessionId, messageId)`，路由 `POST /api/sessions/:sessionId/messages/:messageId/rewind`。顺序：运行中返回 `SESSION_BUSY` → 会话已有 `agyConversationId` 时先取账号租约、调用 `ConversationRewindPort` 回退 agy（失败则什么都不改）→ `EventBus.truncateFrom`（先 flush，再在事务里删除 `seq >= 目标` 的事件并把 `sessions.last_seq` 置为目标 −1，同步内存中的 seq）→ 删除只出现在被删事件里的运行，`lastRunId` 改为剩余最新运行或 null → 广播 `session.reset` 与 `session.upserted`。agy 的选择列表只显示截断的一行，同文本的消息靠 `occurrenceFromEnd`（从末尾数第几个）区分；`previousMessageText`（前一条用户消息）用于事后核对。新消息由前端随后正常发送，不在此接口内
+- **2026-10-04 修订**（`rewind-terminal.ts`，实测 agy 1.2.16）：agy 没有无界面回退，交互界面的 `/rewind` 列出用户消息，选中后从 agy 历史里删除该消息及之后全部轮次、还原 agy 在这些轮次里的文件改动，并把原文填回输入框。驱动用 node-pty 起 `agy --conversation <id>`，@xterm/headless 渲染屏幕后按文本解析。实测要点：① 出现 `? for shortcuts` 时 agy 还没加载完账号与模型，此时回退报 `failed to construct executor: plan model not specified`，且**这段对话从此损坏**（之后每次运行都以该错误结束），因此提示出现后还要等屏幕静止 3 秒；② 在刚确认「信任此文件夹」的同一个 agy 进程里回退必然出同样的错，所以确认信任后先退出、重开一次；③ 同一进程内不重试（重试也会损坏，且旧的报错行仍在屏幕上会误判成功）；④ 选中后要等列表关闭、原文回填、屏幕静止再退出，太早退出回退不会保存；⑤ 退出需连按 3 次 Ctrl+C（清空输入、预备退出、退出）；⑥ 回退后再开一个 agy 进程打开列表核对：最新一条应是 `previousMessageText`，或至少与回退前不同（Studio 里可能有从未送达 agy 的消息），否则报 `AGY_EXIT`。整个过程约 20–60 秒
 
-#### 1.10 Artifacts 服务与 REST 🟡
+#### 1.10 ~~Artifacts 服务与 REST~~ 🟡（已移除）
 - **交付物**：`services/artifact.ts`（运行期间通过 `BrainPort` 监听主会话与子会话，300ms 防抖，变化时 version+1 并发布 `artifact.updated`）；artifacts 与子 agent transcript 路由（raw 接口用 realpath 校验必须在会话目录内，`nosniff`，svg 以附件下载）
 - **完成标准**：路径穿越测试全部拒绝；运行结束后监听被释放
+- **2026-10-04 移除**：Artifacts 面板整体删除，`brain-fs.ts` 中的 `listArtifacts` / `watchArtifacts` 与 `BrainPort` 对应成员一并删除。子 agent transcript 路由保留，迁到 `services/subagent-transcript.ts` 与 `routes/http/subagents.routes.ts`，行为不变：子会话归属先查运行中记录的 `subagent.spawned`（订阅 run-supervisor 事件），再回退到事件表
 
 #### 1.11 附件服务 🟡
 - **交付物**：`services/attachment/`：存储到 `<workspace>/.agy-attachments/`（自动加入 `.gitignore`）、文档转文本、prompt 注入（默认在末尾追加 `<images_input>` / `<files_input>` 路径列表；`profile.stream.imageInput.supported` 为 true 时改用原生格式）；attachments 路由
 - **完成标准**：恶意文件名不会写到附件目录外；注入结果有快照测试
 
-#### 1.12 检查点（影子 git） 🔴
+#### 1.12 ~~检查点（影子 git）~~ 🔴（已移除）
 - **交付物**：`services/checkpoint.ts`（影子仓库 `DATA_DIR/shadow/<workspaceId>.git`，所有命令带 `--git-dir` 与 `--work-tree`；运行前快照，超时 15 秒则跳过；diff；回滚前再做一次快照；同一工作区的操作串行化）；checkpoints 路由
 - **潜在死穴**：回滚覆盖用户后来的手动修改；大仓库首次快照阻塞运行；并发快照互相干扰；误操作用户自己的 `.git`
 - **完成标准**：新增、修改、删除文件后回滚正确；测试前后用户 `.git` 目录哈希一致
@@ -557,6 +563,7 @@ git push -u origin main
   - **修复**：超时只阻止开始下一步，**绝不杀正在运行的 git**（`execGit` 不再把信号交给子进程，已超时则不启动新步骤）；`snapshot` 到时即返回 `null`，不阻塞运行，计时包含排队等锁的时间；准备步骤与 `add -A` 在锁内总是跑完（只写影子仓库），为后续快照预热索引；`commit` 及记录检查点受超时控制，超时后才完成的快照不入库（此时运行可能已改动工作区）；`ensureRepoInitialized` 在锁内清理残留的 `index.lock`（锁内不可能有其他 git 在用，残留一定来自崩溃或旧版本）；新增 `whenIdle()` 等待后台收尾
   - **回滚**：一旦开始改写工作区（`read-tree` → `checkout-index` → `clean -fd` → `update-ref`）就不再响应超时，保证全部完成，避免工作区停在一半新一半旧的状态；`diff` 的 `reset HEAD` 清理步骤总是执行
   - **效果**（默认 3 秒，两次运行之间有间隔）：300 个文件从第 2 次运行起有检查点，3000 个文件从第 3 次起；修复前永远没有。是否把默认值调到设计的 15 秒（首次运行最多多等 15 秒）尚未决定
+- **2026-10-04 移除**：上述修复合并后，按产品决定删除整个检查点功能（服务、路由、仓库、前端 Changes 标签与 DiffViewer）。数据库第 2 版迁移 `drop_checkpoints` 删除 `checkpoints` 表、`runs.checkpoint_id` 列与 `checkpointsEnabled` 偏好（第 1 版不改，已有数据库都已执行过它）。`DATA_DIR/shadow/` 下已有的影子仓库不会自动删除，可手动清理
 
 #### 1.13 模型、偏好、系统接口 🟢
 - **交付物**：`integrations/agy/catalog.ts`（按 profile 执行版本与模型命令并解析）；`services/model.ts`（缓存 10 分钟）、`services/prefs.ts`；system 路由（capabilities 的 features 来自 profile；比较 agy 版本与 profile 版本）
@@ -601,7 +608,7 @@ git push -u origin main
 
 | 模块 | 交付物要点 |
 |---|---|
-| 2.1 🟢 骨架与主题 | Vite + React + Tailwind + shadcn；Antigravity 风格深色主题变量；三栏布局壳；开发代理 `/api`、`/ws` |
+| 2.1 🟢 骨架与主题 | Vite + React + Tailwind + shadcn；Antigravity 风格深色主题变量；两栏布局壳（原三栏，右栏 Artifacts 已于 2026-10-04 移除）；开发代理 `/api`、`/ws` |
 | 2.2 🟡 HTTP 客户端 | 按 `ApiEndpoints` 推导类型的 `request()`；错误解析为 `ApiError`；带进度的附件上传 |
 | 2.3 🔴 WS 客户端 | 心跳、指数退避加抖动、按 lastSeq 自动重订、跳号重订、重复丢弃、离线排队、ack 超时 |
 | 2.4 🟡 时间线 reducer | 事件 → 时间线条目的纯函数；思考计时；工具合并与折叠；子 agent 挂载；运行分隔条 |
@@ -610,9 +617,9 @@ git push -u origin main
 | 2.7 🟡 子 agent 卡片 | 运行中实时追加；结束后首次展开懒加载；步骤过多时截断 |
 | 2.8 🟡 输入框与附件 | 输入法组字处理、粘贴与拖拽、手机拍照、图片压缩、上传进度、运行中停止、草稿保存 |
 | 2.9 🟢 收件箱、工作区与新建会话 | 按状态分组的会话列表；工作区切换与添加；新建会话直接使用当前账号 |
-| 2.10 🟡 Artifacts 面板 | Task 进度、Plan、Walkthrough、Media；更新时刷新并高亮；Plan 选中文字评论并发送 |
+| 2.10 🟡 ~~Artifacts 面板~~ | 已移除（2026-10-04） |
 | 2.11 🟢 额度与账号 | 顶栏额度环；额度面板（分组、桶、倒计时、置灰、过期提示、不可用提示、刷新）；账号菜单与管理页（各账号运行数、终端窗口登录流程） |
-| 2.12 🟡 检查点界面 | 检查点列表、diff 查看、带二次确认的回滚 |
+| 2.12 🟡 ~~检查点界面~~ | 已移除（2026-10-04） |
 | 2.13 🟡 对话视图组装 | 虚拟滚动、动态行高、自动跟随与"回到底部"、断线提示条 |
 
 - **2026-10-01 修订（2.1 主题）**：新增浅色主题。`theme.css` 的 `:root` 为深色，`:root[data-theme='light']` 覆盖同名变量；`tailwind.config.js` 的语义颜色经 `color-mix` 支持透明度修饰（Tailwind 3 不能直接给 `var()` 加透明度，原先的 `bg-accent/20` 等类不会生成）。偏好（浅色 / 深色 / 跟随系统）只是界面偏好，存 localStorage 的 `agy-studio-theme`，不进 prefs 契约；`index.html` 内联脚本在首帧前设置 `data-theme` 防闪烁；顶栏 `ThemeToggle` 切换；Shiki 同时加载 `github-light` 与 `tokyo-night`，深色时用 `--shiki-dark`。组件**不得**再写 Tailwind 色板色（`emerald-400`、`rose-500/10` 等）和十六进制颜色，状态色一律用 `status-{success|warning|error|info}`、`-subtle`、`-text`，代码背景用 `bg-bg-code`；遮罩层的 `bg-black/*` 除外
@@ -621,11 +628,12 @@ git push -u origin main
 - **2026-10-03 修订（2.13）**：去掉对话视图顶部「agy 已升级，建议重新探测」横幅。CLI 与 profile 版本仍写在 capabilities 里，界面不再提示
 - **2026-10-03 修订（2.8）**：对话输入栏不再展示 Effort、Mode、Agent。日常使用固定走会话/后端默认；契约里的 `effort`/`mode`/`agent` 字段保留，Playground 仍可单独渲染这些选择器。模型只在输入栏选择，并写回 prefs.defaultModel；顶栏不再放模型选择器。模型列表拉取失败时显示未登录等原因，空列表且已结束请求时不再一直显示「加载模型中」
 - **2026-10-03 修订（2.6）**：助手回复右上角提供「复制」整段内容；Markdown 代码块复制按钮改为中文；连续的框线字符（┌│└ 等）拆成可单独复制的引用块
+- **2026-10-04 修订（2.4 / 2.6 编辑重问）**：`UserMessageRow` 悬停显示「编辑」，点开后原地变成输入框（Enter 发送、Shift+Enter 换行、Esc 取消，输入法组字中不触发），并提示之后的回答会全部删除、agy 改过的文件会还原；运行中按钮禁用并说明原因。行组件只接收 `onEdit` / `editDisabledReason`，由 ManagerView 接线。`session.store.editMessage`：调用回退接口 → 清空该会话槽位并重新加载 → 用当前模型和原附件发送新内容；回退成功但发送失败时抛 `EditResendError`，ManagerView 显示横幅并保留改后的文字。`bootstrap` 收到全局 `session.reset` 时对已打开的会话执行槽位重置
 - **2026-10-03 修订（2.11）**：额度面板把接口英文标签译成中文（来源、套餐档、分组名、桶名），界面文案全部中文。探测失败时展示 `description`（超时、未登录）而不是只显示问号
 
 #### 3.1 端到端测试 🟡 / 3.2 启动脚本与 README 🟢
-- 3.1：Playwright + fake-agy，覆盖发送与流式显示、子 agent、中止、刷新后历史完整、断网重连、附件、回滚、登录流程
-- 3.2：`start.cmd`（检查 Node 与 agy → 按需构建 → 启动 → 打开浏览器）；README（安装、首次登录、局域网访问安全、自动同意风险与回滚、"agy 升级后重新探测"的步骤）
+- 3.1：Playwright + fake-agy，覆盖发送与流式显示、子 agent、中止、刷新后历史完整、断网重连、附件、登录流程
+- 3.2：`start.cmd`（检查 Node 与 agy → 按需构建 → 启动 → 打开浏览器）；README（安装、首次登录、局域网访问安全、自动同意风险（建议自行 git 提交）、"agy 升级后重新探测"的步骤）
 - **2026-10-03 修订（3.2）**：`start.cmd` 原为 LF 换行且含 UTF-8 中文，中文 Windows（GBK 代码页）下 cmd 按字节偏移解析会把中文切断成乱码命令（`此时不应有 )`），双击后窗口一闪即退；只改 CRLF 仍会在全角标点处报错。现改为**纯 ASCII + CRLF**，提示文字为英文，文件头注释写明这一约束；同时修复后台等端口打开浏览器那行的嵌套双引号（改用 `start "" /b powershell ...`），并在开头 `cd /d "%~dp0"`。编辑此文件时不要引入非 ASCII 字符
 
 ---
@@ -700,7 +708,7 @@ git push -u origin main
 要求：
 1. 可执行入口（Windows 提供 .cmd 包装），接受 profile 中记录的参数形式
 2. 环境变量：FAKE_AGY_SCENARIO 选择 stream 场景，FAKE_AGY_SPEED 回放倍速（0 表示不等待），FAKE_AGY_HOME 数据根目录
-3. stream 模式：按时间戳回放 stdout；把 transcript 与 artifacts 按 profile.paths 的规则写到 FAKE_AGY_HOME 下；回放完 result 后与真实 agy 一样，等 stdin 关闭才以 0 退出
+3. stream 模式：按时间戳回放 stdout；把 transcript 按 profile.paths 的规则写到 FAKE_AGY_HOME 下；回放完 result 后与真实 agy 一样，等 stdin 关闭才以 0 退出
 4. （已取消：交互模式与伪终端回放）
 5. 收到 SIGTERM / SIGINT 立即退出
 约束：只新增 tools/fake-agy/。
@@ -730,7 +738,7 @@ git push -u origin main
 
 ```text
 你是执行工程师。阅读 docs/ARCHITECTURE.md §2.9、模块 1.2，contracts/src/domain.ts、events.ts。
-任务：实现 backend/src/repositories/：db、migrations，以及 workspaces、sessions、runs、events、attachments、checkpoints、accounts、quota-cache、prefs。
+任务：实现 backend/src/repositories/：db、migrations，以及 workspaces、sessions、runs、events、attachments、accounts、quota-cache、prefs。
 要点：
 - better-sqlite3，WAL，busy_timeout 5000；数据库文件 DATA_DIR/studio.db
 - 迁移按版本号执行并记录在 schema_migrations
@@ -788,7 +796,6 @@ git push -u origin main
 - listConversations(dataRoot)：返回 id、标题（取首条用户输入的前 50 字符）、创建与更新时间
 - transcript：parseLine(line) => TranscriptStep | null；tail(conversationId, {fromStep}) 返回 AsyncIterable<TranscriptStep>，文件不存在时每 300ms 轮询，使用 utils/jsonl-tail，按 stepIndex 去重，stop() 释放全部资源
 - toEvents(step, role: 'main'|'subagent', conversationId)：主会话含思考 → thinking.delta(source='transcript')；子会话 → subagent.step
-- listArtifacts / watchArtifacts：按 profile.paths.artifactRules 识别 ArtifactKind
 - purgeConversation(dataRoot, id)：只允许 UUID 格式的 id，只删除 conversationDirPattern 解析出的路径；realpath 校验必须在数据根内；拒绝符号链接
 约束：只改这两个文件和对应测试；不要修改 contracts/。
 验收：追踪用临时文件逐行追加测试；stop() 后无残留定时器；清理函数的路径安全测试。
@@ -865,20 +872,9 @@ git push -u origin main
 完成后提示我执行：git add . && git commit -m "feat: 完成模块 1.9 会话与工作区服务"
 ```
 
-### 派工 1.10 🟡
+### 派工 1.10（已移除）
 
-```text
-你是执行工程师。阅读 docs/ARCHITECTURE.md 模块 1.10、contracts/src/domain.ts 的 Artifact、services/ports/brain.port.ts。
-任务：实现 backend/src/services/artifact.ts 与 routes/http/artifacts.routes.ts（包括 GET /api/sessions/:sessionId/subagents/:conversationId/transcript）。
-要点：
-- 运行开始时通过 BrainPort.watchArtifacts 监听主会话；收到 subagent.spawned 后监听子会话；运行结束 5 秒后释放
-- 300ms 防抖；内容变化时 version+1 并发布 artifact.updated
-- Artifact.id = base64url(conversationId + '/' + relativePath)
-- raw 接口：解码后用 realpath 校验必须位于该会话或其子会话的目录内，否则 PATH_OUTSIDE_WORKSPACE；设置 Content-Type 与 X-Content-Type-Options: nosniff；svg 以附件形式下载
-约束：只改上述文件和对应测试；不要 import integrations/；不要修改 contracts/。
-验收：路径穿越（..、绝对路径、符号链接）全部拒绝；运行结束后无残留监听。
-完成后提示我执行：git add . && git commit -m "feat: 完成模块 1.10 Artifacts 服务"
-```
+> 2026-10-04 起该模块已删除，不再派工。子 agent transcript 接口见 `services/subagent-transcript.ts`。
 
 ### 派工 1.11 🟡
 
@@ -895,23 +891,9 @@ git push -u origin main
 完成后提示我执行：git add . && git commit -m "feat: 完成模块 1.11 附件服务"
 ```
 
-### 派工 1.12 🔴
+### 派工 1.12（已移除）
 
-```text
-你是执行工程师。阅读 docs/ARCHITECTURE.md 模块 1.12 的潜在死穴，contracts/src/domain.ts 的 Checkpoint / CheckpointDiff，api.ts 中 checkpoints 端点。
-任务：实现 backend/src/services/checkpoint.ts 与 routes/http/checkpoints.routes.ts，并在 supervisor 启动运行前接入 snapshot（最少代码）。
-要点：
-- 影子仓库 DATA_DIR/shadow/<workspaceId>.git；所有 git 命令带 --git-dir 与 --work-tree，用 execFile 调用，不用 shell；绝不读写用户的 .git
-- 影子仓库 info/exclude = 用户 .gitignore + node_modules/ + .agy-attachments/ + .git/；跳过大于 20MB 的文件
-- snapshot：add -A 后 commit --allow-empty；超过 15 秒放弃并返回 null（运行照常进行，发布一条 run.error 说明已跳过）
-- diff(checkpointId)：快照与当前工作区对比
-- rollback(checkpointId)：先再做一次快照 → 恢复工作区到快照状态并删除之后新增的文件 → 返回恢复文件数；该工作区有运行中的会话时返回 SESSION_BUSY
-- 同一工作区的检查点操作串行执行
-约束：只改上述文件、supervisor 接入点和对应测试；不要修改 contracts/。
-验收：临时目录中新增、修改、删除文件后回滚正确；测试前后用户 .git 目录哈希一致；并发快照测试。
-⚠️ 高危模块：完成后先不要提交，告诉我"请呼叫 Opus 复审模块 1.12"。
-复审通过后执行：git add . && git commit -m "feat: 完成模块 1.12 检查点"
-```
+> 2026-10-04 起该模块已删除，不再派工。
 
 ### 派工 1.13 🟢
 
@@ -921,7 +903,7 @@ git push -u origin main
 要点：
 - catalog：按 profile.catalog 执行版本与模型命令，按 modelsParser 解析（对 fixtures 做快照测试）
 - model：缓存 10 分钟，refresh=true 强制刷新；id 以 gemini 开头归为 'gemini'，其余 'third_party'；isDefault 由 prefs.defaultModel 决定
-- prefs 默认值：showThinking=true、checkpointsEnabled=true、maxConcurrentRuns=3、stallTimeoutSeconds=180，其余 null
+- prefs 默认值：showThinking=true、maxConcurrentRuns=3、stallTimeoutSeconds=180，其余 null
 - capabilities：features 由 profile 推导；profileAgyVersion 取 profile.agyVersion
 - agy 未安装时 capabilities 返回 agyPath=null，models 返回 AGY_NOT_INSTALLED
 约束：只改上述文件和对应测试；不要修改 contracts/。
@@ -1013,7 +995,7 @@ git push -u origin main
 任务：搭建 frontend/ 界面骨架与主题。
 要点：
 - Tailwind + shadcn/ui；src/theme.css 定义 Antigravity 风格深色主题变量（背景、面板、悬浮层、边框、主次文字、强调色、成功/警告/错误色、等宽字体）
-- App.tsx：顶栏占位（工作区、模型、额度、账号、连接状态）+ 三栏布局（左 260px、中自适应、右 380px 可折叠可拖拽，状态存 localStorage）
+- App.tsx：顶栏占位（工作区、模型、额度、账号、连接状态）+ 两栏布局（左 260px、中自适应；原右栏 Artifacts 已移除）
 - vite.config.ts：开发代理 /api 与 /ws 到 http://127.0.0.1:8790（ws: true）
 - 路由：/、/accounts、/settings、/playground（仅开发模式），先放占位组件
 约束：只改 frontend/；不引入 store 或 API 调用；不要修改 contracts/。
@@ -1085,7 +1067,7 @@ git push -u origin main
 - session.store：slots[sessionId] = {events, timeline, lastSeq, activeRunId, loading, error}；openSession：REST 按 afterSeq 分页拉完历史并 reduce → wsClient.subscribe；实时事件增量 reduce；onReset 时清空重载；send、abort；切换会话保留槽位；list 字段响应 session.upserted / session.deleted
 - quota.store 响应 quota.updated；account.store 响应 account.changed，并触发 quota 刷新
 - connection.store 镜像 wsClient 状态
-- ui.store：右栏折叠、当前 Artifacts 标签、showThinking 本地覆盖、各会话已读的 lastSeq
+- ui.store：showThinking 本地覆盖、各会话已读的 lastSeq、主题偏好
 - bootstrap.ts：统一连接 WS 并分发 global 事件
 约束：只改 frontend/src/stores/ 和对应测试；不写组件；不要修改 contracts/。
 验收：vitest（mock api 与 wsClient）覆盖打开会话、实时增量、重置、全局事件。
@@ -1154,21 +1136,9 @@ git push -u origin main
 完成后提示我执行：git add . && git commit -m "feat: 完成模块 2.9 收件箱与工作区"
 ```
 
-### 派工 2.10 🟡
+### 派工 2.10（已移除）
 
-```text
-你是执行工程师。阅读 docs/ARCHITECTURE.md 模块 2.10 表格，contracts/src/domain.ts 的 Artifact，frontend/src/api/endpoints.ts 中 artifacts 函数。
-任务：实现 frontend/src/components/artifacts/ 下的 ArtifactTabs、TaskView、MarkdownArtifactView、MediaGallery，并挂载到右栏。
-要点：
-- 标签页 Task、Plan、Walkthrough、Media、Changes（Changes 先占位，由 2.12 实现）；无内容的置灰
-- TaskView 解析 - [ ] / - [x]，顶部进度条
-- 从会话槽位事件中筛选 artifact.updated，重新拉取 raw 内容并短暂高亮
-- Plan：选中文字出现"评论"，以「针对实施计划中的"<选中文字>"：<评论>」格式调用 send
-- MediaGallery：图片网格点击放大，录屏用 <video>
-约束：只改 components/artifacts/ 与挂载点；不要修改 contracts/。
-验收：切换会话时面板跟着切换；空状态有提示。
-完成后提示我执行：git add . && git commit -m "feat: 完成模块 2.10 Artifacts 面板"
-```
+> 2026-10-04 起该模块已删除，不再派工。
 
 ### 派工 2.11 🟢
 
@@ -1185,20 +1155,9 @@ git push -u origin main
 完成后提示我执行：git add . && git commit -m "feat: 完成模块 2.11 额度与账号界面"
 ```
 
-### 派工 2.12 🟡
+### 派工 2.12（已移除）
 
-```text
-你是执行工程师。阅读 docs/ARCHITECTURE.md 模块 2.12 表格，contracts/src/domain.ts 的 Checkpoint / CheckpointDiff，api.ts 中 checkpoints 端点。
-任务：实现 frontend/src/components/artifacts/ChangesView.tsx 与 frontend/src/components/common/DiffViewer.tsx，替换 Changes 占位。
-要点：
-- 按运行列出检查点（时间、文件数），点开加载 diff
-- DiffViewer：文件列表 + unified diff（增删着色、行号），大文件默认折叠
-- 回滚按钮二次确认，说明"工作区会恢复到这次运行开始前的状态，之后的所有修改（包括手动修改）都会被覆盖；系统会先自动保存一份回滚前的快照"；运行中禁用
-- 成功后提示恢复的文件数，失败显示错误
-约束：只改这两个文件与挂载点；不要修改 contracts/。
-验收：运行中按钮禁用；接口报错时显示错误。
-完成后提示我执行：git add . && git commit -m "feat: 完成模块 2.12 检查点界面"
-```
+> 2026-10-04 起该模块已删除，不再派工。
 
 ### 派工 2.13 🟡
 
@@ -1225,7 +1184,7 @@ git push -u origin main
 任务：新增 e2e/，用 Playwright 编写端到端测试，并在根 package.json 加 e2e 脚本。
 要点：
 - global-setup：AGY_BIN=fake-agy、临时 DATA_DIR 与 FAKE_AGY_HOME 启动后端（托管 build 后的前端）
-- 用例：新建工作区与会话并发送 → 思考块、工具卡片、正文、分隔条；展开子 agent；运行中停止；刷新后时间线完整；setOffline 断网恢复后事件补齐且不重复；上传图片后发送；回滚；添加账号（后端注入假终端启动器）；额度面板显示数据
+- 用例：新建工作区与会话并发送 → 思考块、工具卡片、正文、分隔条；展开子 agent；运行中停止；刷新后时间线完整；setOffline 断网恢复后事件补齐且不重复；上传图片后发送；添加账号（后端注入假终端启动器）；额度面板显示数据
 - 每个用例独立会话
 约束：只新增 e2e/ 与根脚本；发现产品 bug 记录到 e2e/BUGS.md 并告诉我，不要改业务代码。
 验收：npm run e2e 连续 3 次全部通过。
@@ -1239,7 +1198,7 @@ git push -u origin main
 任务：编写 start.cmd 与根目录 README.md。
 要点：
 - start.cmd：检查 Node ≥ 20 与 agy（给出官方安装指引链接）→ frontend/dist 不存在则构建 → 启动后端 → 打开 http://127.0.0.1:8790
-- README：功能列表；安装；首次使用（网页登录账号）；局域网或手机访问（必须设置 AGY_STUDIO_TOKEN，推荐 Tailscale，禁止公网暴露）；自动同意风险与回滚用法；"agy 升级后"的处理步骤（运行 tools/discover 重新探测 → 更新 agy-profile.json 与 fixtures → 跑测试）
+- README：功能列表；安装；首次使用（网页登录账号）；局域网或手机访问（必须设置 AGY_STUDIO_TOKEN，推荐 Tailscale，禁止公网暴露）；自动同意风险与自行 git 备份的建议；"agy 升级后"的处理步骤（运行 tools/discover 重新探测 → 更新 agy-profile.json 与 fixtures → 跑测试）
 约束：只新增或修改 start.cmd 与 README.md。
 验收：在干净的 Windows 机器上按 README 能跑起来。
 完成后提示我执行：git add . && git commit -m "docs: 完成模块 3.2 启动脚本与 README"
@@ -1286,7 +1245,7 @@ git push -u origin main
 | agy 升级后行为变化 | 版本比对提示 → 重跑 `tools/discover` → 更新 profile 与 fixtures → 快照测试立刻暴露差异；未知输出降级为 `raw`。agy 会在后台自动升级（2026-10-03 本机从 1.2.12 升到 1.2.16），1.2.16 的复核结论见 VERIFY.md |
 | 客户机器环境差异 | 用户名含空格、agy 不在 PATH、需要代理或直连、未装 Visual Studio、中文代码页——均已有对应处理与回归测试（0.1、1.6、1.13、1.15、1.18、3.2 的修订条目） |
 | 官方没有文档的行为探测不到 | 每项探测都有降级方案（阶段 0 表格）；最坏情况下仍可用"只靠 CLI 参数 + stdout 事件"跑通核心对话 |
-| 自动同意导致破坏性操作 | 影子 git 检查点一键回滚；默认只监听本机；非本机访问强制 token |
+| 自动同意导致破坏性操作 | 不再内置回滚（检查点已于 2026-10-04 移除），README 要求发起任务前自行 git 提交；默认只监听本机；非本机访问强制 token |
 | 凭据泄露 | 不入库、DPAPI 加密快照、日志脱敏、API 不返回、internal 接口只收回环地址并校验令牌 |
 | 服务条款风险 | 登录只走 agy 自己的流程；私有接口只调用额度查询一个（与官方客户端相同的请求，每账号 1 分钟限流）；OAuth 客户端标识只在内存中使用；不做自动换号 |
 | 许可证 | 全部自研；CloudCLI（AGPL）只读架构文档，不看不抄源码 |

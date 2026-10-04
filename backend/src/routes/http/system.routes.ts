@@ -1,5 +1,4 @@
 import type { FastifyPluginAsync } from 'fastify';
-import process from 'node:process';
 import type {
   Capabilities,
   FeatureFlag,
@@ -124,7 +123,7 @@ export const systemRoutes: FastifyPluginAsync<SystemRoutesOptions> = async (app,
       };
 
       return reply.status(200).send(capabilities);
-    } catch (err) {
+    } catch {
       // capabilities must NEVER return 500 when agy is missing/fails
       const capabilities: Capabilities = {
         agyPath: null,

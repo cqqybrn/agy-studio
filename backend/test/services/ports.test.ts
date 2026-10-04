@@ -31,8 +31,6 @@ describe('Service Ports Type Integrity', () => {
         steps: (async function* () {})(),
         stop: () => {},
       }),
-      listArtifacts: async () => [],
-      watchArtifacts: async () => ({ stop: () => {} }),
       purgeConversation: async () => {},
     };
     expect(mockBrain).toBeDefined();

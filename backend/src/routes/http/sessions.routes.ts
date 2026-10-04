@@ -152,6 +152,21 @@ export const sessionsRoutes: FastifyPluginAsync<SessionsRoutesOptions> = async (
     },
   );
 
+  // POST /api/sessions/:sessionId/messages/:messageId/rewind
+  app.post<{ Params: { sessionId: string; messageId: string } }>(
+    '/api/sessions/:sessionId/messages/:messageId/rewind',
+    async (request, reply) => {
+      const { sessionId, messageId } = request.params;
+      try {
+        await sessionService.rewindToMessage(sessionId, messageId);
+        return { ok: true };
+      } catch (err) {
+        const appError = AppError.from(err);
+        return reply.status(appError.status).send(appError.toApiErrorResponse());
+      }
+    },
+  );
+
   // POST /api/sessions/import
   app.post('/api/sessions/import', async (request, reply) => {
     const parseResult = ImportSessionsSchema.safeParse(request.body);

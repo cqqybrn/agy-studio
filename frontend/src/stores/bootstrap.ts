@@ -30,6 +30,12 @@ export function initializeApp(options: BootstrapOptions = {}): () => void {
       case 'session.deleted':
         useSessionStore.getState().handleSessionDeleted(event.sessionId);
         break;
+      case 'session.reset':
+        // History was truncated (message edit) and renumbered: reload it if this tab has it open
+        if (useSessionStore.getState().slots[event.sessionId]) {
+          useSessionStore.getState().handleSlotReset(event.sessionId);
+        }
+        break;
       case 'run.status':
         useSessionStore.getState().handleRunStatus(event.run);
         break;

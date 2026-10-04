@@ -142,9 +142,9 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 /**
- * 在 FAKE_AGY_HOME 下模拟生成 transcript.jsonl 与 artifacts
+ * 在 FAKE_AGY_HOME 下模拟生成 transcript.jsonl
  */
-export function simulateTranscriptAndArtifacts(
+export function simulateTranscript(
   homeDir: string,
   conversationId: string,
   scenario: string,
@@ -187,13 +187,6 @@ export function simulateTranscriptAndArtifacts(
         defaultSteps.map(s => JSON.stringify(s)).join('\n') + '\n',
         'utf-8'
       );
-    }
-
-    // 复制 artifacts（如果存在）
-    const sourceArtifacts = path.join(fixturesDir, 'stream', scenario, 'artifacts');
-    if (fs.existsSync(sourceArtifacts)) {
-      const targetArtifacts = path.join(convDir, 'artifacts');
-      fs.cpSync(sourceArtifacts, targetArtifacts, { recursive: true });
     }
   } catch {
     // 忽略生成过程中的非致命错误
@@ -328,7 +321,7 @@ export async function runStreamMode(
   }
 
   if (homeDir) {
-    simulateTranscriptAndArtifacts(homeDir, conversationId, scenario, fixturesDir);
+    simulateTranscript(homeDir, conversationId, scenario, fixturesDir);
     tryInvokeStatusline(homeDir, fixturesDir);
   }
 

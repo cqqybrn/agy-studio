@@ -16,6 +16,23 @@ export default tseslint.config(
     ],
   },
   {
+    rules: {
+      // `_name` marks a parameter or variable that is intentionally unused (interface placeholders,
+      // callback signatures, loop counters).
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
+      ],
+    },
+  },
+  {
+    // Test doubles: `any` keeps mocks and fakes short and does not weaken product types.
+    files: ['**/*.test.{ts,tsx}', '**/test/**/*.{ts,tsx}', 'e2e/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
+  {
     files: ['backend/src/services/**/*.{ts,tsx,js,jsx}'],
     rules: {
       'no-restricted-imports': [

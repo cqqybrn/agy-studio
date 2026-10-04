@@ -93,6 +93,48 @@ export async function createIndependentSession(page: Page): Promise<void> {
 }
 
 /**
+ * 等待所有会话的运行结束。有运行时账号的登录/切换会被拒绝（ACCOUNT_BUSY），
+ * 前一个用例留下的运行可能还没收尾。
+ */
+export async function waitForNoActiveRuns(page: Page): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        const res = await page.request.get('/api/sessions?limit=200');
+        const body = (await res.json()) as { items: { status: string }[] };
+        return body.items.filter((s) => s.status === 'running').length;
+      },
+      { timeout: 30000, intervals: [500] },
+    )
+    .toBe(0);
+}
+
+/**
+ * 把对话区滚动到顶部。时间线是虚拟列表，只渲染视口附近的行，长回答结束后会自动滚到底部，
+ * 最上面的用户消息此时不在 DOM 里。
+ */
+export async function scrollTimelineToTop(page: Page): Promise<void> {
+  await page.locator('[data-testid="timeline-scroll-container"]').evaluate((el) => {
+    el.scrollTop = 0;
+  });
+  await page.waitForTimeout(300);
+}
+
+/**
+ * 展开时间线里所有折叠的 "Worked for Xs" 块与工具分组。
+ * 思考、工具调用、子 agent 卡片都收在这些折叠块里，运行结束后默认折叠。
+ */
+export async function expandWorkedBlocks(page: Page): Promise<void> {
+  const collapsed = page.locator(
+    '[data-testid="worked-toggle"][aria-expanded="false"], [data-testid="tool-group-toggle"][aria-expanded="false"]',
+  );
+  // 展开外层后才会出现内层分组，所以循环到没有折叠项为止（设上限防止死循环）
+  for (let i = 0; i < 20 && (await collapsed.count()) > 0; i++) {
+    await collapsed.first().click();
+  }
+}
+
+/**
  * 发送消息并等待响应开始
  */
 export async function sendMessage(page: Page, text: string): Promise<void> {

@@ -11,7 +11,6 @@ import { AgySettings } from '../../src/integrations/agy/settings.js';
 import { loadProfile } from '../../src/integrations/agy/profile/loader.js';
 import type {
   EnsureAlwaysProceedOptions,
-  EnsureAlwaysProceedResult,
   SettingsPort,
   SettingsScope,
 } from '../../src/services/ports/settings.port.js';

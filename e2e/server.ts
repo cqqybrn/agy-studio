@@ -20,6 +20,10 @@ import type {
   RunnerProcess,
   SpawnRunnerOptions,
 } from '../backend/src/services/ports/agy-runner.port.js';
+import type {
+  ConversationRewindPort,
+  ConversationRewindRequest,
+} from '../backend/src/services/ports/conversation-rewind.port.js';
 import type { LoginPort, LoginHandle } from '../backend/src/services/ports/login.port.js';
 import type { QuotaProbePort } from '../backend/src/services/ports/quota-probe.port.js';
 import { adapt } from '../backend/src/integrations/agy/stream-adapter.js';
@@ -44,23 +48,11 @@ fs.mkdirSync(dataDir, { recursive: true });
 fs.mkdirSync(homeDir, { recursive: true });
 fs.mkdirSync(workspaceDir, { recursive: true });
 
-// 初始化 workspace 为 git 仓库以便 checkpoint 服务正常工作
-try {
-  execSync('git init', { cwd: workspaceDir, stdio: 'ignore' });
-  execSync('git config user.name "E2E Tester"', { cwd: workspaceDir, stdio: 'ignore' });
-  execSync('git config user.email "tester@example.com"', { cwd: workspaceDir, stdio: 'ignore' });
-  fs.writeFileSync(path.join(workspaceDir, 'README.md'), '# E2E Workspace\n');
-  execSync('git add .', { cwd: workspaceDir, stdio: 'ignore' });
-  execSync('git commit -m "initial commit"', { cwd: workspaceDir, stdio: 'ignore' });
-} catch {
-  // 忽略 git init 失败
-}
-
 // 准备 subagent transcript fixture 到 home 目录与 profile 查找路径
 const subagentConvId = 'e33a7c24-f1e3-4792-ac80-d602ef34dabb';
 const fixtureTranscript = path.join(rootDir, 'fixtures', 'agy', 'fs', 'brain-sample', '.system_generated', 'logs', 'transcript.jsonl');
 
-// 复制到多个候选路径以确保 backend 的 ArtifactService 能解析到
+// 复制到多个候选路径，确保子 agent transcript 接口能解析到
 const candidateBrainDirs = [
   path.join(homeDir, '.gemini', 'antigravity-cli', 'brain', subagentConvId, '.system_generated', 'logs'),
   path.join(homeDir, '.gemini', 'antigravity-cli', 'brain', subagentConvId),
@@ -388,6 +380,14 @@ const fakeQuotaProbe: QuotaProbePort = {
 
 const port = Number(process.env.PORT || 8790);
 
+// fake-agy 没有交互界面，用记录调用的假实现代替 /rewind（真实驱动有单元测试与手工验证）
+const rewindCalls: ConversationRewindRequest[] = [];
+const fakeConversationRewind: ConversationRewindPort = {
+  async rewindToMessage(request) {
+    rewindCalls.push({ ...request, env: undefined });
+  },
+};
+
 const builtApp: BuiltApp = buildApp({
   config: {
     dataDir,
@@ -399,6 +399,7 @@ const builtApp: BuiltApp = buildApp({
   credentialStore,
   loginPort: fakeLoginPort,
   quotaProbePort: fakeQuotaProbe,
+  conversationRewindPort: fakeConversationRewind,
   dpapi: memoryDpapi,
 });
 
@@ -421,6 +422,8 @@ builtApp.app.get('/test-api/context', async () => {
     workspaceDir,
   };
 });
+
+builtApp.app.get('/test-api/rewinds', async () => rewindCalls);
 
 builtApp.app.post('/test-api/scenario', async (req) => {
   const body = req.body as { scenario: string; speed?: number };

@@ -146,7 +146,7 @@ describe('WebSocket Gateway', () => {
       sessionService: mockSessionService,
       ...options,
     });
-    const addr = await app.listen({ port: 0, host: '127.0.0.1' });
+    await app.listen({ port: 0, host: '127.0.0.1' });
     port = (app.server.address() as any).port;
     serverUrl = `ws://127.0.0.1:${port}/ws`;
   }

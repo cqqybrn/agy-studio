@@ -29,7 +29,7 @@ function stringInput(input: Record<string, unknown>, key: string): string | null
   return typeof value === 'string' ? value : null;
 }
 
-const PRE = 'max-h-72 overflow-auto whitespace-pre-wrap break-all p-2.5 font-mono text-[11px] leading-relaxed text-text-secondary';
+const PRE = 'max-h-72 overflow-auto whitespace-pre-wrap break-all p-2.5 font-mono text-xs leading-relaxed text-text-secondary';
 
 /** Expanded body of a tool row: command output, edit diff, or the raw tool output. */
 export function ToolDetail({ tool }: { tool: ToolCall }) {
@@ -70,13 +70,13 @@ export function ToolDetail({ tool }: { tool: ToolCall }) {
     } else if (output) {
       body = <pre className={PRE}>{output}</pre>;
     } else {
-      body = <div className="p-2.5 text-[11px] italic text-text-tertiary">No diff details available.</div>;
+      body = <div className="p-2.5 text-xs italic text-text-tertiary">No diff details available.</div>;
     }
   } else if (output) {
     body = <pre className={PRE}>{output}</pre>;
   } else if (!tool.error) {
     body = (
-      <div className="p-2.5 text-[11px] italic text-text-tertiary">
+      <div className="p-2.5 text-xs italic text-text-tertiary">
         {tool.status === 'running' ? 'Running…' : '(No output returned)'}
       </div>
     );
@@ -88,13 +88,13 @@ export function ToolDetail({ tool }: { tool: ToolCall }) {
       data-testid="tool-detail"
     >
       {tool.target && category !== 'command' && (
-        <div className="truncate border-b border-border-subtle px-2.5 py-1 font-mono text-[11px] text-text-tertiary" title={tool.target}>
+        <div className="truncate border-b border-border-subtle px-2.5 py-1 font-mono text-xs text-text-tertiary" title={tool.target}>
           {tool.target}
         </div>
       )}
       {body}
       {tool.error && (
-        <div className="border-t border-border-subtle px-2.5 py-1.5 font-mono text-[11px] text-status-error-text">
+        <div className="border-t border-border-subtle px-2.5 py-1.5 font-mono text-xs text-status-error-text">
           {tool.error}
         </div>
       )}

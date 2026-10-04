@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type Database from 'better-sqlite3';
-import type { AgentEvent, GlobalEvent, Session } from '@agy-studio/contracts';
+import type { AgentEvent, GlobalEvent } from '@agy-studio/contracts';
 import {
   AccountsRepository,
   AttachmentsRepository,
@@ -13,7 +13,7 @@ import {
 import { EventBus } from '../../src/services/event-bus.js';
 import { SessionService } from '../../src/services/session.js';
 import { AppError } from '../../src/utils/errors.js';
-import type { BrainPort, DiskConversationSummary, TranscriptTailHandle } from '../../src/services/ports/brain.port.js';
+import type { DiskConversationSummary, TranscriptTailHandle } from '../../src/services/ports/brain.port.js';
 
 describe('SessionService', () => {
   let db: Database.Database;
@@ -79,8 +79,6 @@ describe('SessionService', () => {
     mockBrainPort = {
       listConversations: vi.fn().mockResolvedValue([]),
       tailTranscript: vi.fn(),
-      listArtifacts: vi.fn().mockResolvedValue([]),
-      watchArtifacts: vi.fn(),
       purgeConversation: vi.fn().mockResolvedValue(undefined),
     };
 
@@ -486,7 +484,6 @@ describe('SessionService', () => {
         status: 'completed',
         model: 'gemini',
         accountName: null,
-        checkpointId: null,
         pid: null,
         usage: null,
         error: null,

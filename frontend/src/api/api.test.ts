@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, buildUrl, getAuthToken, request, TOKEN_STORAGE_KEY } from './http';
+import { buildUrl, request, TOKEN_STORAGE_KEY } from './http';
 import {
   createSession,
   deleteWorkspace,
@@ -41,11 +41,11 @@ describe('http.ts - URL Building and Parameter Handling', () => {
   });
 
   it('replaces multiple path parameters and encodes them', () => {
-    const url = buildUrl('/api/sessions/:sessionId/artifacts/:artifactId/raw', {
+    const url = buildUrl('/api/sessions/:sessionId/subagents/:conversationId/transcript', {
       sessionId: 'sess 123',
-      artifactId: 'art/456',
+      conversationId: 'conv/456',
     });
-    expect(url).toBe('/api/sessions/sess%20123/artifacts/art%2F456/raw');
+    expect(url).toBe('/api/sessions/sess%20123/subagents/conv%2F456/transcript');
   });
 
   it('throws error if required path parameter is missing', () => {

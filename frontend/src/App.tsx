@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect } from 'react';
 import type { Session } from '@agy-studio/contracts';
 import { RouterProvider, useRouter } from './router';
 import { AccountsView, ManagerView, PlaygroundView, SettingsView } from './views';
@@ -12,17 +12,10 @@ import {
   NewSessionButton,
   WorkspaceSwitcher,
 } from './components/inbox';
-import { ArtifactTabs } from './components/artifacts';
 import { QuotaRing } from './components/quota';
 import { AccountMenu } from './components/account';
 
 export type CurrentSession = Session | null;
-
-const STORAGE_KEY_RIGHT_PANEL_WIDTH = 'agy_studio_right_panel_width';
-const STORAGE_KEY_RIGHT_PANEL_COLLAPSED = 'agy_studio_right_panel_collapsed';
-const DEFAULT_RIGHT_WIDTH = 380;
-const MIN_RIGHT_WIDTH = 260;
-const MAX_RIGHT_WIDTH = 640;
 
 function TopBar() {
   const { path, navigate } = useRouter();
@@ -142,61 +135,6 @@ function TopBar() {
 function MainLayout() {
   const { path } = useRouter();
 
-  // 右栏宽度与折叠状态，持久化在 localStorage
-  const [rightWidth, setRightWidth] = useState<number>(() => {
-    if (typeof window === 'undefined') return DEFAULT_RIGHT_WIDTH;
-    const saved = localStorage.getItem(STORAGE_KEY_RIGHT_PANEL_WIDTH);
-    const parsed = saved ? Number.parseInt(saved, 10) : DEFAULT_RIGHT_WIDTH;
-    return Number.isFinite(parsed) && parsed >= MIN_RIGHT_WIDTH && parsed <= MAX_RIGHT_WIDTH
-      ? parsed
-      : DEFAULT_RIGHT_WIDTH;
-  });
-
-  const [isRightCollapsed, setIsRightCollapsed] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem(STORAGE_KEY_RIGHT_PANEL_COLLAPSED) === 'true';
-  });
-
-  const isDraggingRef = useRef<boolean>(false);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_RIGHT_PANEL_WIDTH, rightWidth.toString());
-    } catch {}
-  }, [rightWidth]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_RIGHT_PANEL_COLLAPSED, isRightCollapsed.toString());
-    } catch {}
-  }, [isRightCollapsed]);
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
-    isDraggingRef.current = true;
-
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      if (!isDraggingRef.current) return;
-      const newWidth = window.innerWidth - moveEvent.clientX;
-      if (newWidth >= MIN_RIGHT_WIDTH && newWidth <= MAX_RIGHT_WIDTH) {
-        setRightWidth(newWidth);
-      }
-    };
-
-    const handleMouseUp = () => {
-      isDraggingRef.current = false;
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-  };
-
-  const toggleRightPanel = () => {
-    setIsRightCollapsed((prev) => !prev);
-  };
-
   const renderView = () => {
     switch (path) {
       case '/accounts':
@@ -249,39 +187,6 @@ function MainLayout() {
           {renderView()}
         </section>
 
-        {/* 右栏：380px 可拖拽、可折叠 Artifacts 面板 */}
-        {!isRightCollapsed && (
-          <>
-            {/* 拖拽 Handle */}
-            <div
-              className="w-1 cursor-col-resize bg-border-default hover:bg-accent transition-colors select-none"
-              onMouseDown={handleMouseDown}
-              data-testid="resizer-handle"
-              title="拖拽调节宽度"
-            />
-
-            <aside
-              style={{ width: `${rightWidth}px` }}
-              className="flex h-full shrink-0 flex-col border-l border-border-default bg-bg-panel transition-all duration-75"
-              data-testid="right-panel"
-            >
-              <ArtifactTabs onClose={toggleRightPanel} />
-            </aside>
-          </>
-        )}
-
-        {/* 折叠状态展开按钮 */}
-        {isRightCollapsed && (
-          <button
-            type="button"
-            onClick={toggleRightPanel}
-            className="flex w-6 items-center justify-center border-l border-border-default bg-bg-panel text-text-tertiary hover:bg-bg-surface hover:text-text-primary transition-colors"
-            title="展开 Artifacts 面板"
-            data-testid="expand-right-btn"
-          >
-            ‹
-          </button>
-        )}
       </main>
     </div>
   );

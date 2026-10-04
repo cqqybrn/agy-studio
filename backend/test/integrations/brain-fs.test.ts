@@ -4,7 +4,6 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   BrainFs,
-  globToRegExp,
   purgeConversation,
   resolveConversationDir,
   resolveDataRoots,
@@ -38,24 +37,6 @@ describe('Integrations: brain-fs.ts', () => {
 
   afterEach(async () => {
     await fs.promises.rm(tmpHome, { recursive: true, force: true });
-  });
-
-  describe('globToRegExp', () => {
-    it('matches exact filenames and wildcards', () => {
-      const taskRegex = globToRegExp('tasks/*.json');
-      expect(taskRegex.test('tasks/task-1.json')).toBe(true);
-      expect(taskRegex.test('tasks/nested/task.json')).toBe(false);
-      expect(taskRegex.test('plans/task-1.json')).toBe(false);
-    });
-
-    it('handles recursive glob ** and braces', () => {
-      const mediaRegex = globToRegExp('media/**/*.{png,jpg,jpeg,webp,gif}');
-      expect(mediaRegex.test('media/screenshot.png')).toBe(true);
-      expect(mediaRegex.test('media/photos/sample.jpg')).toBe(true);
-      expect(mediaRegex.test('media/nested/dir/pic.webp')).toBe(true);
-      expect(mediaRegex.test('media/video.mp4')).toBe(false);
-      expect(mediaRegex.test('other/screenshot.png')).toBe(false);
-    });
   });
 
   describe('profile-derived paths', () => {
@@ -185,77 +166,6 @@ describe('Integrations: brain-fs.ts', () => {
       }
 
       expect(batches).toEqual([[], ['message.delta', 'message.done'], ['tool.started']]);
-    });
-  });
-
-  describe('listArtifacts & watchArtifacts', () => {
-    const convId = '2bc3ff47-8256-4f2c-9966-b909f2af6e5f';
-    const sessionId = 'session-123';
-
-    it('lists implementation_plan.md and walkthrough.md from the real layout, skipping metadata and .system_generated', async () => {
-      const brain = new BrainFs(PROFILE_PATHS);
-      await installBrainSample(dataRoot, convId);
-
-      const artifacts = await brain.listArtifacts(convId, sessionId, dataRoot);
-
-      expect(artifacts.map((a) => a.relativePath)).toEqual([
-        'implementation_plan.md',
-        'walkthrough.md',
-      ]);
-
-      const [plan, walkthrough] = artifacts;
-      expect(plan.kind).toBe('implementation_plan');
-      expect(plan.mimeType).toBe('text/markdown');
-      expect(plan.name).toBe('implementation_plan.md');
-      expect(plan.sessionId).toBe(sessionId);
-      expect(plan.conversationId).toBe(convId);
-      expect(plan.id).toBe(Buffer.from(`${convId}/implementation_plan.md`).toString('base64url'));
-
-      expect(walkthrough.kind).toBe('walkthrough');
-      expect(walkthrough.mimeType).toBe('text/markdown');
-    });
-
-    it('returns an empty list when the conversation directory does not exist', async () => {
-      const brain = new BrainFs(PROFILE_PATHS);
-      expect(await brain.listArtifacts(convId, sessionId, dataRoot)).toEqual([]);
-    });
-
-    it('watchArtifacts invokes onChange on creation and modification and cleans up timers on stop', async () => {
-      const brain = new BrainFs(PROFILE_PATHS);
-      const convDir = path.join(dataRoot, 'brain', convId);
-      await fs.promises.mkdir(convDir, { recursive: true });
-
-      const events: Array<{ name: string; version: number }> = [];
-      const handle = await brain.watchArtifacts(
-        convId,
-        sessionId,
-        (art) => {
-          events.push({ name: art.name, version: art.version });
-        },
-        dataRoot,
-      );
-
-      // 1. agy writes walkthrough.md
-      const walkthroughFile = path.join(convDir, 'walkthrough.md');
-      await fs.promises.writeFile(walkthroughFile, '# Walkthrough', 'utf-8');
-
-      await new Promise((r) => setTimeout(r, 450));
-      expect(events).toEqual([{ name: 'walkthrough.md', version: 1 }]);
-
-      // 2. Modify the file
-      await fs.promises.writeFile(walkthroughFile, '# Walkthrough\n\nDone.', 'utf-8');
-      await new Promise((r) => setTimeout(r, 450));
-      expect(events).toEqual([
-        { name: 'walkthrough.md', version: 1 },
-        { name: 'walkthrough.md', version: 2 },
-      ]);
-
-      // 3. Stop watcher
-      handle.stop();
-
-      await fs.promises.writeFile(walkthroughFile, '# Walkthrough\n\nArchived.', 'utf-8');
-      await new Promise((r) => setTimeout(r, 450));
-      expect(events).toHaveLength(2);
     });
   });
 
@@ -521,7 +431,7 @@ describe('Integrations: brain-fs.ts', () => {
       expect(summaries[0].title).toBe('from cli');
     });
 
-    it('resolves transcript and artifacts of a conversation that only exists under the IDE root', async () => {
+    it('resolves the transcript of a conversation that only exists under the IDE root', async () => {
       const id = 'd4444444-4444-4444-8444-444444444444';
       const ideDir = await installBrainSample(ideRoot, id);
       const brain = new BrainFs(PROFILE_PATHS);
@@ -540,8 +450,6 @@ describe('Integrations: brain-fs.ts', () => {
       expect(types[0]).toBe('USER_INPUT');
       expect(types).toHaveLength(5);
 
-      const artifacts = await brain.listArtifacts(id, 'session-ide');
-      expect(artifacts.map((a) => a.relativePath)).toEqual(['implementation_plan.md', 'walkthrough.md']);
     });
 
     it('resolves conversations that exist nowhere yet to the CLI root (where agy writes)', () => {

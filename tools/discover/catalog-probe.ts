@@ -109,7 +109,7 @@ export function parseModesFromHelp(helpOutput: string): { modes: string[]; rawTe
   const parenMatch = rawText.match(/\(([^)]+)\)/);
   if (parenMatch) {
     const items = parenMatch[1]
-      .split(/[,|\/]/)
+      .split(/[,|/]/)
       .map(s => s.trim())
       .filter(s => s.length > 0);
     return { modes: items, rawText };

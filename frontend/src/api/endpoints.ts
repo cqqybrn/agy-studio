@@ -3,11 +3,8 @@ import type {
   AccountLoginSession,
   AgentInfo,
   ApiEndpoints,
-  Artifact,
   Attachment,
   Capabilities,
-  Checkpoint,
-  CheckpointDiff,
   CreateSessionBody,
   CreateWorkspaceBody,
   Health,
@@ -28,22 +25,22 @@ import type {
   WhoAmI,
   Workspace,
 } from '@agy-studio/contracts';
-import { ApiError, buildUrl, getAuthToken, request, type RequestOptions } from './http';
+import { ApiError, getAuthToken, request, type RequestOptions } from './http';
 
 // ---------- Health & Capabilities ----------
 
 export function getHealth(options?: RequestOptions<'GET /api/health'>): Promise<Health> {
-  return request('GET /api/health', options as any);
+  return request('GET /api/health', options);
 }
 
 export function getCapabilities(options?: RequestOptions<'GET /api/capabilities'>): Promise<Capabilities> {
-  return request('GET /api/capabilities', options as any);
+  return request('GET /api/capabilities', options);
 }
 
 // ---------- Workspaces ----------
 
 export function getWorkspaces(options?: RequestOptions<'GET /api/workspaces'>): Promise<Workspace[]> {
-  return request('GET /api/workspaces', options as any);
+  return request('GET /api/workspaces', options);
 }
 
 export function createWorkspace(
@@ -69,7 +66,7 @@ export function getSessions(
   query?: ApiEndpoints['GET /api/sessions']['query'],
   options?: Omit<RequestOptions<'GET /api/sessions'>, 'query'>,
 ): Promise<Page<Session>> {
-  return request('GET /api/sessions', { ...options, query } as any);
+  return request('GET /api/sessions', { ...options, query });
 }
 
 export function createSession(
@@ -110,7 +107,7 @@ export function deleteSession(
     ...options,
     params: { sessionId },
     query,
-  } as any);
+  });
 }
 
 export function importSessions(
@@ -118,6 +115,21 @@ export function importSessions(
   options?: Omit<RequestOptions<'POST /api/sessions/import'>, 'body'>,
 ): Promise<{ imported: Session[] }> {
   return request('POST /api/sessions/import', { ...options, body });
+}
+
+/** Removes the user message and everything after it (see the edit flow in session.store). */
+export function rewindToMessage(
+  sessionId: string,
+  messageId: string,
+  options?: Omit<
+    RequestOptions<'POST /api/sessions/:sessionId/messages/:messageId/rewind'>,
+    'params'
+  >,
+): Promise<{ ok: true }> {
+  return request('POST /api/sessions/:sessionId/messages/:messageId/rewind', {
+    ...options,
+    params: { sessionId, messageId },
+  });
 }
 
 export function getSessionEvents(
@@ -129,7 +141,7 @@ export function getSessionEvents(
     ...options,
     params: { sessionId },
     query,
-  } as any);
+  });
 }
 
 export function getSessionRuns(
@@ -155,65 +167,6 @@ export function getSubagentTranscript(
     ...options,
     params: { sessionId, conversationId },
     query,
-  } as any);
-}
-
-// ---------- Artifacts ----------
-
-export function getArtifacts(
-  sessionId: string,
-  options?: Omit<RequestOptions<'GET /api/sessions/:sessionId/artifacts'>, 'params'>,
-): Promise<Artifact[]> {
-  return request('GET /api/sessions/:sessionId/artifacts', {
-    ...options,
-    params: { sessionId },
-  });
-}
-
-export function getArtifactRaw(
-  sessionId: string,
-  artifactId: string,
-  options?: Omit<RequestOptions<'GET /api/sessions/:sessionId/artifacts/:artifactId/raw'>, 'params'>,
-): Promise<Blob> {
-  return request('GET /api/sessions/:sessionId/artifacts/:artifactId/raw', {
-    ...options,
-    params: { sessionId, artifactId },
-  });
-}
-
-export function getArtifactRawUrl(sessionId: string, artifactId: string): string {
-  return buildUrl('/api/sessions/:sessionId/artifacts/:artifactId/raw', { sessionId, artifactId });
-}
-
-// ---------- Checkpoints ----------
-
-export function getCheckpoints(
-  sessionId: string,
-  options?: Omit<RequestOptions<'GET /api/sessions/:sessionId/checkpoints'>, 'params'>,
-): Promise<Checkpoint[]> {
-  return request('GET /api/sessions/:sessionId/checkpoints', {
-    ...options,
-    params: { sessionId },
-  });
-}
-
-export function getCheckpointDiff(
-  checkpointId: string,
-  options?: Omit<RequestOptions<'GET /api/checkpoints/:checkpointId/diff'>, 'params'>,
-): Promise<CheckpointDiff> {
-  return request('GET /api/checkpoints/:checkpointId/diff', {
-    ...options,
-    params: { checkpointId },
-  });
-}
-
-export function rollbackCheckpoint(
-  checkpointId: string,
-  options?: Omit<RequestOptions<'POST /api/checkpoints/:checkpointId/rollback'>, 'params'>,
-): Promise<{ ok: true; restoredFiles: number }> {
-  return request('POST /api/checkpoints/:checkpointId/rollback', {
-    ...options,
-    params: { checkpointId },
   });
 }
 
@@ -385,18 +338,18 @@ export function getModels(
   query?: ApiEndpoints['GET /api/models']['query'],
   options?: Omit<RequestOptions<'GET /api/models'>, 'query'>,
 ): Promise<Model[]> {
-  return request('GET /api/models', { ...options, query } as any);
+  return request('GET /api/models', { ...options, query });
 }
 
 export function getAgents(
   query?: ApiEndpoints['GET /api/agents']['query'],
   options?: Omit<RequestOptions<'GET /api/agents'>, 'query'>,
 ): Promise<AgentInfo[]> {
-  return request('GET /api/agents', { ...options, query } as any);
+  return request('GET /api/agents', { ...options, query });
 }
 
 export function getPrefs(options?: RequestOptions<'GET /api/prefs'>): Promise<Prefs> {
-  return request('GET /api/prefs', options as any);
+  return request('GET /api/prefs', options);
 }
 
 export function updatePrefs(
@@ -410,7 +363,7 @@ export function getQuota(
   query?: ApiEndpoints['GET /api/quota']['query'],
   options?: Omit<RequestOptions<'GET /api/quota'>, 'query'>,
 ): Promise<QuotaSnapshot> {
-  return request('GET /api/quota', { ...options, query } as any);
+  return request('GET /api/quota', { ...options, query });
 }
 
 // ---------- Accounts ----------
@@ -418,7 +371,7 @@ export function getQuota(
 export function getAccounts(
   options?: RequestOptions<'GET /api/accounts'>,
 ): Promise<{ accounts: Account[]; whoami: WhoAmI }> {
-  return request('GET /api/accounts', options as any);
+  return request('GET /api/accounts', options);
 }
 
 export function saveAccount(

@@ -2,17 +2,17 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type Database from 'better-sqlite3';
+import Database from 'better-sqlite3';
 import {
   createDatabase,
   getCurrentVersion,
   migrations,
+  runMigrations,
   WorkspacesRepository,
   SessionsRepository,
   RunsRepository,
   EventsRepository,
   AttachmentsRepository,
-  CheckpointsRepository,
   AccountsRepository,
   QuotaCacheRepository,
   PrefsRepository,
@@ -24,7 +24,6 @@ import type {
 } from '../../src/repositories/index.js';
 import type {
   Attachment,
-  Checkpoint,
   Session,
   SessionEventEnvelope,
   Workspace,
@@ -74,6 +73,63 @@ describe('Repositories Integration Tests', () => {
       const memDb = createDatabase(':memory:');
       expect(getCurrentVersion(memDb)).toBe(migrations.length);
       memDb.close();
+    });
+
+    it('migration 2 removes checkpoint data from a database created before the feature was removed', () => {
+      // A database that has only applied migration 1 and holds checkpoint data. Foreign keys stay
+      // on, as in production (db.ts).
+      const legacy = new Database(':memory:');
+      legacy.pragma('foreign_keys = ON');
+      legacy.exec(
+        'CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)',
+      );
+      migrations.find((m) => m.version === 1)!.up(legacy);
+      legacy.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (1, ?)').run('2026-10-01T00:00:00Z');
+      const t = '2026-10-01T00:00:00Z';
+      legacy
+        .prepare(
+          `INSERT INTO workspaces (id, name, path, is_git_repo, created_at, last_opened_at)
+           VALUES ('ws_1', 'w', 'C:/w', 0, ?, ?)`,
+        )
+        .run(t, t);
+      legacy
+        .prepare(
+          `INSERT INTO sessions (id, workspace_id, title, status, source, created_at, updated_at)
+           VALUES ('session_1', 'ws_1', 's', 'idle', 'studio', ?, ?)`,
+        )
+        .run(t, t);
+      legacy
+        .prepare(
+          `INSERT INTO runs (id, session_id, status, checkpoint_id, started_at)
+           VALUES ('run_1', 'session_1', 'completed', 'chk_1', ?)`,
+        )
+        .run(t);
+      legacy
+        .prepare(
+          `INSERT INTO checkpoints (id, workspace_id, session_id, run_id, commit_sha, created_at)
+           VALUES ('chk_1', 'ws_1', 'session_1', 'run_1', 'abc', ?)`,
+        )
+        .run(t);
+      legacy.prepare(`INSERT INTO prefs (key, value_json) VALUES ('checkpointsEnabled', 'true')`).run();
+      legacy.prepare(`INSERT INTO prefs (key, value_json) VALUES ('showThinking', 'false')`).run();
+
+      runMigrations(legacy);
+
+      expect(getCurrentVersion(legacy)).toBe(migrations.length);
+      const tables = legacy
+        .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'checkpoints'`)
+        .all();
+      expect(tables).toHaveLength(0);
+      const runColumns = (legacy.prepare('PRAGMA table_info(runs)').all() as { name: string }[]).map(
+        (c) => c.name,
+      );
+      expect(runColumns).not.toContain('checkpoint_id');
+      // Existing runs survive; only the checkpoint pref is dropped
+      expect(legacy.prepare('SELECT id, status FROM runs').all()).toEqual([
+        { id: 'run_1', status: 'completed' },
+      ]);
+      expect(legacy.prepare('SELECT key FROM prefs').all()).toEqual([{ key: 'showThinking' }]);
+      legacy.close();
     });
   });
 
@@ -243,7 +299,6 @@ describe('Repositories Integration Tests', () => {
         status: 'running',
         model: 'gemini-2.5-pro',
         accountName: 'acct-1',
-        checkpointId: null,
         pid: 12345,
         usage: {
           inputTokens: 100,
@@ -263,7 +318,6 @@ describe('Repositories Integration Tests', () => {
         status: 'completed',
         model: 'gemini-2.5-pro',
         accountName: 'acct-1',
-        checkpointId: 'chk-1',
         pid: null,
         usage: null,
         error: null,
@@ -277,7 +331,6 @@ describe('Repositories Integration Tests', () => {
         status: 'stalled',
         model: null,
         accountName: null,
-        checkpointId: null,
         pid: 54321,
         usage: null,
         error: null,
@@ -352,7 +405,6 @@ describe('Repositories Integration Tests', () => {
             runId: 'run-1',
             model: 'gemini-pro',
             cwd: '/workspace/1',
-            checkpointId: null,
           },
         },
         {
@@ -489,74 +541,6 @@ describe('Repositories Integration Tests', () => {
 
       expect(attachmentsRepo.delete('att-1')).toBe(true);
       expect(attachmentsRepo.findById('att-1')).toBeNull();
-    });
-  });
-
-  describe('CheckpointsRepository', () => {
-    it('creates, finds by id and runId, lists, and deletes checkpoints', () => {
-      const wsRepo = new WorkspacesRepository(db);
-      const sessionRepo = new SessionsRepository(db);
-      const runsRepo = new RunsRepository(db);
-      const checkpointsRepo = new CheckpointsRepository(db);
-
-      const now = new Date().toISOString();
-      wsRepo.create({
-        id: 'ws-1',
-        name: 'Workspace 1',
-        path: '/workspace/1',
-        isGitRepo: true,
-        createdAt: now,
-        lastOpenedAt: now,
-      });
-      sessionRepo.create({
-        id: 'sess-1',
-        workspaceId: 'ws-1',
-        accountName: null,
-        title: 'Session 1',
-        agyConversationId: null,
-        status: 'idle',
-        model: null,
-        effort: null,
-        mode: null,
-        source: 'studio',
-        lastRunId: null,
-        lastSeq: 0,
-        createdAt: now,
-        updatedAt: now,
-      });
-      runsRepo.create({
-        id: 'run-1',
-        sessionId: 'sess-1',
-        status: 'running',
-        model: null,
-        accountName: null,
-        checkpointId: null,
-        pid: null,
-        usage: null,
-        error: null,
-        startedAt: now,
-        endedAt: null,
-      });
-
-      const chk: Checkpoint = {
-        id: 'chk-1',
-        workspaceId: 'ws-1',
-        sessionId: 'sess-1',
-        runId: 'run-1',
-        commitSha: 'abcdef1234567890',
-        filesChanged: 3,
-        createdAt: now,
-      };
-
-      checkpointsRepo.create(chk);
-
-      expect(checkpointsRepo.findById('chk-1')).toEqual(chk);
-      expect(checkpointsRepo.findByRunId('run-1')).toEqual(chk);
-      expect(checkpointsRepo.listBySessionId('sess-1')).toEqual([chk]);
-      expect(checkpointsRepo.listByWorkspaceId('ws-1')).toEqual([chk]);
-
-      expect(checkpointsRepo.delete('chk-1')).toBe(true);
-      expect(checkpointsRepo.findById('chk-1')).toBeNull();
     });
   });
 

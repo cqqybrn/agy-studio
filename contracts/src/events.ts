@@ -1,5 +1,4 @@
 import type {
-  Artifact,
   Attachment,
   ISODateString,
   Run,
@@ -26,7 +25,6 @@ export type AgentEvent =
       runId: string;
       model: string | null;
       cwd: string;
-      checkpointId: string | null;
     }
   | {
       type: 'user.message';
@@ -49,7 +47,6 @@ export type AgentEvent =
   | { type: 'subagent.spawned'; parentToolCallId: string | null; subagent: SubagentInfo }
   | { type: 'subagent.step'; conversationId: string; step: TranscriptStep }
   | { type: 'subagent.finished'; conversationId: string; status: SubagentStatus }
-  | { type: 'artifact.updated'; artifact: Artifact }
   | { type: 'usage'; usage: TokenUsage }
   | { type: 'autoapprove.injected'; layer: 'settings' | 'permission_event' | 'watchdog'; detail: string }
   | { type: 'run.stalled'; idleMs: number }
@@ -81,6 +78,8 @@ export interface SessionEventEnvelope {
 export type GlobalEvent =
   | { type: 'session.upserted'; session: Session }
   | { type: 'session.deleted'; sessionId: string }
+  /** The session's history was truncated (message edit); clients must reload it from seq 0. */
+  | { type: 'session.reset'; sessionId: string }
   | { type: 'run.status'; run: Pick<Run, 'id' | 'sessionId'> & { status: RunStatus } }
   | { type: 'account.changed'; whoami: WhoAmI }
   | { type: 'quota.updated'; snapshot: QuotaSnapshot };

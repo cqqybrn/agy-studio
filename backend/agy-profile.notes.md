@@ -40,8 +40,7 @@
   - 降级依据：V5 待模块 0.3 深度探测，按 Antigravity 官方用户目录约定与降级方案采用 `conversations/{{conversationId}}` 目录结构。
 - **transcriptRelPath**:
   - `transcript.jsonl`：会话主推理与 step 记录文件。
-- **artifactRules**:
-  - 覆盖 tasks, implementation_plans, walkthroughs, markdown, image, recording 等类型规则及对应 glob 与 MIME 类型。
+- ~~**artifactRules**~~：已随 Artifacts 面板一起删除（2026-10-04）。
 
 ---
 

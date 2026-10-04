@@ -5,7 +5,6 @@ import type {
   CreateSessionBody,
   Effort,
   ImportSessionsBody,
-  ISODateString,
   Run,
   RunStatus,
   Session,
@@ -18,6 +17,7 @@ import {
   getSessionEvents,
   getSessions,
   importSessions as apiImportSessions,
+  rewindToMessage as apiRewindToMessage,
   updateSession as apiUpdateSession,
 } from '../api/endpoints';
 import { wsClient } from '../api/ws';
@@ -34,6 +34,20 @@ export interface SessionSlot {
   pendingRunId: string | null;
   loading: boolean;
   error: string | null;
+}
+
+/**
+ * The edit already rewound the conversation, but sending the edited text failed. The original
+ * message is gone at this point, so the caller must surface the text for the user to resend.
+ */
+export class EditResendError extends Error {
+  constructor(
+    message: string,
+    readonly text: string,
+  ) {
+    super(message);
+    this.name = 'EditResendError';
+  }
 }
 
 export interface SendMessageOptions {
@@ -63,6 +77,16 @@ export interface SessionState {
     options?: SendMessageOptions,
   ) => Promise<{ runId?: string }>;
   abort: (sessionId: string, runId: string) => Promise<{ runId?: string }>;
+  /**
+   * Edit & resubmit: drops the message and every later answer (server and agy side), reloads the
+   * session, then sends the edited text as a new message.
+   */
+  editMessage: (
+    sessionId: string,
+    messageId: string,
+    text: string,
+    options?: SendMessageOptions,
+  ) => Promise<{ runId?: string }>;
 
   handleLiveEvent: (sessionId: string, envelope: SessionEventEnvelope) => void;
   handleSlotReset: (sessionId: string) => void;
@@ -187,7 +211,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       };
     });
 
-    let allEvents: SessionEventEnvelope[] = [];
+    const allEvents: SessionEventEnvelope[] = [];
     let afterSeq = 0;
     let hasMore = true;
 
@@ -308,6 +332,21 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     }
 
     return res;
+  },
+
+  editMessage: async (sessionId: string, messageId: string, text: string, options?: SendMessageOptions) => {
+    await apiRewindToMessage(sessionId, messageId);
+    // The server renumbered the history from that message on: drop the cached copy and reload it
+    // before the new run's events start arriving.
+    set((state) => ({
+      slots: { ...state.slots, [sessionId]: createEmptySlot(true) },
+    }));
+    await get().openSession(sessionId);
+    try {
+      return await get().send(sessionId, text, options);
+    } catch (err: unknown) {
+      throw new EditResendError(err instanceof Error ? err.message : String(err), text);
+    }
   },
 
   abort: async (sessionId: string, runId: string) => {

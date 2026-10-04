@@ -1,4 +1,4 @@
-import type { AgentEvent, Artifact, ISODateString, TranscriptStep } from '@agy-studio/contracts';
+import type { AgentEvent, ISODateString, TranscriptStep } from '@agy-studio/contracts';
 
 export interface DiskConversationSummary {
   id: string;
@@ -13,10 +13,6 @@ export interface TranscriptTailOptions {
 
 export interface TranscriptTailHandle {
   steps: AsyncIterable<TranscriptStep>;
-  stop(): void;
-}
-
-export interface ArtifactWatchHandle {
   stop(): void;
 }
 
@@ -49,21 +45,6 @@ export interface BrainPort {
     options?: TranscriptTailOptions,
     dataRoot?: string,
   ): Promise<TranscriptTailHandle>;
-
-  /**
-   * List artifacts for a specific conversation / session directory.
-   */
-  listArtifacts(conversationId: string, sessionId: string, dataRoot?: string): Promise<Artifact[]>;
-
-  /**
-   * Watch artifacts within a conversation directory, invoking onChange when updated.
-   */
-  watchArtifacts(
-    conversationId: string,
-    sessionId: string,
-    onChange: (artifact: Artifact) => void,
-    dataRoot?: string,
-  ): Promise<ArtifactWatchHandle>;
 
   /**
    * Purge a conversation from disk: brain dir, conversations\<id>.db* and subagent conversations.

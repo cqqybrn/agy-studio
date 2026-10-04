@@ -18,6 +18,7 @@ import { AgySettings } from './integrations/agy/settings.js';
 import { CredentialStore } from './integrations/agy/credential-store.js';
 import { WindowsDpapi, MemoryDpapi, type DpapiPort } from './integrations/agy/dpapi.js';
 import { LoginTerminal } from './integrations/agy/login-terminal.js';
+import { RewindTerminal } from './integrations/agy/rewind-terminal.js';
 import { QuotaApiClient, QuotaApiClient as QuotaApi } from './integrations/agy/quota-api.js';
 import { OAuthClientManager } from './integrations/agy/oauth-client.js';
 import { AgentCatalog } from './integrations/agy/agents.js';
@@ -30,7 +31,6 @@ import {
   RunsRepository,
   EventsRepository,
   AttachmentsRepository,
-  CheckpointsRepository,
   AccountsRepository,
   QuotaCacheRepository,
   PrefsRepository,
@@ -43,6 +43,7 @@ import type {
   SettingsPort,
   LoginPort,
   QuotaProbePort,
+  ConversationRewindPort,
 } from './services/ports/index.js';
 
 import { EventBus } from './services/event-bus.js';
@@ -52,9 +53,8 @@ import { AccountService } from './services/account/account.js';
 import { assertGoogleAuthReachable } from './utils/connectivity.js';
 import { PrefsService } from './services/prefs.js';
 import { ModelService, MODELS_CACHE_FILE } from './services/model.js';
-import { CheckpointService } from './services/checkpoint.js';
 import { RunSupervisor } from './services/run-supervisor.js';
-import { ArtifactService } from './services/artifact.js';
+import { SubagentTranscriptService } from './services/subagent-transcript.js';
 import { TranscriptFollowService } from './services/transcript-follow.js';
 import { AttachmentStore } from './services/attachment/store.js';
 import { AttachmentConverter } from './services/attachment/convert.js';
@@ -66,8 +66,7 @@ import { AgentService } from './services/agent.js';
 
 import { workspacesRoutes } from './routes/http/workspaces.routes.js';
 import { sessionsRoutes } from './routes/http/sessions.routes.js';
-import { artifactsRoutes } from './routes/http/artifacts.routes.js';
-import { checkpointsRoutes } from './routes/http/checkpoints.routes.js';
+import { subagentsRoutes } from './routes/http/subagents.routes.js';
 import { attachmentsRoutes } from './routes/http/attachments.routes.js';
 import { modelsRoutes } from './routes/http/models.routes.js';
 import { prefsRoutes } from './routes/http/prefs.routes.js';
@@ -105,7 +104,6 @@ export interface AppContainer {
   runsRepo: RunsRepository;
   eventsRepo: EventsRepository;
   attachmentsRepo: AttachmentsRepository;
-  checkpointsRepo: CheckpointsRepository;
   accountsRepo: AccountsRepository;
   quotaCacheRepo: QuotaCacheRepository;
   prefsRepo: PrefsRepository;
@@ -116,9 +114,8 @@ export interface AppContainer {
   accountService: AccountService;
   prefsService: PrefsService;
   modelService: ModelService;
-  checkpointService: CheckpointService;
   supervisor: RunSupervisor;
-  artifactService: ArtifactService;
+  subagentTranscriptService: SubagentTranscriptService;
   attachmentStore: AttachmentStore;
   attachmentConverter: AttachmentConverter;
   promptInjector: PromptInjector;
@@ -143,6 +140,7 @@ export interface AppOptions {
   credentialStore?: CredentialStore;
   loginPort?: LoginPort;
   quotaProbePort?: QuotaProbePort;
+  conversationRewindPort?: ConversationRewindPort;
   frontendDistDir?: string;
   logger?: boolean | FastifyServerOptions['logger'];
 }
@@ -307,6 +305,9 @@ export function buildApp(options?: AppOptions): BuiltApp {
       binaryPath: config.agyBin,
     });
 
+  const conversationRewind: ConversationRewindPort =
+    options?.conversationRewindPort ?? new RewindTerminal({ profile, defaultBin: config.agyBin });
+
   const oauthClientManager = new OAuthClientManager({
     profile,
     binaryPath: config.agyBin,
@@ -329,7 +330,6 @@ export function buildApp(options?: AppOptions): BuiltApp {
   const runsRepo = new RunsRepository(db);
   const eventsRepo = new EventsRepository(db);
   const attachmentsRepo = new AttachmentsRepository(db);
-  const checkpointsRepo = new CheckpointsRepository(db);
   const accountsRepo = new AccountsRepository(db);
   const quotaCacheRepo = new QuotaCacheRepository(db);
   const prefsRepo = new PrefsRepository(db);
@@ -364,17 +364,6 @@ export function buildApp(options?: AppOptions): BuiltApp {
     ensureCredentials: () => accountService.ensureDefaultLiveCredentials({ force: true }),
   });
 
-  const checkpointService = new CheckpointService({
-    checkpointsRepo,
-    workspacesRepo,
-    sessionsRepo,
-    supervisor: {
-      hasActiveRunsForWorkspace: (wsId: string) =>
-        supervisor?.hasActiveRunsForWorkspace(wsId) ?? false,
-    },
-    dataDir: config.dataDir,
-  });
-
   supervisor = new RunSupervisor({
     runsRepo,
     sessionsRepo,
@@ -384,7 +373,6 @@ export function buildApp(options?: AppOptions): BuiltApp {
     prefsRepo,
     settings,
     autoApprove,
-    checkpointService,
     onEvent: async (sessionId, runId, event) => {
       if (transcriptFollow && !transcriptFollow.filterStreamEvent(sessionId, runId, event)) {
         return;
@@ -405,12 +393,11 @@ export function buildApp(options?: AppOptions): BuiltApp {
     logger: appLogger,
   });
 
-  const artifactService = new ArtifactService({
+  const subagentTranscriptService = new SubagentTranscriptService({
     brainPort: brain,
     sessionsRepo,
-    eventBus,
-    supervisor,
     eventsRepo,
+    supervisor,
   });
 
   const attachmentStore = new AttachmentStore({
@@ -439,6 +426,8 @@ export function buildApp(options?: AppOptions): BuiltApp {
     promptInjector,
     profile,
     agentService,
+    conversationRewind,
+    acquireLease: (accountName) => accountService.acquireLease(accountName),
   });
 
   const workspaceService = new WorkspaceService({
@@ -497,8 +486,7 @@ export function buildApp(options?: AppOptions): BuiltApp {
   // Register HTTP route plugins
   void app.register(workspacesRoutes, { workspaceService });
   void app.register(sessionsRoutes, { sessionService });
-  void app.register(artifactsRoutes, { artifactService });
-  void app.register(checkpointsRoutes, { checkpointService });
+  void app.register(subagentsRoutes, { subagentTranscriptService });
   void app.register(attachmentsRoutes, {
     attachmentStore,
     attachmentConverter,
@@ -614,12 +602,12 @@ export function buildApp(options?: AppOptions): BuiltApp {
       appLogger.warn({ err }, 'Error cancelling active login during shutdown');
     }
 
-    // 4. 清理 artifactService 与 transcript 追踪
+    // 4. 清理子 agent transcript 服务与 transcript 追踪
     try {
       transcriptFollow?.dispose();
-      artifactService.dispose();
+      subagentTranscriptService.dispose();
     } catch (err) {
-      appLogger.warn({ err }, 'Error disposing artifactService during shutdown');
+      appLogger.warn({ err }, 'Error disposing transcript services during shutdown');
     }
 
     // 5. 冲刷 event-bus
@@ -663,7 +651,6 @@ export function buildApp(options?: AppOptions): BuiltApp {
     runsRepo,
     eventsRepo,
     attachmentsRepo,
-    checkpointsRepo,
     accountsRepo,
     quotaCacheRepo,
     prefsRepo,
@@ -673,9 +660,8 @@ export function buildApp(options?: AppOptions): BuiltApp {
     accountService,
     prefsService,
     modelService,
-    checkpointService,
     supervisor,
-    artifactService,
+    subagentTranscriptService,
     attachmentStore,
     attachmentConverter,
     promptInjector,

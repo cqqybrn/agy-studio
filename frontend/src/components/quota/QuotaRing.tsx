@@ -76,17 +76,13 @@ export function QuotaRing({
   // error: 红 #ef4444
   // unavailable: 灰 #5d6677
   let ringStrokeColorClass = 'text-border-default';
-  let textColorClass = 'text-text-tertiary';
 
   if (level === 'success') {
     ringStrokeColorClass = 'text-status-success';
-    textColorClass = 'text-status-success';
   } else if (level === 'warning') {
     ringStrokeColorClass = 'text-status-warning';
-    textColorClass = 'text-status-warning';
   } else if (level === 'error') {
     ringStrokeColorClass = 'text-status-error';
-    textColorClass = 'text-status-error';
   }
 
   const percentage = minFraction !== null ? Math.round(minFraction * 100) : null;

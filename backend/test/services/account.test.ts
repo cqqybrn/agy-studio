@@ -315,14 +315,6 @@ describe('AccountService and LeaseLock', () => {
       keyring.set('gemini:antigravity', makeCredJson('sub-orig', 'orig@example.com'));
       await service.saveAccount({ name: 'orig-acc' });
 
-      // Create snapshot for corrupted account B where secret sub doesn't match
-      const corruptedCred = Buffer.from(
-        JSON.stringify({
-          token: { access_token: 'corrupt', refresh_token: 'corrupt' },
-          id_token: createFakeJwt({ sub: 'sub-wrong-mismatch', email: 'b@example.com' }),
-        }),
-      );
-
       // Save acc-b in DB
       accountsRepo.save({
         name: 'acc-b',

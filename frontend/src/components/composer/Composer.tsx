@@ -24,8 +24,9 @@ function getLocalStorage(): Storage | null {
   if (typeof window !== 'undefined' && window.localStorage) {
     return window.localStorage;
   }
-  if (typeof globalThis !== 'undefined' && (globalThis as any).localStorage) {
-    return (globalThis as any).localStorage;
+  const globalStorage = (globalThis as { localStorage?: Storage }).localStorage;
+  if (globalStorage) {
+    return globalStorage;
   }
   return null;
 }
@@ -301,7 +302,7 @@ export function Composer({
 
       // 2. Total size limit calculation
       // ★ B-5：使用原始文件大小计算总量
-      const currentTotalSize = attachments.reduce((sum, a) => sum + ((a as any).originalSize ?? a.size), 0);
+      const currentTotalSize = attachments.reduce((sum, a) => sum + (a.originalSize ?? a.size), 0);
       const incomingTotalSize = fileArray.reduce((sum, f) => sum + f.size, 0);
       if (currentTotalSize + incomingTotalSize > COMPOSER_LIMITS.maxTotalSize) {
         setValidationError(
@@ -443,7 +444,7 @@ export function Composer({
     const isComposing =
       e.nativeEvent.isComposing ||
       isComposingRef.current ||
-      ('keyCode' in e && (e as any).keyCode === 229);
+      e.keyCode === 229;
 
     if (e.key === 'Enter') {
       if (isComposing) {
@@ -592,7 +593,7 @@ export function Composer({
               isComposingRef.current = false;
             }, 50);
           }}
-          className="w-full resize-none bg-transparent text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none leading-relaxed min-h-[40px] max-h-[240px]"
+          className="w-full resize-none bg-transparent text-[15px] text-text-primary placeholder:text-text-tertiary focus:outline-none leading-relaxed min-h-[40px] max-h-[240px]"
         />
       </div>
 

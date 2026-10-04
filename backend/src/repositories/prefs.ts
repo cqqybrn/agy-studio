@@ -12,7 +12,6 @@ export const DEFAULT_PREFS: Prefs = {
   defaultMode: null,
   defaultWorkspaceId: null,
   showThinking: true,
-  checkpointsEnabled: true,
   maxConcurrentRuns: 3,
   stallTimeoutSeconds: 180,
 };

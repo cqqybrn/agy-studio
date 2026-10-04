@@ -19,7 +19,6 @@ import type { SessionsRepository } from '../repositories/sessions.js';
 import { killTree } from '../utils/proc-tree.js';
 import { AppError } from '../utils/errors.js';
 import { createId } from '../utils/ids.js';
-import type { CheckpointService } from './checkpoint.js';
 import type { PrefsRepository } from '../repositories/prefs.js';
 
 export interface SupervisorLogger {
@@ -67,7 +66,6 @@ export interface RunSupervisorOptions {
   autoApprove?: AutoApproveService;
   stallTimeoutSeconds?: number;
   terminalExitGraceMs?: number;
-  checkpointService?: CheckpointService;
   prefsRepo?: PrefsRepository;
 }
 
@@ -82,7 +80,6 @@ export interface StartRunInput {
   agent?: string | null;
   cwd?: string;
   accountName?: string | null;
-  checkpointId?: string | null;
   timeoutMs?: number;
   env?: Record<string, string | undefined>;
   argv?: string[];
@@ -139,7 +136,6 @@ export class RunSupervisor {
   private readonly autoApprove?: AutoApproveService;
   private readonly stallTimeoutSeconds?: number;
   private readonly terminalExitGraceMs: number;
-  private readonly checkpointService?: CheckpointService;
   private readonly prefsRepo?: PrefsRepository;
   private readonly eventListeners: SupervisorEventListener[] = [];
 
@@ -161,7 +157,6 @@ export class RunSupervisor {
       options.autoApprove ?? (options.settings ? new AutoApproveService(options.settings) : undefined);
     this.stallTimeoutSeconds = options.stallTimeoutSeconds;
     this.terminalExitGraceMs = options.terminalExitGraceMs ?? 10_000;
-    this.checkpointService = options.checkpointService;
     this.prefsRepo = options.prefsRepo;
 
     if (options.onEvent) {
@@ -209,7 +204,6 @@ export class RunSupervisor {
     const model = input.model !== undefined ? input.model : (session?.model ?? null);
     const effort = input.effort !== undefined ? input.effort : (session?.effort ?? null);
     const mode = input.mode !== undefined ? input.mode : (session?.mode ?? null);
-    let checkpointId = input.checkpointId ?? null;
     const cwd = input.cwd ?? process.cwd();
     const startTime = Date.now();
     const startedAt = new Date().toISOString();
@@ -224,7 +218,6 @@ export class RunSupervisor {
       status: 'starting',
       model,
       accountName,
-      checkpointId,
       pid: null,
       usage: null,
       error: null,
@@ -393,27 +386,6 @@ export class RunSupervisor {
       }
     }
 
-    // 启动 runner 之前接入快照
-    const workspaceId = session?.workspaceId;
-    if (this.checkpointService && workspaceId) {
-      const enabled = this.prefsRepo ? this.prefsRepo.get().checkpointsEnabled : true;
-      if (enabled) {
-        try {
-          const checkpoint = await this.checkpointService.snapshot(workspaceId, sessionId, runId);
-          if (checkpoint) {
-            checkpointId = checkpoint.id;
-            initialRecord.checkpointId = checkpoint.id;
-            this.runsRepo.update(runId, { checkpointId: checkpoint.id });
-          }
-        } catch (err) {
-          this.logger?.warn?.(
-            { err, workspaceId, sessionId, runId },
-            'Failed to create checkpoint snapshot; continuing run without checkpoint',
-          );
-        }
-      }
-    }
-
     // 启动进程
     let runnerProcess: RunnerProcess;
     try {
@@ -483,7 +455,9 @@ export class RunSupervisor {
           onStalledTimeout: async (err) => {
             try {
               await activeState.runner?.kill();
-            } catch {}
+            } catch {
+              // the process may already be gone; the run is marked failed either way
+            }
             await completeOnce('failed', err.toApiError());
           },
         });
@@ -500,7 +474,6 @@ export class RunSupervisor {
       runId,
       model,
       cwd,
-      checkpointId,
     });
     this.runsRepo.update(runId, { status: 'running' });
 
@@ -713,19 +686,6 @@ export class RunSupervisor {
     }
     for (const active of this.activeRunsMap.values()) {
       if (active.accountName === accountName) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /**
-   * Checks whether a workspace currently has active runs.
-   */
-  hasActiveRunsForWorkspace(workspaceId: string): boolean {
-    for (const [activeSessionId] of this.activeSessions) {
-      const session = this.sessionsRepo.findById(activeSessionId);
-      if (session?.workspaceId === workspaceId) {
         return true;
       }
     }

@@ -9,7 +9,6 @@ import {
   formatPromptSummary,
   getSubagentTranscriptFromCache,
   inferToolKind,
-  MAX_VISIBLE_SUBAGENT_STEPS,
   setSubagentTranscriptInCache,
   subagentTranscriptCache,
   SubagentCard,

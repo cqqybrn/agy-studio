@@ -105,6 +105,20 @@ export class EventsRepository {
     return rows.map(toDomain);
   }
 
+  /**
+   * Deletes the events with seq >= fromSeq and moves sessions.last_seq back to fromSeq - 1, so the
+   * next event continues the sequence without a gap. Returns the deleted envelopes.
+   */
+  deleteFromSeq(sessionId: string, fromSeq: number): SessionEventEnvelope[] {
+    const tx = this.db.transaction(() => {
+      const removed = this.listAfter(sessionId, fromSeq - 1);
+      this.db.prepare('DELETE FROM events WHERE session_id = ? AND seq >= ?').run(sessionId, fromSeq);
+      this.db.prepare('UPDATE sessions SET last_seq = ? WHERE id = ?').run(fromSeq - 1, sessionId);
+      return removed;
+    });
+    return tx();
+  }
+
   deleteBySessionId(sessionId: string): number {
     const result = this.db.prepare('DELETE FROM events WHERE session_id = ?').run(sessionId);
     return result.changes;

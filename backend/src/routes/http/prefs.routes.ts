@@ -15,7 +15,6 @@ const UpdatePrefsBodySchema = z.object({
   defaultMode: z.string().nullable().optional(),
   defaultWorkspaceId: z.string().nullable().optional(),
   showThinking: z.boolean().optional(),
-  checkpointsEnabled: z.boolean().optional(),
   maxConcurrentRuns: z.number().int().positive().optional(),
   stallTimeoutSeconds: z.number().int().positive().optional(),
 });

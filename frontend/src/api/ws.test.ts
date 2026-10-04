@@ -136,7 +136,7 @@ describe('WsClient - Full Test Suite', () => {
     });
 
     it('sends ping frame on every heartbeat interval', () => {
-      const { client, getWs } = createClient({ heartbeatIntervalMs: 20_000 });
+      const { getWs } = createClient({ heartbeatIntervalMs: 20_000 });
       const ws = getWs();
       ws.simulateOpen();
 
@@ -1132,7 +1132,7 @@ describe('WsClient - Full Test Suite', () => {
       expect(() => {
         ws.simulateMessage('null');
         ws.simulateMessage('12345');
-        ws.simulateMessage('\"a string\"');
+        ws.simulateMessage('"a string"');
         ws.simulateMessage('[1, 2, 3]');
       }).not.toThrow();
 

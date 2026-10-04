@@ -20,9 +20,9 @@ test.describe('05. 断网与重连', () => {
     // 发送消息启动运行
     await sendMessage(page, '执行文件操作并验证重连');
 
-    // 等待思考块出现，确认运行已在服务端开始
-    const thinkingBlock = page.locator('[data-testid="thinking-block"]').first();
-    await expect(thinkingBlock).toBeVisible({ timeout: 15000 });
+    // 等待 "Working…" 折叠块出现，确认运行已在服务端开始
+    const workedBlock = page.locator('[data-testid="worked-block"]').first();
+    await expect(workedBlock).toBeVisible({ timeout: 15000 });
 
     // 模拟网络断开
     await page.context().setOffline(true);

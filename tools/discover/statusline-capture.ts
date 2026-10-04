@@ -194,10 +194,7 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
     fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
     fs.writeFileSync(settingsPath, newSettingsContent, 'utf-8');
 
-    let streamCaptured = false;
-    let interactiveCaptured = false;
-
-    // 4. 执行探测
+    // 4. 执行探测（是否捕获到回调在第 5 步从日志统一汇总）
     if (testMode === 'wait') {
       console.log(`\n>>> 配置已生效！现在您可以在终端或 IDE 中任意启动 agy 运行交互或 stream 任务 <<<`);
       await promptWait('测试完毕后，请按 [Enter] 回车键立即恢复原配置并汇总结果...');
@@ -211,12 +208,6 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
           timeout: 15000,
         });
         console.log(`stream 探测命令退出码: ${streamProc.status}`);
-
-        // 检查 log 文件中是否有包含 mode: stream 的记录
-        if (fs.existsSync(logFile)) {
-          const content = fs.readFileSync(logFile, 'utf-8');
-          streamCaptured = content.includes('"mode":"stream"');
-        }
       }
 
       if (testMode === 'interactive' || testMode === 'both') {
