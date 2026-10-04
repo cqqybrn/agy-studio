@@ -176,6 +176,27 @@ describe('buildDisplayRows', () => {
     expect(done.endedAt).toBe(at(1));
   });
 
+  it('shows Working… while the active run has streamed nothing yet', () => {
+    const rows = buildDisplayRows([user('u1', 0)], { activeRunId: 'run-1' });
+    expect(rows.map((r) => r.kind)).toEqual(['user_message', 'worked']);
+    const [block] = worked(rows);
+    expect(block).toMatchObject({ active: true, endedAt: null, startedAt: at(0), children: [] });
+  });
+
+  it('shows Working… after a finished message while the run is still active', () => {
+    const rows = buildDisplayRows([user('u1', 0), assistant('a1', 5)], { activeRunId: 'run-1' });
+    expect(rows.map((r) => r.kind)).toEqual(['user_message', 'assistant_message', 'worked']);
+    expect(worked(rows)[0].startedAt).toBe(at(5));
+  });
+
+  it('adds no extra Working… row while a message streams or work is shown', () => {
+    const streaming = { ...assistant('a1', 5), isComplete: false };
+    expect(worked(buildDisplayRows([user('u1', 0), streaming], { activeRunId: 'run-1' }))).toHaveLength(0);
+    const busy = [user('u1', 0), tool('t1', 'run_command', 1, null)];
+    expect(worked(buildDisplayRows(busy, { activeRunId: 'run-1' }))).toHaveLength(1);
+    expect(worked(buildDisplayRows([user('u1', 0)], { activeRunId: null }))).toHaveLength(0);
+  });
+
   it('does not merge work across runs', () => {
     const items = [
       tool('t1', 'run_command', 0, 1, {}, 'run-1'),
