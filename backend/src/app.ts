@@ -18,6 +18,7 @@ import { AgySettings } from './integrations/agy/settings.js';
 import { CredentialStore } from './integrations/agy/credential-store.js';
 import { WindowsDpapi, MemoryDpapi, type DpapiPort } from './integrations/agy/dpapi.js';
 import { LoginTerminal } from './integrations/agy/login-terminal.js';
+import { RewindTerminal } from './integrations/agy/rewind-terminal.js';
 import { QuotaApiClient, QuotaApiClient as QuotaApi } from './integrations/agy/quota-api.js';
 import { OAuthClientManager } from './integrations/agy/oauth-client.js';
 import { AgentCatalog } from './integrations/agy/agents.js';
@@ -42,6 +43,7 @@ import type {
   SettingsPort,
   LoginPort,
   QuotaProbePort,
+  ConversationRewindPort,
 } from './services/ports/index.js';
 
 import { EventBus } from './services/event-bus.js';
@@ -138,6 +140,7 @@ export interface AppOptions {
   credentialStore?: CredentialStore;
   loginPort?: LoginPort;
   quotaProbePort?: QuotaProbePort;
+  conversationRewindPort?: ConversationRewindPort;
   frontendDistDir?: string;
   logger?: boolean | FastifyServerOptions['logger'];
 }
@@ -302,6 +305,9 @@ export function buildApp(options?: AppOptions): BuiltApp {
       binaryPath: config.agyBin,
     });
 
+  const conversationRewind: ConversationRewindPort =
+    options?.conversationRewindPort ?? new RewindTerminal({ profile, defaultBin: config.agyBin });
+
   const oauthClientManager = new OAuthClientManager({
     profile,
     binaryPath: config.agyBin,
@@ -420,6 +426,8 @@ export function buildApp(options?: AppOptions): BuiltApp {
     promptInjector,
     profile,
     agentService,
+    conversationRewind,
+    acquireLease: (accountName) => accountService.acquireLease(accountName),
   });
 
   const workspaceService = new WorkspaceService({

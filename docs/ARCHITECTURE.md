@@ -7,6 +7,8 @@
 >
 > **2026-10-04 变更：移除 Artifacts 面板与检查点（影子 git）。** 按产品决定整体删除：右侧面板（Task / Plan / Walkthrough / Media / Changes）、`services/artifact.ts`、`services/checkpoint.ts` 及其路由与仓库、`Artifact` / `Checkpoint` 类型、`artifact.updated` 事件、`CHECKPOINT_FAILED` 错误码、`Prefs.checkpointsEnabled`、`Run.checkpointId`、profile 的 `artifactRules`。界面由三栏改为两栏。子 agent transcript 接口保留，迁到 `services/subagent-transcript.ts` 与 `routes/http/subagents.routes.ts`。数据库新增第 2 版迁移 `drop_checkpoints`（删 `checkpoints` 表、`runs.checkpoint_id` 列、`checkpointsEnabled` 偏好）。不再内置回滚，README 要求用户发起任务前自行用 git 提交。下文模块 1.10、1.12、2.10、2.12 及其派工单只作历史记录。
 >
+> **2026-10-04 新增：编辑重问。** 用户可编辑已发送的消息：agy 的对话回退到该消息之前（agy 同时还原那些轮次里的文件改动），Studio 删除该消息起的全部事件与只属于它们的运行，再按新内容发送。新增端点 `POST /api/sessions/:sessionId/messages/:messageId/rewind`、全局事件 `session.reset`、端口 `ConversationRewindPort`（实现 `integrations/agy/rewind-terminal.ts`，依赖 `node-pty` 与 `@xterm/headless`）。详见 1.9、2.4 修订。
+>
 > | #    | agy-auto 怎么做                                              | agy-studio 现状                                              | 影响                                                         | 归属                            |
 > | :--- | :----------------------------------------------------------- | :----------------------------------------------------------- | :----------------------------------------------------------- | :------------------------------ |
 > | 1    | 删除会话时，除了 `brain/<id>/`，还删 `conversations/<id>.db`、`.db-shm`、`.db-wal`，并顺着 transcript 找出子代理的会话 id 一起删 | `brain-fs.ts` 第 253 行只删 `brain/<id>/` 这一个目录         | 删掉的会话在 agy 自己的历史列表里还在，子代理的数据残留，磁盘越积越多 | 1.5，1.9 要用到                 |
@@ -132,7 +134,7 @@ WS   : 实时事件推送 + 发送消息 + 中止运行（单连接订阅多个�
 
 1. 每次运行恰好一条 `run.started`、恰好一条 `run.completed`，无论成功、失败还是中止
 2. `run.error` **不是**终止事件
-3. `seq` 在单个会话内从 1 开始连续递增，只由服务端分配
+3. `seq` 在单个会话内从 1 开始连续递增，只由服务端分配。唯一的例外是「编辑重问」截断历史：删除 `seq >= N` 的事件后从 N 重新分配，并广播 `session.reset`，客户端收到后丢弃该会话的本地状态重新加载
 4. 前端界面状态 = 按 seq 顺序对事件做纯函数 reduce 的结果
 5. 无法识别的 agy 输出一律转成 `raw` 事件，不允许抛异常中断整个流
 
@@ -142,7 +144,7 @@ WS   : 实时事件推送 + 发送消息 + 中止运行（单连接订阅多个�
 |---|---|
 | 系统 | `GET /api/health`、`GET /api/capabilities` |
 | 工作区 | `GET/POST /api/workspaces`、`DELETE /api/workspaces/:id` |
-| 会话 | `GET/POST /api/sessions`、`GET/PATCH/DELETE /api/sessions/:id`、`POST /api/sessions/import` |
+| 会话 | `GET/POST /api/sessions`、`GET/PATCH/DELETE /api/sessions/:id`、`POST /api/sessions/import`、`POST /api/sessions/:id/messages/:messageId/rewind` |
 | 事件与运行 | `GET /api/sessions/:id/events?afterSeq&limit`、`GET /api/sessions/:id/runs` |
 | 子 agent | `GET /api/sessions/:id/subagents/:conversationId/transcript` |
 | 附件 | `POST /api/attachments`、`GET /api/attachments/:id/raw` |
@@ -213,6 +215,7 @@ WS   : 实时事件推送 + 发送消息 + 中止运行（单连接订阅多个�
 | `QuotaProbePort` | 读取当前账号的 token，调用额度接口，解析成 `QuotaSnapshot` | `quota-api.ts` |
 | `HomeIsolationPort`、`StatuslineParserPort` | 模块 1.3 已定义，当前设计**不实现**，保留端口文件供第二期使用 | — |
 | `ModelCatalogPort` | 获取模型列表、版本号、mode 可选值 | `catalog.ts` |
+| `ConversationRewindPort` | 把 agy 对话回退到某条用户消息之前（编辑重问） | `rewind-terminal.ts` |
 
 ### 2.4 agy-profile.json（agy 知识的数据化）
 
@@ -392,6 +395,7 @@ agy-studio/
 | 凭据 | `@napi-rs/keyring`（读写 Windows 凭据管理器）+ DPAPI 加密快照 |
 | 文件监听 | chokidar |
 | 进程 | `child_process.spawn`（不用 shell）；Windows 下 `taskkill /T /F` 终止进程树 |
+| 伪终端 | `node-pty` + `@xterm/headless`，仅用于驱动 agy 的交互式 `/rewind`（自带预编译文件，无需编译） |
 | 文档转换 | pdf-parse、mammoth、xlsx |
 | 前端 | Vite + React 18 + TS + Tailwind + shadcn/ui + zustand + react-markdown + shiki + `@tanstack/react-virtual` |
 | 测试 | vitest、Playwright（配合 fake-agy） |
@@ -538,6 +542,8 @@ git push -u origin main
 #### 1.9 会话与工作区服务、REST 🟡
 - **交付物**：`services/session.ts`（创建时确定账号、发送、回填 conversation id、状态更新与 `session.upserted` 广播、删除与清理、从磁盘导入）；`services/workspace.ts`；对应路由
 - **完成标准**：端点与 `ApiEndpoints` 一致；运行中删除返回 `SESSION_BUSY`
+- **2026-10-04 修订**（编辑重问）：`SessionService.rewindToMessage(sessionId, messageId)`，路由 `POST /api/sessions/:sessionId/messages/:messageId/rewind`。顺序：运行中返回 `SESSION_BUSY` → 会话已有 `agyConversationId` 时先取账号租约、调用 `ConversationRewindPort` 回退 agy（失败则什么都不改）→ `EventBus.truncateFrom`（先 flush，再在事务里删除 `seq >= 目标` 的事件并把 `sessions.last_seq` 置为目标 −1，同步内存中的 seq）→ 删除只出现在被删事件里的运行，`lastRunId` 改为剩余最新运行或 null → 广播 `session.reset` 与 `session.upserted`。agy 的选择列表只显示截断的一行，同文本的消息靠 `occurrenceFromEnd`（从末尾数第几个）区分；`previousMessageText`（前一条用户消息）用于事后核对。新消息由前端随后正常发送，不在此接口内
+- **2026-10-04 修订**（`rewind-terminal.ts`，实测 agy 1.2.16）：agy 没有无界面回退，交互界面的 `/rewind` 列出用户消息，选中后从 agy 历史里删除该消息及之后全部轮次、还原 agy 在这些轮次里的文件改动，并把原文填回输入框。驱动用 node-pty 起 `agy --conversation <id>`，@xterm/headless 渲染屏幕后按文本解析。实测要点：① 出现 `? for shortcuts` 时 agy 还没加载完账号与模型，此时回退报 `failed to construct executor: plan model not specified`，且**这段对话从此损坏**（之后每次运行都以该错误结束），因此提示出现后还要等屏幕静止 3 秒；② 在刚确认「信任此文件夹」的同一个 agy 进程里回退必然出同样的错，所以确认信任后先退出、重开一次；③ 同一进程内不重试（重试也会损坏，且旧的报错行仍在屏幕上会误判成功）；④ 选中后要等列表关闭、原文回填、屏幕静止再退出，太早退出回退不会保存；⑤ 退出需连按 3 次 Ctrl+C（清空输入、预备退出、退出）；⑥ 回退后再开一个 agy 进程打开列表核对：最新一条应是 `previousMessageText`，或至少与回退前不同（Studio 里可能有从未送达 agy 的消息），否则报 `AGY_EXIT`。整个过程约 20–60 秒
 
 #### 1.10 ~~Artifacts 服务与 REST~~ 🟡（已移除）
 - **交付物**：`services/artifact.ts`（运行期间通过 `BrainPort` 监听主会话与子会话，300ms 防抖，变化时 version+1 并发布 `artifact.updated`）；artifacts 与子 agent transcript 路由（raw 接口用 realpath 校验必须在会话目录内，`nosniff`，svg 以附件下载）
@@ -622,6 +628,7 @@ git push -u origin main
 - **2026-10-03 修订（2.13）**：去掉对话视图顶部「agy 已升级，建议重新探测」横幅。CLI 与 profile 版本仍写在 capabilities 里，界面不再提示
 - **2026-10-03 修订（2.8）**：对话输入栏不再展示 Effort、Mode、Agent。日常使用固定走会话/后端默认；契约里的 `effort`/`mode`/`agent` 字段保留，Playground 仍可单独渲染这些选择器。模型只在输入栏选择，并写回 prefs.defaultModel；顶栏不再放模型选择器。模型列表拉取失败时显示未登录等原因，空列表且已结束请求时不再一直显示「加载模型中」
 - **2026-10-03 修订（2.6）**：助手回复右上角提供「复制」整段内容；Markdown 代码块复制按钮改为中文；连续的框线字符（┌│└ 等）拆成可单独复制的引用块
+- **2026-10-04 修订（2.4 / 2.6 编辑重问）**：`UserMessageRow` 悬停显示「编辑」，点开后原地变成输入框（Enter 发送、Shift+Enter 换行、Esc 取消，输入法组字中不触发），并提示之后的回答会全部删除、agy 改过的文件会还原；运行中按钮禁用并说明原因。行组件只接收 `onEdit` / `editDisabledReason`，由 ManagerView 接线。`session.store.editMessage`：调用回退接口 → 清空该会话槽位并重新加载 → 用当前模型和原附件发送新内容；回退成功但发送失败时抛 `EditResendError`，ManagerView 显示横幅并保留改后的文字。`bootstrap` 收到全局 `session.reset` 时对已打开的会话执行槽位重置
 - **2026-10-03 修订（2.11）**：额度面板把接口英文标签译成中文（来源、套餐档、分组名、桶名），界面文案全部中文。探测失败时展示 `description`（超时、未登录）而不是只显示问号
 
 #### 3.1 端到端测试 🟡 / 3.2 启动脚本与 README 🟢

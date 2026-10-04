@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import type { SubagentItem, TimelineItem } from '../domain/timeline.types';
+import type { SubagentItem, TimelineItem, UserMessageItem } from '../domain/timeline.types';
 import { buildDisplayRows, type DisplayRow } from '../domain/displayRows';
 import { Composer } from '../components/composer';
 import {
@@ -15,7 +15,9 @@ import {
   WorkedBlock,
 } from '../components/timeline';
 import { useConnectionStore } from '../stores/connection.store';
-import { useSessionStore } from '../stores/session.store';
+import { EditResendError, useSessionStore } from '../stores/session.store';
+import { resolveCurrentModelId, useModelsStore } from '../stores/models.store';
+import { usePrefsStore } from '../stores/prefs.store';
 import { useUiStore } from '../stores/ui.store';
 import { useWorkspaceStore } from '../stores/workspace.store';
 import { updateSession as apiUpdateSession } from '../api/endpoints';
@@ -45,6 +47,10 @@ export interface DisplayRowViewProps {
    */
   expandedChoices?: Readonly<Record<string, boolean>>;
   onExpandedChange?: (key: string, next: boolean) => void;
+  /** Edit & resubmit a user message; omit to hide editing. */
+  onEditUserMessage?: (item: UserMessageItem, text: string) => Promise<void>;
+  /** Why user messages cannot be edited right now (e.g. a run is active). */
+  editDisabledReason?: string | null;
 }
 
 export function DisplayRowView({
@@ -52,6 +58,8 @@ export function DisplayRowView({
   sessionId,
   expandedChoices,
   onExpandedChange,
+  onEditUserMessage,
+  editDisabledReason = null,
 }: DisplayRowViewProps) {
   const renderSubagent = useCallback(
     (item: SubagentItem) => (
@@ -63,8 +71,16 @@ export function DisplayRowView({
   );
 
   switch (row.kind) {
-    case 'user_message':
-      return <UserMessageRow item={row.item} />;
+    case 'user_message': {
+      const item = row.item;
+      return (
+        <UserMessageRow
+          item={item}
+          onEdit={onEditUserMessage ? (text) => onEditUserMessage(item, text) : undefined}
+          editDisabledReason={editDisabledReason}
+        />
+      );
+    }
 
     case 'assistant_message':
       return (
@@ -146,6 +162,32 @@ export function ManagerView({
   }, [initialItems, slot?.timeline.items]);
 
   const activeRunId = slot?.activeRunId ?? null;
+  const editDisabledReason =
+    slot?.activeRunId || slot?.pendingRunId ? '运行中无法编辑，请等运行结束' : null;
+
+  // 编辑重问：回退成功但重发失败时原消息已删除，用横幅保留改好的文字
+  const [editResendError, setEditResendError] = useState<{ message: string; text: string } | null>(null);
+  const editMessage = sessionStore.editMessage;
+  const handleEditUserMessage = useCallback(
+    async (item: UserMessageItem, text: string) => {
+      if (!activeSessionId) return;
+      setEditResendError(null);
+      const model = resolveCurrentModelId(useModelsStore.getState().models, usePrefsStore.getState().prefs);
+      try {
+        await editMessage(activeSessionId, item.messageId, text, {
+          attachmentIds: item.attachments.length > 0 ? item.attachments.map((a) => a.id) : undefined,
+          model,
+        });
+      } catch (err: unknown) {
+        if (err instanceof EditResendError) {
+          setEditResendError({ message: err.message, text: err.text });
+          return;
+        }
+        throw err;
+      }
+    },
+    [activeSessionId, editMessage],
+  );
   const thinkingHidden = showThinkingOverride === false;
   const rows = useMemo(
     () => buildDisplayRows(items, { activeRunId, thinkingHidden }),
@@ -352,6 +394,27 @@ export function ManagerView({
         </div>
       )}
 
+      {/* 1.2 编辑重问：已回退但重新发送失败 */}
+      {editResendError && (
+        <div
+          className="flex shrink-0 items-start justify-between gap-3 border-b border-status-error/30 bg-status-error-subtle px-4 py-2 text-xs text-status-error-text"
+          data-testid="edit-resend-error-banner"
+        >
+          <div className="min-w-0">
+            <div className="font-medium">已删除原消息之后的回答，但重新发送失败：{editResendError.message}</div>
+            <div className="mt-1 whitespace-pre-wrap break-words text-text-secondary">你改好的内容：{editResendError.text}</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setEditResendError(null)}
+            className="shrink-0 rounded px-1.5 hover:bg-status-error/10"
+            title="关闭"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* 2. 顶部会话标题栏 ---------------------------------------------------- */}
       {activeSessionId && (
         <header
@@ -499,6 +562,8 @@ export function ManagerView({
                         sessionId={activeSessionId}
                         expandedChoices={expandedChoices}
                         onExpandedChange={handleExpandedChange}
+                        onEditUserMessage={handleEditUserMessage}
+                        editDisabledReason={editDisabledReason}
                       />
                     </div>
                   </div>

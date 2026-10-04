@@ -70,6 +70,7 @@ vi.mock('../api/endpoints', () => ({
   createSession: vi.fn(),
   deleteSession: vi.fn(),
   importSessions: vi.fn(),
+  rewindToMessage: vi.fn(),
   getWorkspaces: vi.fn(),
   createWorkspace: vi.fn(),
   deleteWorkspace: vi.fn(),
@@ -86,6 +87,7 @@ import * as endpoints from '../api/endpoints';
 import { wsClient } from '../api/ws';
 import {
   clearActiveSubscriptions,
+  EditResendError,
   initializeApp,
   useAccountStore,
   useConnectionStore,
@@ -429,6 +431,62 @@ describe('Frontend Stores', () => {
       slot = useSessionStore.getState().slots['sess-send'];
       expect(slot.pendingRunId).toBeNull();
       expect(slot.activeRunId).toBe('run-mock-123');
+    });
+
+    it('editMessage: rewinds on the server, reloads the history, then sends the edited text', async () => {
+      const calls: string[] = [];
+      vi.mocked(endpoints.rewindToMessage).mockImplementationOnce(async () => {
+        calls.push('rewind');
+        return { ok: true };
+      });
+      vi.mocked(endpoints.getSessionEvents).mockImplementation(async () => {
+        calls.push('reload');
+        return { items: [], latestSeq: 0, hasMore: false };
+      });
+      vi.mocked(wsClient.send).mockImplementationOnce(async () => {
+        calls.push('send');
+        return { runId: 'run-edit' };
+      });
+
+      const res = await useSessionStore
+        .getState()
+        .editMessage('sess-edit', 'msg-2', 'edited question', { attachmentIds: ['att-1'], model: 'm-1' });
+
+      expect(res.runId).toBe('run-edit');
+      expect(calls).toEqual(['rewind', 'reload', 'send']);
+      expect(endpoints.rewindToMessage).toHaveBeenCalledWith('sess-edit', 'msg-2');
+      expect(wsClient.send).toHaveBeenLastCalledWith(
+        expect.objectContaining({ type: 'session.send', sessionId: 'sess-edit', text: 'edited question', attachmentIds: ['att-1'], model: 'm-1' }),
+      );
+    });
+
+    it('editMessage: leaves the session alone when the rewind fails', async () => {
+      vi.mocked(endpoints.getSessionEvents).mockResolvedValueOnce({ items: [], latestSeq: 0, hasMore: false });
+      await useSessionStore.getState().openSession('sess-edit-fail');
+      vi.mocked(endpoints.getSessionEvents).mockClear();
+      vi.mocked(wsClient.send).mockClear();
+      vi.mocked(endpoints.rewindToMessage).mockRejectedValueOnce(new Error('not in agy history'));
+
+      await expect(
+        useSessionStore.getState().editMessage('sess-edit-fail', 'msg-1', 'x'),
+      ).rejects.toThrow('not in agy history');
+      expect(endpoints.getSessionEvents).not.toHaveBeenCalled();
+      expect(wsClient.send).not.toHaveBeenCalled();
+    });
+
+    it('editMessage: reports the edited text when sending fails after the rewind', async () => {
+      vi.mocked(endpoints.rewindToMessage).mockResolvedValueOnce({ ok: true });
+      vi.mocked(endpoints.getSessionEvents).mockResolvedValue({ items: [], latestSeq: 0, hasMore: false });
+      vi.mocked(wsClient.send).mockRejectedValueOnce(new Error('socket closed'));
+
+      const err = await useSessionStore
+        .getState()
+        .editMessage('sess-edit-send', 'msg-1', 'my edited text')
+        .catch((e) => e);
+
+      expect(err).toBeInstanceOf(EditResendError);
+      expect(err.message).toBe('socket closed');
+      expect(err.text).toBe('my edited text');
     });
 
     it('abort: sends run.abort via wsClient', async () => {
@@ -915,6 +973,26 @@ describe('Frontend Stores', () => {
   });
 
   describe('bootstrap.ts (initializeApp)', () => {
+    it('reloads an open session when the server reports session.reset', () => {
+      const teardown = initializeApp({ connectWs: false });
+      const original = useSessionStore.getState().handleSlotReset;
+      const handleSlotReset = vi.fn();
+      useSessionStore.setState({ slots: { 'sess-open': {} as never }, handleSlotReset });
+
+      try {
+        for (const listener of mockGlobalListeners) {
+          listener({ type: 'session.reset', sessionId: 'sess-open' });
+          listener({ type: 'session.reset', sessionId: 'sess-not-open' });
+        }
+
+        expect(handleSlotReset).toHaveBeenCalledTimes(1);
+        expect(handleSlotReset).toHaveBeenCalledWith('sess-open');
+      } finally {
+        useSessionStore.setState({ handleSlotReset: original, slots: {} });
+        teardown();
+      }
+    });
+
     it('mirrors connection status and dispatches global events to respective stores', () => {
       const teardown = initializeApp({ connectWs: true });
 

@@ -117,6 +117,21 @@ export function importSessions(
   return request('POST /api/sessions/import', { ...options, body });
 }
 
+/** Removes the user message and everything after it (see the edit flow in session.store). */
+export function rewindToMessage(
+  sessionId: string,
+  messageId: string,
+  options?: Omit<
+    RequestOptions<'POST /api/sessions/:sessionId/messages/:messageId/rewind'>,
+    'params'
+  >,
+): Promise<{ ok: true }> {
+  return request('POST /api/sessions/:sessionId/messages/:messageId/rewind', {
+    ...options,
+    params: { sessionId, messageId },
+  });
+}
+
 export function getSessionEvents(
   sessionId: string,
   query?: ApiEndpoints['GET /api/sessions/:sessionId/events']['query'],

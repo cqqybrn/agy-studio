@@ -102,6 +102,13 @@ export interface ApiEndpoints {
   /** `purge=true` also removes agy brain/conversation files. Rejects with SESSION_BUSY while running. */
   'DELETE /api/sessions/:sessionId': { query: { purge?: boolean }; response: { ok: true } };
   'POST /api/sessions/import': { body: ImportSessionsBody; response: { imported: Session[] } };
+  /**
+   * Edit support: removes the user message and everything after it, both from the session history
+   * and from agy's own conversation (agy also reverts the file changes it made in those turns).
+   * The caller then sends the edited text as a new message. Rejects with SESSION_BUSY while running.
+   * Broadcasts `session.reset`.
+   */
+  'POST /api/sessions/:sessionId/messages/:messageId/rewind': { response: { ok: true } };
 
   'GET /api/sessions/:sessionId/events': {
     query: { afterSeq?: number; limit?: number };

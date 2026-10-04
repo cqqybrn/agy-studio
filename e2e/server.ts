@@ -20,6 +20,10 @@ import type {
   RunnerProcess,
   SpawnRunnerOptions,
 } from '../backend/src/services/ports/agy-runner.port.js';
+import type {
+  ConversationRewindPort,
+  ConversationRewindRequest,
+} from '../backend/src/services/ports/conversation-rewind.port.js';
 import type { LoginPort, LoginHandle } from '../backend/src/services/ports/login.port.js';
 import type { QuotaProbePort } from '../backend/src/services/ports/quota-probe.port.js';
 import { adapt } from '../backend/src/integrations/agy/stream-adapter.js';
@@ -376,6 +380,14 @@ const fakeQuotaProbe: QuotaProbePort = {
 
 const port = Number(process.env.PORT || 8790);
 
+// fake-agy 没有交互界面，用记录调用的假实现代替 /rewind（真实驱动有单元测试与手工验证）
+const rewindCalls: ConversationRewindRequest[] = [];
+const fakeConversationRewind: ConversationRewindPort = {
+  async rewindToMessage(request) {
+    rewindCalls.push({ ...request, env: undefined });
+  },
+};
+
 const builtApp: BuiltApp = buildApp({
   config: {
     dataDir,
@@ -387,6 +399,7 @@ const builtApp: BuiltApp = buildApp({
   credentialStore,
   loginPort: fakeLoginPort,
   quotaProbePort: fakeQuotaProbe,
+  conversationRewindPort: fakeConversationRewind,
   dpapi: memoryDpapi,
 });
 
@@ -409,6 +422,8 @@ builtApp.app.get('/test-api/context', async () => {
     workspaceDir,
   };
 });
+
+builtApp.app.get('/test-api/rewinds', async () => rewindCalls);
 
 builtApp.app.post('/test-api/scenario', async (req) => {
   const body = req.body as { scenario: string; speed?: number };

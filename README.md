@@ -44,6 +44,9 @@ AGY Studio 旨在彻底解决这一体验瓶颈：
    - 采用 Windows DPAPI 本地数据保护加密技术备份凭据快照，支持无缝切换与管理多个 Google/Antigravity 账号，隔离并发租约，防止凭据串扰。
 4. **附件与多模态扩展**
    - 支持粘贴截图、拖拽图片及多格式文档（PDF / Word / Excel 服务端智能提取并注入 Prompt 路径）。
+5. **编辑重问**
+   - 鼠标移到自己发过的消息上点「编辑」，改完发送：这条消息之后的所有回答一并删除，agy 也会忘掉那些轮次，然后按新内容重新提问（与 Claude 的 edit 相同）。
+   - agy 在被删除的轮次里改过的文件会一起还原。运行中不能编辑。
 
 ---
 
@@ -142,6 +145,7 @@ npx tsx backend/src/main.ts
 
 ### 2. 文件安全：请使用自己的版本控制
 - AGY Studio **没有**内置快照或回滚（原影子 Git 检查点功能已于 2026-10-04 移除）。在自动同意下，Agent 对工作区的修改、删除会直接生效。
+- 例外：「编辑重问」会让 agy 还原它在被删除轮次里改过的文件（这是 agy 自带的回退能力，只覆盖 agy 自己的改动）。
 - **建议**：对重要项目，发起任务前先 `git commit` 或 `git stash`；任务结束后用 `git diff` 检查改动，不满意时用 `git checkout -- .` / `git restore` 撤回。非 git 项目请自行备份。
 
 ---
@@ -219,6 +223,12 @@ npm run test
 ### Q7: `npm install` 报 `node-gyp` 或 “Could not find any Visual Studio installation”？
 - **原因**：根目录的 `.npmrc`（`ignore-scripts=true`）缺失或被覆盖，npm 尝试本地编译 better-sqlite3。
 - **处理**：确认 `.npmrc` 存在，或手动执行 `npm install --ignore-scripts`。该包自带 Windows 预编译文件，不需要 Visual Studio。
+
+### Q8: 「编辑重问」点发送后要等好几十秒，或者提示失败？
+- **原因**：agy 没有提供无界面的回退命令。AGY Studio 在后台开一个隐藏的 agy 交互界面，执行它自带的 `/rewind`，退出后再开一次核对回退确实生效，然后才删除界面里的记录并重新提问。agy 每次启动要加载十几秒，所以通常需要 20–60 秒；第一次在某个工作区里编辑时，还要先替 agy 确认信任该文件夹，会更慢一些。
+- **提示「找不到这条消息」**：那次提问没有成功送达 agy（例如启动就失败），agy 的历史里没有它，无法回退。可以直接新开会话。
+- **提示「agy 回退失败」或「没有完成回退」**：界面上的记录不会被删除，可以稍后重试。如果反复失败，说明这段对话在 agy 里已损坏，请新开会话。
+- 依赖 `node-pty`（随 `npm install` 安装，自带 Windows 预编译文件，不需要 Visual Studio）。
 
 ---
 

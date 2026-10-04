@@ -78,6 +78,8 @@ export interface SessionEventEnvelope {
 export type GlobalEvent =
   | { type: 'session.upserted'; session: Session }
   | { type: 'session.deleted'; sessionId: string }
+  /** The session's history was truncated (message edit); clients must reload it from seq 0. */
+  | { type: 'session.reset'; sessionId: string }
   | { type: 'run.status'; run: Pick<Run, 'id' | 'sessionId'> & { status: RunStatus } }
   | { type: 'account.changed'; whoami: WhoAmI }
   | { type: 'quota.updated'; snapshot: QuotaSnapshot };

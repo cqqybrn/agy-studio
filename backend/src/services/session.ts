@@ -17,15 +17,23 @@ import type { EventsRepository } from '../repositories/events.js';
 import type { AttachmentsRepository } from '../repositories/attachments.js';
 import type { AccountsRepository } from '../repositories/accounts.js';
 import type { EventBus } from './event-bus.js';
-import type { RunSupervisor } from './run-supervisor.js';
+import type { LeaseProvider, RunSupervisor } from './run-supervisor.js';
 import type { BrainPort } from './ports/brain.port.js';
 import type { HomeIsolationPort } from './ports/home-isolation.port.js';
+import type { ConversationRewindPort } from './ports/conversation-rewind.port.js';
 import { AppError } from '../utils/errors.js';
 import { createId } from '../utils/ids.js';
 import type { SessionServicePort } from '../routes/ws/gateway.js';
 import { PromptInjector } from './attachment/prompt-inject.js';
 import type { ImageInputProfile } from './ports/agy-runner.port.js';
 import { isBuiltinAgent, isSafeAgentName, type AgentService } from './agent.js';
+
+/** Whether two messages would look the same in agy's /rewind picker (one line, maybe truncated). */
+function sameMessageText(a: string, b: string): boolean {
+  const x = a.replace(/\s+/g, ' ').trim();
+  const y = b.replace(/\s+/g, ' ').trim();
+  return x.startsWith(y) || y.startsWith(x);
+}
 
 export interface SendMessageInput {
   sessionId: string;
@@ -52,6 +60,10 @@ export interface SessionServiceOptions {
   promptInjector?: PromptInjector;
   profile?: ImageInputProfile;
   agentService?: AgentService;
+  /** Rewinds agy's own conversation when a message is edited. */
+  conversationRewind?: ConversationRewindPort;
+  /** Holds the account while agy is driven for a rewind, like a run does. */
+  acquireLease?: LeaseProvider;
 }
 
 export class SessionService implements SessionServicePort {
@@ -69,6 +81,8 @@ export class SessionService implements SessionServicePort {
   private readonly promptInjector: PromptInjector;
   private readonly profile?: ImageInputProfile;
   private readonly agentService?: AgentService;
+  private readonly conversationRewind?: ConversationRewindPort;
+  private readonly acquireLease?: LeaseProvider;
 
   constructor(options: SessionServiceOptions) {
     this.sessionsRepo = options.sessionsRepo;
@@ -85,6 +99,8 @@ export class SessionService implements SessionServicePort {
     this.promptInjector = options.promptInjector ?? new PromptInjector();
     this.profile = options.profile;
     this.agentService = options.agentService;
+    this.conversationRewind = options.conversationRewind;
+    this.acquireLease = options.acquireLease;
   }
 
   /**
@@ -360,6 +376,88 @@ export class SessionService implements SessionServicePort {
     throw new AppError('BAD_REQUEST', `Unknown or invalid agent "${name}"`, {
       details: { agent: name },
     });
+  }
+
+  /**
+   * Edit & resubmit, first half: removes the user message and everything after it. agy's own
+   * conversation is rewound first (via its /rewind, which also reverts agy's file changes from those
+   * turns); only when that succeeded is the session history truncated, so a failure leaves both
+   * sides untouched. The client then sends the edited text as a normal new message.
+   */
+  async rewindToMessage(sessionId: string, messageId: string): Promise<void> {
+    const session = this.sessionsRepo.findById(sessionId);
+    if (!session) {
+      throw new AppError('NOT_FOUND', `Session ${sessionId} not found`);
+    }
+    if (this.supervisor.getActiveRunBySessionId(sessionId)) {
+      throw new AppError('SESSION_BUSY', '会话正在运行，请等运行结束后再编辑');
+    }
+    const workspace = this.workspacesRepo.findById(session.workspaceId);
+    if (!workspace) {
+      throw new AppError('NOT_FOUND', `Workspace ${session.workspaceId} not found`);
+    }
+
+    const envelopes = this.eventsRepo.listBySessionId(sessionId);
+    const index = envelopes.findIndex(
+      (e) => e.event.type === 'user.message' && e.event.messageId === messageId,
+    );
+    if (index < 0) {
+      throw new AppError('NOT_FOUND', `Message ${messageId} not found in session ${sessionId}`);
+    }
+    const target = envelopes[index];
+    const targetText = target.event.type === 'user.message' ? target.event.text : '';
+
+    if (session.agyConversationId) {
+      if (!this.conversationRewind) {
+        throw new AppError('INTERNAL', 'Conversation rewind is not configured');
+      }
+      // agy's picker shows each message truncated; later messages that look the same must be
+      // skipped to reach this one.
+      const laterLookalikes = envelopes
+        .slice(index + 1)
+        .filter((e) => e.event.type === 'user.message' && sameMessageText(e.event.text, targetText)).length;
+      const previous = envelopes
+        .slice(0, index)
+        .reverse()
+        .find((e) => e.event.type === 'user.message');
+
+      const lease = this.acquireLease ? await this.acquireLease(session.accountName ?? null) : null;
+      try {
+        await this.conversationRewind.rewindToMessage({
+          conversationId: session.agyConversationId,
+          cwd: workspace.path,
+          messageText: targetText,
+          occurrenceFromEnd: laterLookalikes + 1,
+          previousMessageText: previous?.event.type === 'user.message' ? previous.event.text : null,
+          env: lease?.env,
+        });
+      } finally {
+        lease?.release();
+      }
+    }
+
+    const removed = await this.eventBus.truncateFrom(sessionId, target.seq);
+    const remainingRunIds = new Set(
+      envelopes.slice(0, index).map((e) => e.runId).filter((id): id is string => Boolean(id)),
+    );
+    for (const runId of new Set(removed.map((e) => e.runId))) {
+      if (runId && !remainingRunIds.has(runId)) {
+        this.runsRepo.delete(runId);
+      }
+    }
+    if (session.lastRunId && !remainingRunIds.has(session.lastRunId)) {
+      const latest = this.runsRepo
+        .listBySessionId(sessionId)
+        .sort((a, b) => a.startedAt.localeCompare(b.startedAt))
+        .pop();
+      this.sessionsRepo.update(sessionId, { lastRunId: latest?.id ?? null });
+    }
+
+    this.eventBus.publishGlobal({ type: 'session.reset', sessionId });
+    const updated = this.sessionsRepo.findById(sessionId);
+    if (updated) {
+      this.eventBus.publishGlobal({ type: 'session.upserted', session: updated });
+    }
   }
 
   async importSessions(input: ImportSessionsBody): Promise<{ imported: Session[] }> {

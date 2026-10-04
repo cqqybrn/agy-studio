@@ -209,6 +209,21 @@ export class EventBus {
   }
 
   /**
+   * Drops the session's events from fromSeq on (used to rewind a conversation). Pending events are
+   * flushed first and the in-memory sequence follows the database, so the next published event gets
+   * seq fromSeq and the sequence stays gap-free. Clients must reload the session afterwards.
+   */
+  async truncateFrom(sessionId: string, fromSeq: number): Promise<SessionEventEnvelope[]> {
+    await this.flush(sessionId);
+    const removed = this.eventsRepo.deleteFromSeq(sessionId, fromSeq);
+    const session = this.sessionQueues.get(sessionId);
+    if (session) {
+      session.latestSeq = this.eventsRepo.latestSeq(sessionId);
+    }
+    return removed;
+  }
+
+  /**
    * Clear timers and flush pending items during graceful shutdown.
    */
   async close(): Promise<void> {

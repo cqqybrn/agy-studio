@@ -110,6 +110,17 @@ export async function waitForNoActiveRuns(page: Page): Promise<void> {
 }
 
 /**
+ * 把对话区滚动到顶部。时间线是虚拟列表，只渲染视口附近的行，长回答结束后会自动滚到底部，
+ * 最上面的用户消息此时不在 DOM 里。
+ */
+export async function scrollTimelineToTop(page: Page): Promise<void> {
+  await page.locator('[data-testid="timeline-scroll-container"]').evaluate((el) => {
+    el.scrollTop = 0;
+  });
+  await page.waitForTimeout(300);
+}
+
+/**
  * 展开时间线里所有折叠的 "Worked for Xs" 块与工具分组。
  * 思考、工具调用、子 agent 卡片都收在这些折叠块里，运行结束后默认折叠。
  */
