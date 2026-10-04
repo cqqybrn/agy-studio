@@ -121,12 +121,12 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
 
   return (
     <div
-      className="my-3 overflow-hidden rounded-md border border-border-default bg-bg-code text-xs font-mono"
+      className="my-3 overflow-hidden rounded-md border border-border-default bg-bg-code text-[13px] font-mono"
       data-testid="code-block"
       data-language={language || 'text'}
     >
       <div className="flex items-center justify-between border-b border-border-subtle bg-bg-surface/50 px-3 py-1.5 text-text-tertiary select-none">
-        <span className="text-[11px] font-medium text-text-secondary uppercase tracking-wider">
+        <span className="text-xs font-medium text-text-secondary uppercase tracking-wider">
           {language || 'text'}
         </span>
         <CopyButton text={code} label="复制代码" testId="copy-code-btn" />
@@ -155,44 +155,44 @@ const HighlightContext = React.createContext(true);
 const markdownComponents: Components = {
   // 标题 Headings
   h1: ({ children, ...rest }) => (
-    <h1 className="text-lg font-bold text-text-primary mt-4 mb-2 pb-1 border-b border-border-subtle" {...rest}>
+    <h1 className="text-xl font-bold text-text-primary mt-4 mb-2 pb-1 border-b border-border-subtle" {...rest}>
       {children}
     </h1>
   ),
   h2: ({ children, ...rest }) => (
-    <h2 className="text-base font-semibold text-text-primary mt-3 mb-2" {...rest}>
+    <h2 className="text-lg font-semibold text-text-primary mt-3 mb-2" {...rest}>
       {children}
     </h2>
   ),
   h3: ({ children, ...rest }) => (
-    <h3 className="text-sm font-semibold text-text-primary mt-2 mb-1" {...rest}>
+    <h3 className="text-base font-semibold text-text-primary mt-2 mb-1" {...rest}>
       {children}
     </h3>
   ),
   h4: ({ children, ...rest }) => (
-    <h4 className="text-xs font-semibold text-text-primary mt-2 mb-1" {...rest}>
+    <h4 className="text-[15px] font-semibold text-text-primary mt-2 mb-1" {...rest}>
       {children}
     </h4>
   ),
   h5: ({ children, ...rest }) => (
-    <h5 className="text-xs font-medium text-text-secondary mt-1 mb-1" {...rest}>
+    <h5 className="text-sm font-medium text-text-secondary mt-1 mb-1" {...rest}>
       {children}
     </h5>
   ),
   h6: ({ children, ...rest }) => (
-    <h6 className="text-xs font-medium text-text-tertiary mt-1 mb-1" {...rest}>
+    <h6 className="text-sm font-medium text-text-tertiary mt-1 mb-1" {...rest}>
       {children}
     </h6>
   ),
 
   // 段落、引用与水平分割线
   p: ({ children, ...rest }) => (
-    <p className="my-1.5 text-xs leading-relaxed text-text-secondary" {...rest}>
+    <p className="my-2 text-[15px] leading-7 text-text-secondary" {...rest}>
       {children}
     </p>
   ),
   blockquote: ({ children, ...rest }) => (
-    <blockquote className="my-2 border-l-2 border-accent/60 bg-bg-surface/30 pl-3 py-1 text-xs italic text-text-secondary" {...rest}>
+    <blockquote className="my-2 border-l-2 border-accent/60 bg-bg-surface/30 pl-3 py-1 text-[15px] italic text-text-secondary" {...rest}>
       {children}
     </blockquote>
   ),
@@ -238,7 +238,7 @@ const markdownComponents: Components = {
   // 表格 Tables (GFM)
   table: ({ children, ...rest }) => (
     <div className="my-3 overflow-x-auto" data-testid="markdown-table">
-      <table className="w-full text-left border-collapse text-xs border border-border-default" {...rest}>
+      <table className="w-full text-left border-collapse text-sm border border-border-default" {...rest}>
         {children}
       </table>
     </div>
@@ -274,7 +274,7 @@ const markdownComponents: Components = {
     const isTaskList = className?.includes('contains-task-list');
     return (
       <ul
-        className={`my-2 space-y-1 text-xs text-text-secondary ${
+        className={`my-2 space-y-1.5 text-[15px] leading-7 text-text-secondary ${
           isTaskList ? 'list-none pl-0' : 'list-disc pl-5'
         } ${className || ''}`}
         {...rest}
@@ -285,7 +285,7 @@ const markdownComponents: Components = {
   },
   ol: ({ children, className, ...rest }) => (
     <ol
-      className={`my-2 space-y-1 text-xs text-text-secondary list-decimal pl-5 ${className || ''}`}
+      className={`my-2 space-y-1.5 text-[15px] leading-7 text-text-secondary list-decimal pl-5 ${className || ''}`}
       {...rest}
     >
       {children}
@@ -335,7 +335,7 @@ const markdownComponents: Components = {
     }
     return (
       <code
-        className="rounded bg-bg-surface-active px-1.5 py-0.5 font-mono text-[11px] text-accent border border-border-default select-text"
+        className="rounded bg-bg-surface-active px-1.5 py-0.5 font-mono text-[13px] text-accent border border-border-default select-text"
         {...rest}
       >
         {children}
@@ -356,7 +356,7 @@ function AsciiBox({ text }: { text: string }) {
       <div className="flex items-center justify-end border-b border-border-subtle bg-bg-surface/50 px-2 py-1">
         <CopyButton text={text} label="复制" testId="copy-box-btn" />
       </div>
-      <pre className="overflow-x-auto p-3 font-mono text-[11px] leading-relaxed text-text-secondary whitespace-pre">
+      <pre className="overflow-x-auto p-3 font-mono text-[13px] leading-relaxed text-text-secondary whitespace-pre">
         {text}
       </pre>
     </div>
@@ -370,7 +370,7 @@ export function MessageMarkdown({ content, className = '', streaming = false }: 
 
   return (
     <div
-      className={`message-markdown font-sans text-xs select-text ${className}`}
+      className={`message-markdown font-sans text-[15px] select-text ${className}`}
       data-testid="message-markdown"
     >
       <HighlightContext.Provider value={!streaming}>

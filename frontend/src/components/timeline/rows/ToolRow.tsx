@@ -27,7 +27,7 @@ function ToolObject({ item }: { item: ToolItem }) {
   if (category === 'command') {
     const command = tool.target ?? tool.name;
     return (
-      <code className="min-w-0 truncate font-mono text-[11px] text-text-secondary" title={command}>
+      <code className="min-w-0 truncate font-mono text-xs text-text-secondary" title={command}>
         {command}
       </code>
     );
@@ -76,7 +76,7 @@ export function ToolRow({ item, expanded, onExpandedChange, renderSubagent }: To
         type="button"
         onClick={toggle}
         aria-expanded={isExpanded}
-        className="group flex w-full min-w-0 items-center gap-1.5 rounded py-0.5 text-left text-xs transition-colors hover:text-text-primary"
+        className="group flex w-full min-w-0 items-center gap-1.5 rounded py-0.5 text-left text-[13px] transition-colors hover:text-text-primary"
         data-testid="tool-row-toggle"
       >
         <span className="shrink-0 text-text-tertiary">{toolVerb(category, running)}</span>

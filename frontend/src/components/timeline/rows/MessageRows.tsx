@@ -6,7 +6,7 @@ import { MessageMarkdown } from '../MessageMarkdown';
 export function UserMessageRow({ item }: { item: UserMessageItem }) {
   return (
     <div className="py-1.5" data-testid={`timeline-item-user-${item.id}`}>
-      <div className="rounded-lg border border-border-default bg-bg-surface px-3.5 py-2.5 text-[13px] leading-relaxed text-text-primary">
+      <div className="rounded-lg border border-border-default bg-bg-surface px-3.5 py-2.5 text-[15px] leading-7 text-text-primary">
         {item.attachments.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-1.5">
             {item.attachments.map((att) => (
@@ -34,7 +34,7 @@ export function AssistantIdentity({ streaming = false }: { streaming?: boolean }
       <span className="flex h-5 w-5 select-none items-center justify-center rounded-full bg-accent text-[10px] font-semibold text-accent-foreground">
         A
       </span>
-      <span className="text-xs font-semibold text-text-primary">Assistant</span>
+      <span className="text-sm font-semibold text-text-primary">Assistant</span>
       {streaming && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />}
     </div>
   );
@@ -44,7 +44,7 @@ export function AssistantIdentity({ streaming = false }: { streaming?: boolean }
 export function AssistantMessageRow({ item }: { item: AssistantMessageItem }) {
   return (
     <div
-      className="group/msg relative py-1 pr-14 text-[13px] leading-relaxed text-text-primary"
+      className="group/msg relative py-1 pr-14 text-[15px] leading-7 text-text-primary"
       data-testid={`timeline-item-assistant-${item.id}`}
     >
       {item.isComplete && item.text && (

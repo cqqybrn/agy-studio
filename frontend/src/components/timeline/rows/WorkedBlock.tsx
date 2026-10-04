@@ -66,7 +66,7 @@ export function WorkedBlock({ row, expandedChoices, onExpandedChange, renderSuba
         type="button"
         onClick={toggle}
         aria-expanded={isExpanded}
-        className="group flex items-center gap-1.5 rounded py-0.5 text-left text-xs text-text-tertiary transition-colors hover:text-text-primary"
+        className="group flex items-center gap-1.5 rounded py-0.5 text-left text-[13px] text-text-tertiary transition-colors hover:text-text-primary"
         data-testid="worked-toggle"
       >
         {row.active && <LoadingSpinner className="h-3 w-3" />}

@@ -593,7 +593,7 @@ export function Composer({
               isComposingRef.current = false;
             }, 50);
           }}
-          className="w-full resize-none bg-transparent text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none leading-relaxed min-h-[40px] max-h-[240px]"
+          className="w-full resize-none bg-transparent text-[15px] text-text-primary placeholder:text-text-tertiary focus:outline-none leading-relaxed min-h-[40px] max-h-[240px]"
         />
       </div>
 

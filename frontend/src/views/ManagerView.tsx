@@ -465,7 +465,7 @@ export function ManagerView({
           <div
             ref={scrollContainerRef}
             onScroll={handleScroll}
-            className="flex-1 overflow-y-auto overflow-x-hidden p-4 min-h-0"
+            className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-4 min-h-0"
             data-testid="timeline-scroll-container"
           >
             <div
@@ -493,7 +493,7 @@ export function ManagerView({
                     }}
                     className="pb-1"
                   >
-                    <div className="mx-auto max-w-3xl">
+                    <div className="mx-auto max-w-5xl">
                       <DisplayRowView
                         row={row}
                         sessionId={activeSessionId}
@@ -535,7 +535,9 @@ export function ManagerView({
           className="shrink-0 border-t border-border-default bg-bg-panel/40 p-3"
           data-testid="manager-composer-footer"
         >
-          <Composer sessionId={activeSessionId} />
+          <div className="mx-auto max-w-5xl">
+            <Composer sessionId={activeSessionId} />
+          </div>
         </footer>
       )}
     </div>
