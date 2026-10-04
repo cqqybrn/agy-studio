@@ -76,11 +76,13 @@ export function WorkedBlock({ row, expandedChoices, onExpandedChange, renderSuba
             <XCircleIcon className="h-3 w-3" />
           </span>
         )}
-        <ChevronRightIcon
-          className={`h-3 w-3 transition-transform ${isExpanded ? 'rotate-90' : 'opacity-60 group-hover:opacity-100'}`}
-        />
+        {row.children.length > 0 && (
+          <ChevronRightIcon
+            className={`h-3 w-3 transition-transform ${isExpanded ? 'rotate-90' : 'opacity-60 group-hover:opacity-100'}`}
+          />
+        )}
       </button>
-      {isExpanded && (
+      {isExpanded && row.children.length > 0 && (
         <div className="ml-1 mt-0.5 border-l border-border-subtle pl-3" data-testid="worked-children">
           {row.children.map((child) => (
             <WorkedChildRow

@@ -107,6 +107,10 @@ interface ActiveRunState {
   isAborted: boolean;
   terminalGraceTimer: NodeJS.Timeout | null;
   forcedTerminal: RunnerTerminal | null;
+  /** This run's own stream reported an error step (`run.error`). */
+  sawRunError: boolean;
+  /** This run's stream finished at least one assistant message. */
+  sawMessageDone: boolean;
   completeOnce: (
     status: TerminalRunStatus,
     error: ApiErrorBody | null,
@@ -344,6 +348,8 @@ export class RunSupervisor {
       isAborted: false,
       terminalGraceTimer: null,
       forcedTerminal: null,
+      sawRunError: false,
+      sawMessageDone: false,
       completeOnce,
       completion: completionPromise,
     };
@@ -535,6 +541,8 @@ export class RunSupervisor {
           break;
         }
         activeState.watchdog?.handleEvent(event);
+        if (event.type === 'run.error') activeState.sawRunError = true;
+        if (event.type === 'message.done') activeState.sawMessageDone = true;
         await this.emitEvent(sessionId, runId, event);
         this.armTerminalGrace(runner, activeState, completeOnce);
       }
@@ -556,20 +564,20 @@ export class RunSupervisor {
           activeState.forcedTerminal.error ?? null,
           runnerAny.usage,
         );
-      } else if (exitCode !== 0 && exitCode !== null) {
-        const runnerAny = runner as { terminal?: { error?: ApiErrorBody } };
-        const err =
-          runnerAny.terminal?.error ??
-          new AppError('AGY_EXIT', `Process exited with code ${exitCode}`).toApiError();
-        await completeOnce('failed', err);
       } else {
-        const runnerAny = runner as {
-          terminal?: { status?: TerminalRunStatus; error?: ApiErrorBody };
-          usage?: TokenUsage | null;
-        };
-        const status = runnerAny.terminal?.status ?? 'completed';
-        const err = runnerAny.terminal?.error ?? null;
-        await completeOnce(status, err, runnerAny.usage);
+        const runnerAny = runner as { terminal?: RunnerTerminal | null; usage?: TokenUsage | null };
+        if (runnerAny.terminal) {
+          // agy reported a result: it decides the outcome even when the process exits non-zero.
+          const terminal = this.checkedTerminal(activeState, runnerAny.terminal);
+          await completeOnce(terminal.status, terminal.error ?? null, runnerAny.usage);
+        } else if (exitCode !== 0 && exitCode !== null) {
+          await completeOnce(
+            'failed',
+            new AppError('AGY_EXIT', `Process exited with code ${exitCode}`).toApiError(),
+          );
+        } else {
+          await completeOnce('completed', null, runnerAny.usage);
+        }
       }
     } catch (err) {
       this.logger?.error({ err, runId, sessionId }, 'Error in run background loop');
@@ -596,7 +604,8 @@ export class RunSupervisor {
 
     activeState.terminalGraceTimer = setTimeout(async () => {
       activeState.terminalGraceTimer = null;
-      activeState.forcedTerminal = terminal;
+      const checked = this.checkedTerminal(activeState, terminal);
+      activeState.forcedTerminal = checked;
       this.logger?.warn?.(
         { runId: activeState.record.id, graceMs: this.terminalExitGraceMs },
         'Process did not exit after terminal result; killing it',
@@ -607,8 +616,25 @@ export class RunSupervisor {
         this.logger?.debug?.({ err }, 'Ignoring runner kill error after terminal result');
       }
       const usage = (runner as { usage?: TokenUsage | null }).usage;
-      await completeOnce(terminal.status, terminal.error ?? null, usage);
+      await completeOnce(checked.status, checked.error ?? null, usage);
     }, this.terminalExitGraceMs);
+  }
+
+  /**
+   * Observed with agy 1.2.16: once a turn of a conversation has failed (e.g. "User location is not
+   * supported"), the `result` of every later turn in that conversation still reports that old
+   * error, even when the turn itself succeeded. A failed result is therefore only trusted when this
+   * run's own stream showed an error step, or when it produced no reply at all.
+   */
+  private checkedTerminal(activeState: ActiveRunState, terminal: RunnerTerminal): RunnerTerminal {
+    if (terminal.status !== 'failed' || activeState.sawRunError || !activeState.sawMessageDone) {
+      return terminal;
+    }
+    this.logger?.warn?.(
+      { runId: activeState.record.id, error: terminal.error },
+      'agy reported a failed result for a turn that replied without errors; treating it as completed',
+    );
+    return { status: 'completed' };
   }
 
   /**
