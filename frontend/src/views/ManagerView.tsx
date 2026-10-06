@@ -153,6 +153,7 @@ export function ManagerView({
   const currentWorkspace = workspaceStore.currentWorkspace;
   const connectionStatus = propConnectionStatus ?? connStore.status;
   const showThinkingOverride = uiStore.showThinkingOverride;
+  const showThinkingPref = usePrefsStore((s) => s.prefs?.showThinking ?? true);
 
   // 会话插槽与时间线条目
   const slot = activeSessionId ? slots[activeSessionId] : undefined;
@@ -188,7 +189,8 @@ export function ManagerView({
     },
     [activeSessionId, editMessage],
   );
-  const thinkingHidden = showThinkingOverride === false;
+  // 本页临时开关优先，其次是设置页的「显示模型思考过程」
+  const thinkingHidden = showThinkingOverride === null ? !showThinkingPref : !showThinkingOverride;
   const rows = useMemo(
     () => buildDisplayRows(items, { activeRunId, thinkingHidden }),
     [items, activeRunId, thinkingHidden],

@@ -39,7 +39,7 @@ describe('App & Layout Component', () => {
     expect(accountsHtml).toContain('AccountsView');
 
     const settingsHtml = renderToString(<SettingsView />);
-    expect(settingsHtml).toContain('SettingsView');
+    expect(settingsHtml).toContain('data-testid="settings-view"');
 
     const playgroundHtml = renderToString(<PlaygroundView />);
     expect(playgroundHtml).toContain('PlaygroundView');

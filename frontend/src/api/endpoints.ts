@@ -7,6 +7,7 @@ import type {
   Capabilities,
   CreateSessionBody,
   CreateWorkspaceBody,
+  DirectoryListing,
   Health,
   ImportSessionsBody,
   Model,
@@ -41,6 +42,14 @@ export function getCapabilities(options?: RequestOptions<'GET /api/capabilities'
 
 export function getWorkspaces(options?: RequestOptions<'GET /api/workspaces'>): Promise<Workspace[]> {
   return request('GET /api/workspaces', options);
+}
+
+/** Folder picker: sub-folders of `path`, or the drives when `path` is omitted. */
+export function listDirectories(
+  path?: string,
+  options?: Omit<RequestOptions<'GET /api/fs/directories'>, 'query'>,
+): Promise<DirectoryListing> {
+  return request('GET /api/fs/directories', { ...options, query: path ? { path } : {} });
 }
 
 export function createWorkspace(

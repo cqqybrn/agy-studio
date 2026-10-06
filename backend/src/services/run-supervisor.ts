@@ -129,7 +129,8 @@ export class RunSupervisor {
   private readonly runner: AgyRunnerPort;
   private readonly profile: SupervisorProfileConfig;
   private readonly acquireLease: LeaseProvider;
-  private readonly maxConcurrentRuns: number;
+  /** Fixed limit from the constructor; otherwise prefs.maxConcurrentRuns is read on every start. */
+  private readonly maxConcurrentRuns?: number;
   private readonly defaultTimeoutMs: number;
   private readonly logger?: SupervisorLogger;
   private readonly settings?: SettingsPort;
@@ -148,7 +149,7 @@ export class RunSupervisor {
     this.runner = options.runner;
     this.profile = options.profile;
     this.acquireLease = options.acquireLease;
-    this.maxConcurrentRuns = options.maxConcurrentRuns ?? 3;
+    this.maxConcurrentRuns = options.maxConcurrentRuns;
     // 0 = no wall-clock limit: long tasks are legitimate, stuck runs are ended by the watchdog
     this.defaultTimeoutMs = options.defaultTimeoutMs ?? 0;
     this.logger = options.logger;
@@ -188,11 +189,12 @@ export class RunSupervisor {
       );
     }
 
-    // 2. 同步并发上限检查
-    if (this.activeRunsMap.size >= this.maxConcurrentRuns) {
+    // 2. 同步并发上限检查（设置页修改后，下一次运行生效）
+    const maxConcurrentRuns = this.maxConcurrentRuns ?? this.prefsRepo?.get().maxConcurrentRuns ?? 3;
+    if (this.activeRunsMap.size >= maxConcurrentRuns) {
       throw new AppError(
         'CONCURRENCY_LIMIT',
-        `Concurrency limit of ${this.maxConcurrentRuns} active runs reached`,
+        `Concurrency limit of ${maxConcurrentRuns} active runs reached`,
       );
     }
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import type { ToolCall } from '@agy-studio/contracts';
 import { toolCategory } from '../../../domain/toolLabels';
+import { MessageMarkdown } from '../MessageMarkdown';
 
 function DiffLines({ text }: { text: string }) {
   return (
@@ -28,6 +29,9 @@ function stringInput(input: Record<string, unknown>, key: string): string | null
   const value = input[key];
   return typeof value === 'string' ? value : null;
 }
+
+/** Tools whose result is prose / markdown (web search summary, fetched page) rather than raw text. */
+const MARKDOWN_RESULT_TOOLS = new Set(['search_web', 'read_url_content', 'read_browser_page']);
 
 const PRE = 'max-h-72 overflow-auto whitespace-pre-wrap break-all p-2.5 font-mono text-xs leading-relaxed text-text-secondary';
 
@@ -72,6 +76,12 @@ export function ToolDetail({ tool }: { tool: ToolCall }) {
     } else {
       body = <div className="p-2.5 text-xs italic text-text-tertiary">No diff details available.</div>;
     }
+  } else if (output && MARKDOWN_RESULT_TOOLS.has(tool.name)) {
+    body = (
+      <div className="max-h-96 overflow-auto px-3 py-1 text-sm" data-testid="tool-detail-markdown">
+        <MessageMarkdown content={output} className="!text-sm" />
+      </div>
+    );
   } else if (output) {
     body = <pre className={PRE}>{output}</pre>;
   } else if (!tool.error) {

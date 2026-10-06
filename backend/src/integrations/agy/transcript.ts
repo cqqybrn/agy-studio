@@ -300,6 +300,16 @@ export function toEvents(
   return [];
 }
 
+/**
+ * GENERIC result steps start with "Created At: …" / "Completed At: …" lines (agy 1.2.16); the
+ * result itself follows. Returns null for an empty result.
+ */
+export function stripResultHeader(content: string | null | undefined): string | null {
+  if (!content) return null;
+  const body = content.replace(/^(?:(?:Created|Completed) At: [^\n]*\n)+/, '').trim();
+  return body.length > 0 ? body : null;
+}
+
 /** Bookkeeping keys agy adds to every tool call; stdout tool parameters never contain them. */
 const TRANSCRIPT_ONLY_ARG_KEYS = new Set(['toolAction', 'toolSummary']);
 
@@ -439,7 +449,7 @@ export class RunTranscriptMapper {
       kind,
       input,
       target: extractToolTarget(kind, input),
-      output: step.content,
+      output: stripResultHeader(step.content),
       error: step.error,
       status: running ? 'running' : step.error ? 'failed' : 'succeeded',
       fileChanges: extractFileChanges(call.name, kind, input),

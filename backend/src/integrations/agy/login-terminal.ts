@@ -89,7 +89,7 @@ export const defaultTerminalLauncher: TerminalLauncher = (command, args, options
         if (child.pid) {
           if (process.platform === 'win32') {
             try {
-              spawnSync('taskkill', ['/pid', String(child.pid), '/t', '/f'], { stdio: 'ignore' });
+              spawnSync('taskkill', ['/pid', String(child.pid), '/t', '/f'], { stdio: 'ignore', windowsHide: true });
             } catch {
               child.kill();
             }

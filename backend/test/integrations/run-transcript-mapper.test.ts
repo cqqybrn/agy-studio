@@ -2,7 +2,7 @@ import path from 'node:path';
 import type { AgentEvent, TranscriptStep } from '@agy-studio/contracts';
 import { describe, expect, it } from 'vitest';
 import { loadProfile } from '../../src/integrations/agy/profile/loader.js';
-import { parseLine, RunTranscriptMapper } from '../../src/integrations/agy/transcript.js';
+import { parseLine, RunTranscriptMapper, stripResultHeader } from '../../src/integrations/agy/transcript.js';
 
 const PROFILE = loadProfile(path.resolve(__dirname, '../../agy-profile.json'));
 const RUN_ID = 'run-1';
@@ -172,5 +172,16 @@ describe('RunTranscriptMapper', () => {
       error: 'exit code 1',
       status: 'failed',
     });
+  });
+});
+
+describe('stripResultHeader', () => {
+  it('drops the Created At / Completed At lines agy puts before a result', () => {
+    expect(
+      stripResultHeader('Created At: 2026-10-06T16:41:16+09:00\nCompleted At: 2026-10-06T16:41:20+09:00\nThe search returned **0.0063 USD**.'),
+    ).toBe('The search returned **0.0063 USD**.');
+    expect(stripResultHeader('plain output')).toBe('plain output');
+    expect(stripResultHeader('Created At: x\n')).toBeNull();
+    expect(stripResultHeader(null)).toBeNull();
   });
 });

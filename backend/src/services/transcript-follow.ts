@@ -37,7 +37,8 @@ interface RunFollowState {
   publishChain: Promise<void>;
   /** message / tool ids already delivered by stdout */
   streamIds: Set<string>;
-  streamFinishedTools: Set<string>;
+  /** tools stdout finished, and whether stdout gave them any output */
+  streamFinishedTools: Map<string, boolean>;
   /** ids delivered from the transcript */
   transcriptMessages: Set<string>;
   transcriptTools: Map<string, TranscriptToolState>;
@@ -101,8 +102,10 @@ export class TranscriptFollowService {
         return state.transcriptTools.get(event.tool.toolCallId) !== 'finished';
       case 'tool.finished':
         state.streamIds.add(event.tool.toolCallId);
-        state.streamFinishedTools.add(event.tool.toolCallId);
-        return true;
+        state.streamFinishedTools.set(event.tool.toolCallId, Boolean(event.tool.output));
+        // Already finished from the transcript with its result: an output-less stdout copy would
+        // wipe that result.
+        return !(state.transcriptTools.get(event.tool.toolCallId) === 'finished' && !event.tool.output);
       default:
         return true;
     }
@@ -128,7 +131,7 @@ export class TranscriptFollowService {
       graceTimers: new Set(),
       publishChain: Promise.resolve(),
       streamIds: new Set(),
-      streamFinishedTools: new Set(),
+      streamFinishedTools: new Map(),
       transcriptMessages: new Set(),
       transcriptTools: new Map(),
     };
@@ -242,15 +245,21 @@ export class TranscriptFollowService {
         }
         state.transcriptTools.set(event.tool.toolCallId, 'running');
         break;
-      case 'tool.finished':
-        if (
-          state.streamFinishedTools.has(event.tool.toolCallId) ||
-          state.transcriptTools.get(event.tool.toolCallId) === 'finished'
-        ) {
-          return;
+      case 'tool.finished': {
+        const id = event.tool.toolCallId;
+        if (state.transcriptTools.get(id) === 'finished') return;
+        const streamHadOutput = state.streamFinishedTools.get(id);
+        if (streamHadOutput !== undefined) {
+          // stdout finished it first. Some tools (search_web, read_url_content, …) never carry
+          // their result on stdout; the transcript is the only place it appears.
+          if (streamHadOutput || !event.tool.output) return;
+          state.transcriptTools.set(id, 'finished');
+          event = { type: 'tool.updated', toolCallId: id, patch: { output: event.tool.output } };
+          break;
         }
-        state.transcriptTools.set(event.tool.toolCallId, 'finished');
+        state.transcriptTools.set(id, 'finished');
         break;
+      }
       default:
         return;
     }

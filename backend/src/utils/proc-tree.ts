@@ -45,7 +45,7 @@ export async function killTree(pid: number): Promise<void> {
 
   if (isWindows) {
     try {
-      await execFileAsync('taskkill', ['/T', '/F', '/PID', String(pid)]);
+      await execFileAsync('taskkill', ['/T', '/F', '/PID', String(pid)], { windowsHide: true });
     } catch {
       // If taskkill fails because process was already terminated or not found, ignore
     }

@@ -65,6 +65,7 @@ import { QuotaService } from './services/quota.js';
 import { AgentService } from './services/agent.js';
 
 import { workspacesRoutes } from './routes/http/workspaces.routes.js';
+import { DirectoryBrowser } from './services/directory-browser.js';
 import { sessionsRoutes } from './routes/http/sessions.routes.js';
 import { subagentsRoutes } from './routes/http/subagents.routes.js';
 import { attachmentsRoutes } from './routes/http/attachments.routes.js';
@@ -484,7 +485,7 @@ export function buildApp(options?: AppOptions): BuiltApp {
   }
 
   // Register HTTP route plugins
-  void app.register(workspacesRoutes, { workspaceService });
+  void app.register(workspacesRoutes, { workspaceService, directoryBrowser: new DirectoryBrowser() });
   void app.register(sessionsRoutes, { sessionService });
   void app.register(subagentsRoutes, { subagentTranscriptService });
   void app.register(attachmentsRoutes, {
