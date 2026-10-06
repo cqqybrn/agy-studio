@@ -150,6 +150,39 @@ describe('TranscriptFollowService', () => {
     expect(service.filterStreamEvent(SESSION_ID, RUN_ID, { type: 'tool.started', tool: tool('tool-run-1-4', 'running') })).toBe(false);
   });
 
+  it('fills in the result of a tool that stdout finished without output (search_web)', async () => {
+    await startRun();
+    const search = { ...tool('tool-run-1-2', 'succeeded'), name: 'search_web', kind: 'search' as const };
+    expect(service.filterStreamEvent(SESSION_ID, RUN_ID, { type: 'tool.finished', tool: search })).toBe(true);
+
+    transcript.push([{ type: 'tool.finished', tool: { ...search, output: 'Tokyo has 14 million people.' } }]);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(published).toEqual([
+      { type: 'tool.updated', toolCallId: 'tool-run-1-2', patch: { output: 'Tokyo has 14 million people.' } },
+    ]);
+  });
+
+  it('leaves the output alone when stdout already had one', async () => {
+    await startRun();
+    const viewed = { ...tool('tool-run-1-2', 'succeeded'), output: '330 lines' };
+    expect(service.filterStreamEvent(SESSION_ID, RUN_ID, { type: 'tool.finished', tool: viewed })).toBe(true);
+    transcript.push([{ type: 'tool.finished', tool: { ...viewed, output: 'full file text' } }]);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(published).toEqual([]);
+  });
+
+  it('drops an output-less stdout finish for a tool the transcript already finished with a result', async () => {
+    await startRun();
+    transcript.push([{ type: 'tool.finished', tool: { ...tool('tool-run-1-2', 'succeeded'), output: 'result' } }]);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(published.map((e) => e.type)).toEqual(['tool.finished']);
+
+    expect(service.filterStreamEvent(SESSION_ID, RUN_ID, { type: 'tool.finished', tool: tool('tool-run-1-2', 'succeeded') })).toBe(false);
+    expect(
+      service.filterStreamEvent(SESSION_ID, RUN_ID, { type: 'tool.finished', tool: { ...tool('tool-run-1-2', 'succeeded'), output: 'x' } }),
+    ).toBe(true);
+  });
+
   it('waits for the conversation id of a new session before following', async () => {
     conversationId = null;
     await startRun();

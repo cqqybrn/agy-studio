@@ -6,7 +6,7 @@ import { useAccountStore } from '../../stores/account.store';
 import { useSessionStore } from '../../stores/session.store';
 import { useUiStore } from '../../stores/ui.store';
 import { useWorkspaceStore } from '../../stores/workspace.store';
-import { inboxIndicator, sortSessionsByActivity } from './InboxList';
+import { inboxIndicator, sessionsOfWorkspace, sortSessionsByActivity } from './InboxList';
 import * as endpoints from '../../api/endpoints';
 import {
   AddWorkspaceDialog,
@@ -200,10 +200,30 @@ describe('Inbox Components', () => {
       expect(useUiStore.getState().readSeqMap['sess-attention']).toBe(30);
     });
 
-    it('当会话列表为空时渲染暂无会话提示', () => {
+    it('当前工作区没有会话时提示', () => {
       useSessionStore.setState({ list: [] });
       const html = renderToString(<InboxList />);
-      expect(html).toContain('暂无会话');
+      expect(html).toContain('这个工作区还没有会话');
+    });
+
+    it('只显示当前工作区的会话', () => {
+      const other = { ...mockSession3, id: 'sess-other-ws', title: '另一个工作区的会话', workspaceId: 'ws-2' };
+      useSessionStore.setState({ list: [mockSession1, other] });
+
+      const html = renderToString(<InboxList />);
+      expect(html).toContain('运行中的长任务');
+      expect(html).not.toContain('另一个工作区的会话');
+
+      useWorkspaceStore.setState({ currentWorkspace: mockWorkspace2 });
+      const html2 = renderToString(<InboxList />);
+      expect(html2).toContain('另一个工作区的会话');
+      expect(html2).not.toContain('运行中的长任务');
+    });
+
+    it('sessionsOfWorkspace 在未选工作区时返回全部', () => {
+      const other = { ...mockSession3, workspaceId: 'ws-2' };
+      expect(sessionsOfWorkspace([mockSession1, other], null)).toHaveLength(2);
+      expect(sessionsOfWorkspace([mockSession1, other], 'ws-2')).toEqual([other]);
     });
   });
 

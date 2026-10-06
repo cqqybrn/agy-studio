@@ -1,10 +1,12 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import type { DirectoryBrowser } from '../../services/directory-browser.js';
 import type { WorkspaceService } from '../../services/workspace.js';
 import { AppError } from '../../utils/errors.js';
 
 export interface WorkspacesRoutesOptions {
   workspaceService: WorkspaceService;
+  directoryBrowser: DirectoryBrowser;
 }
 
 const CreateWorkspaceSchema = z.object({
@@ -16,12 +18,22 @@ export const workspacesRoutes: FastifyPluginAsync<WorkspacesRoutesOptions> = asy
   app,
   options,
 ) => {
-  const { workspaceService } = options;
+  const { workspaceService, directoryBrowser } = options;
 
   // 全局/插件错误处理（按 ERROR_HTTP_STATUS 映射 HTTP 状态码并返回 ApiErrorResponse）
   app.setErrorHandler((error, _request, reply) => {
     const appError = AppError.from(error);
     reply.status(appError.status).send(appError.toApiErrorResponse());
+  });
+
+  // GET /api/fs/directories?path= — folder picker for new workspaces
+  app.get<{ Querystring: { path?: string } }>('/api/fs/directories', async (request, reply) => {
+    try {
+      return await directoryBrowser.list(request.query.path);
+    } catch (err) {
+      const appError = AppError.from(err);
+      return reply.status(appError.status).send(appError.toApiErrorResponse());
+    }
   });
 
   // GET /api/workspaces

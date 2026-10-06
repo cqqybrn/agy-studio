@@ -12,6 +12,7 @@ import {
 } from '../../src/repositories/index.js';
 import { WorkspaceService } from '../../src/services/workspace.js';
 import { workspacesRoutes } from '../../src/routes/http/workspaces.routes.js';
+import { DirectoryBrowser } from '../../src/services/directory-browser.js';
 
 describe('Workspaces HTTP Routes', () => {
   let app: FastifyInstance;
@@ -32,7 +33,7 @@ describe('Workspaces HTTP Routes', () => {
     });
 
     app = Fastify();
-    await app.register(workspacesRoutes, { workspaceService });
+    await app.register(workspacesRoutes, { workspaceService, directoryBrowser: new DirectoryBrowser() });
     await app.ready();
   });
 
@@ -40,6 +41,32 @@ describe('Workspaces HTTP Routes', () => {
     await app.close();
     db.close();
     fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it('GET /api/fs/directories lists sub-folders and the parent', async () => {
+    fs.mkdirSync(path.join(tempDir, 'b-project'));
+    fs.mkdirSync(path.join(tempDir, 'a-project'));
+    fs.mkdirSync(path.join(tempDir, '.hidden'));
+    fs.writeFileSync(path.join(tempDir, 'file.txt'), 'x');
+
+    const res = await app.inject({ method: 'GET', url: '/api/fs/directories', query: { path: tempDir } });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.path).toBe(path.resolve(tempDir));
+    expect(body.parent).toBe(path.dirname(path.resolve(tempDir)));
+    expect(body.entries.map((e: { name: string }) => e.name)).toEqual(['a-project', 'b-project']);
+    expect(body.entries[0].path).toBe(path.join(path.resolve(tempDir), 'a-project'));
+  });
+
+  it('GET /api/fs/directories rejects relative and missing paths', async () => {
+    const relative = await app.inject({ method: 'GET', url: '/api/fs/directories', query: { path: 'foo' } });
+    expect(relative.statusCode).toBe(400);
+    const missing = await app.inject({
+      method: 'GET',
+      url: '/api/fs/directories',
+      query: { path: path.join(tempDir, 'nope') },
+    });
+    expect(missing.statusCode).toBe(404);
   });
 
   it('GET /api/workspaces returns empty list initially', async () => {

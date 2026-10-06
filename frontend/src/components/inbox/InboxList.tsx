@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import type { Session } from '@agy-studio/contracts';
 import { useSessionStore } from '../../stores/session.store';
 import { useUiStore } from '../../stores/ui.store';
+import { useWorkspaceStore } from '../../stores/workspace.store';
 import { InboxItem } from './InboxItem';
 
 /** What the dot left of a session title shows. */
@@ -23,6 +24,11 @@ export function sortSessionsByActivity(sessions: readonly Session[]): Session[] 
   return [...sessions].sort((a, b) => time(b) - time(a));
 }
 
+/** Each workspace has its own session list; with no workspace selected, everything is shown. */
+export function sessionsOfWorkspace(sessions: readonly Session[], workspaceId: string | null): Session[] {
+  return workspaceId ? sessions.filter((s) => s.workspaceId === workspaceId) : [...sessions];
+}
+
 export interface InboxListProps {
   sessions?: Session[];
   readSeqMap?: Record<string, number>;
@@ -37,11 +43,13 @@ export function InboxList({
   const hookSessions = useSessionStore((s) => s.list);
   const hookActiveSessionId = useSessionStore((s) => s.activeSessionId);
   const hookReadSeqMap = useUiStore((s) => s.readSeqMap);
+  const hookWorkspaceId = useWorkspaceStore((s) => s.currentWorkspace?.id ?? null);
 
   // Server rendering (tests) gets the stores' initial state from the hooks; fall back to the live state.
   const storeSessions = hookSessions.length > 0 ? hookSessions : useSessionStore.getState().list;
   const activeSessionId = hookActiveSessionId ?? useSessionStore.getState().activeSessionId;
-  const sessions = propSessions ?? storeSessions;
+  const currentWorkspaceId = hookWorkspaceId ?? useWorkspaceStore.getState().currentWorkspace?.id ?? null;
+  const sessions = propSessions ?? sessionsOfWorkspace(storeSessions, currentWorkspaceId);
   const readSeqMap =
     propReadSeqMap ??
     (Object.keys(hookReadSeqMap).length > 0 ? hookReadSeqMap : useUiStore.getState().readSeqMap);
@@ -52,6 +60,14 @@ export function InboxList({
       useUiStore.getState().seedReadSeq(storeSessions);
     }
   }, [propSessions, storeSessions]);
+
+  // 切换到别的工作区后，关掉属于其他工作区的会话
+  const activeWorkspaceId = storeSessions.find((s) => s.id === activeSessionId)?.workspaceId;
+  useEffect(() => {
+    if (!propSessions && currentWorkspaceId && activeWorkspaceId && activeWorkspaceId !== currentWorkspaceId) {
+      useSessionStore.getState().setActiveSessionId(null);
+    }
+  }, [propSessions, currentWorkspaceId, activeWorkspaceId]);
 
   // 正在看的会话，新内容到达即视为已读
   const activeLastSeq = sessions.find((s) => s.id === activeSessionId)?.lastSeq;
@@ -67,7 +83,7 @@ export function InboxList({
         data-testid="inbox-list"
         className="flex flex-1 flex-col items-center justify-center p-6 text-center text-text-tertiary"
       >
-        <p className="text-xs">暂无会话</p>
+        <p className="text-xs">{currentWorkspaceId ? '这个工作区还没有会话' : '暂无会话'}</p>
         <p className="mt-1 text-[11px]">点击上方“+ 新建会话”开始对话</p>
       </div>
     );

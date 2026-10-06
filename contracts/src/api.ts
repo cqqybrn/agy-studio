@@ -36,6 +36,22 @@ export interface CreateWorkspaceBody {
   name?: string;
 }
 
+/** A folder on the machine running AGY Studio, for picking a workspace location. */
+export interface DirectoryEntry {
+  name: string;
+  /** Absolute path. */
+  path: string;
+}
+
+export interface DirectoryListing {
+  /** The listed folder; null for the top level (drives on Windows). */
+  path: string | null;
+  /** Folder to go up to; null at the top level. On a drive root it is null too (back to drives). */
+  parent: string | null;
+  /** Sub-folders, sorted by name. Hidden and system folders are left out. */
+  entries: DirectoryEntry[];
+}
+
 export interface CreateSessionBody {
   workspaceId: string;
   /** Defaults to the active account. Ignored in `credential_snapshot` mode, where every run uses the live account. */
@@ -91,6 +107,8 @@ export interface ApiEndpoints {
   'GET /api/workspaces': { response: Workspace[] };
   'POST /api/workspaces': { body: CreateWorkspaceBody; response: Workspace };
   'DELETE /api/workspaces/:workspaceId': { response: { ok: true } };
+  /** Lists sub-folders of `path` (or the drives / filesystem root when omitted) for the folder picker. */
+  'GET /api/fs/directories': { query: { path?: string }; response: DirectoryListing };
 
   'GET /api/sessions': {
     query: { workspaceId?: string; cursor?: string; limit?: number };

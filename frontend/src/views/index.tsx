@@ -37,18 +37,7 @@ export { AccountsView } from './AccountsView';
 export { ManagerView } from './ManagerView';
 import { ManagerView as EmbeddedManagerView } from './ManagerView';
 
-export function SettingsView() {
-  return (
-    <div className="flex h-full flex-col items-center justify-center p-8 text-center text-text-secondary">
-      <div className="max-w-md rounded-xl border border-border-default bg-bg-surface p-6 shadow-lg">
-        <h2 className="text-lg font-semibold text-text-primary">全局设置 (SettingsView)</h2>
-        <p className="mt-2 text-sm text-text-secondary">
-          自动同意规则、运行超时、模型默认参数与偏好配置
-        </p>
-      </div>
-    </div>
-  );
-}
+export { SettingsView } from './SettingsView';
 
 // ============================================================================
 // Mock Data for PlaygroundView

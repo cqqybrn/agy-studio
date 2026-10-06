@@ -68,6 +68,7 @@ export function findAgyBinary(profile: AgyProfile, explicitBin?: string): string
       const probe = spawnSync(process.platform === 'win32' ? 'where' : 'which', [explicitBin], {
         encoding: 'utf-8',
         stdio: ['ignore', 'pipe', 'ignore'],
+        windowsHide: true,
         shell: true,
       });
       if (probe.status === 0 && probe.stdout) {
@@ -103,6 +104,7 @@ export function findAgyBinary(profile: AgyProfile, explicitBin?: string): string
         const probe = spawnSync(process.platform === 'win32' ? 'where' : 'which', [expanded], {
           encoding: 'utf-8',
           stdio: ['ignore', 'pipe', 'ignore'],
+          windowsHide: true,
           shell: true,
         });
         if (probe.status === 0 && probe.stdout) {
