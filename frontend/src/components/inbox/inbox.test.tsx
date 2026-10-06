@@ -6,11 +6,11 @@ import { useAccountStore } from '../../stores/account.store';
 import { useSessionStore } from '../../stores/session.store';
 import { useUiStore } from '../../stores/ui.store';
 import { useWorkspaceStore } from '../../stores/workspace.store';
+import { inboxIndicator, sortSessionsByActivity } from './InboxList';
 import * as endpoints from '../../api/endpoints';
 import {
   AddWorkspaceDialog,
   formatRelativeTime,
-  groupSessions,
   ImportSessionsButton,
   InboxItem,
   InboxList,
@@ -131,6 +131,7 @@ describe('Inbox Components', () => {
         'sess-attention': 15, // < lastSeq 30
         'sess-completed': 20, // == lastSeq 20
       },
+      readSeqSeeded: true,
     });
 
     // Reset Workspace store
@@ -157,54 +158,46 @@ describe('Inbox Components', () => {
   });
 
   // ==========================================================================
-  // 1. 测试会话按“运行中”、“待查看”、“已完成”三组正确分类
+  // 1. 会话平铺列表：运行中转圈、完成未看蓝点、看过无图标
   // ==========================================================================
-  describe('会话按状态三组分类 (groupSessions & InboxList)', () => {
-    it('正确将会话归类为 running、attention、completed', () => {
-      const readSeqMap: Record<string, number> = {
-        'sess-running': 0, // Even if readSeq is 0, running status takes precedence
-        'sess-attention': 15, // 15 < 30 -> attention
-        'sess-completed': 25, // 25 >= 20 -> completed
-      };
-
-      const grouped = groupSessions(
-        [mockSession1, mockSession2, mockSession3],
-        readSeqMap,
-      );
-
-      expect(grouped.running.map((s) => s.id)).toEqual(['sess-running']);
-      expect(grouped.attention.map((s) => s.id)).toEqual(['sess-attention']);
-      expect(grouped.completed.map((s) => s.id)).toEqual(['sess-completed']);
+  describe('会话列表 (InboxList)', () => {
+    it('运行中显示 running，结束未看显示 unread，看过或正在看显示 none', () => {
+      expect(inboxIndicator(mockSession1, 0, false)).toBe('running');
+      expect(inboxIndicator(mockSession2, 15, false)).toBe('unread');
+      expect(inboxIndicator(mockSession2, 30, false)).toBe('none');
+      expect(inboxIndicator(mockSession3, 20, false)).toBe('none');
+      // 正在看的会话不显示蓝点
+      expect(inboxIndicator(mockSession2, 15, true)).toBe('none');
+      // 运行中即使正在看也转圈
+      expect(inboxIndicator(mockSession1, 10, true)).toBe('running');
     });
 
-    it('会话 lastSeq 为 0 且 status 不为 running 时归入已完成 (Completed)', () => {
-      const zeroSeqSession: Session = {
-        ...mockSession2,
-        id: 'sess-zero',
-        status: 'idle',
-        lastSeq: 0,
-      };
-
-      const grouped = groupSessions([zeroSeqSession], {});
-      // readSeq is 0, lastSeq is 0 -> 0 < 0 is false -> completed
-      expect(grouped.attention).toHaveLength(0);
-      expect(grouped.completed.map((s) => s.id)).toEqual(['sess-zero']);
+    it('按最近活动时间倒序排列', () => {
+      const older = { ...mockSession2, id: 'old', updatedAt: '2026-09-01T00:00:00.000Z' };
+      const newer = { ...mockSession3, id: 'new', updatedAt: '2026-09-30T00:00:00.000Z' };
+      expect(sortSessionsByActivity([older, newer]).map((s) => s.id)).toEqual(['new', 'old']);
     });
 
-    it('InboxList 渲染各分组标题及会话计数', () => {
+    it('平铺渲染全部会话，不再分组', () => {
       const html = renderToString(<InboxList />);
 
-      expect(html).toContain('运行中');
-      expect(html).toContain('待查看');
-      expect(html).toContain('已完成');
-
-      // 验证数量标识：运行中 1，待查看 1，已完成 1
-      expect(html).toContain('data-testid="group-count-running"');
-      expect(html).toContain('data-testid="group-count-attention"');
-      expect(html).toContain('data-testid="group-count-completed"');
+      expect(html).not.toContain('待查看');
+      expect(html).not.toContain('data-testid="group-');
       expect(html).toContain('运行中的长任务');
       expect(html).toContain('已结束但有新输出未读');
       expect(html).toContain('已全部读完的会话');
+      expect(html).toContain('data-indicator="running"');
+      expect(html).toContain('data-indicator="unread"');
+      expect(html).toContain('data-indicator="none"');
+    });
+
+    it('第一次使用时把已有会话全部记为已读，之后不再覆盖', () => {
+      useUiStore.setState({ readSeqMap: {}, readSeqSeeded: false });
+      useUiStore.getState().seedReadSeq([mockSession2, mockSession3]);
+      expect(useUiStore.getState().readSeqMap).toEqual({ 'sess-attention': 30, 'sess-completed': 20 });
+
+      useUiStore.getState().seedReadSeq([{ ...mockSession2, lastSeq: 99 }]);
+      expect(useUiStore.getState().readSeqMap['sess-attention']).toBe(30);
     });
 
     it('当会话列表为空时渲染暂无会话提示', () => {
@@ -218,11 +211,18 @@ describe('Inbox Components', () => {
   // 2. 测试点击会话切换 activeSessionId 并标记已读与删除交互
   // ==========================================================================
   describe('会话项交互 (InboxItem)', () => {
-    it('渲染会话标题、相对时间与状态点', () => {
-      const html = renderToString(<InboxItem session={mockSession1} />);
-      expect(html).toContain('运行中的长任务');
-      expect(html).toContain('claude-3-7-sonnet');
-      expect(html).toContain('data-testid="status-dot-running"');
+    it('渲染会话标题与状态图标', () => {
+      const running = renderToString(<InboxItem session={mockSession1} indicator="running" />);
+      expect(running).toContain('运行中的长任务');
+      expect(running).toContain('animate-spin');
+
+      const unread = renderToString(<InboxItem session={mockSession2} indicator="unread" />);
+      expect(unread).toContain('bg-accent');
+      expect(unread).not.toContain('animate-spin');
+
+      const seen = renderToString(<InboxItem session={mockSession3} />);
+      expect(seen).toContain('data-indicator="none"');
+      expect(seen).not.toContain('animate-spin');
     });
 
     it('formatRelativeTime 正确格式化相对时间', () => {
@@ -245,13 +245,10 @@ describe('Inbox Components', () => {
       expect(useSessionStore.getState().activeSessionId).toBe('sess-attention');
       expect(useUiStore.getState().readSeqMap['sess-attention']).toBe(30);
 
-      // 标记已读后再次重新分组，原 attention 会话自动转移至 completed
-      const nextGrouped = groupSessions(
-        useSessionStore.getState().list,
-        useUiStore.getState().readSeqMap,
+      // 标记已读后蓝点消失
+      expect(inboxIndicator(mockSession2, useUiStore.getState().readSeqMap['sess-attention'], false)).toBe(
+        'none',
       );
-      expect(nextGrouped.attention).toHaveLength(0);
-      expect(nextGrouped.completed.some((s) => s.id === 'sess-attention')).toBe(true);
     });
 
     it('支持二次确认后删除会话', async () => {

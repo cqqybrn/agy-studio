@@ -260,14 +260,12 @@ export function buildDisplayRows(
   });
   flushWork(null);
 
-  // agy often streams nothing while the model thinks (no thinking events for many models), and may
-  // keep working after a message. Show "Working…" whenever a run is active and nothing else at the
-  // tail shows progress.
+  // agy often streams nothing while the model thinks (no thinking events for many models), and keeps
+  // working after a message (e.g. waiting for sub-agents, often with that message never marked done).
+  // Show "Working…" whenever a run is active and the tail is not an active Worked block.
   const activeRunId = options.activeRunId;
   const last = rows[rows.length - 1];
-  const tailShowsProgress =
-    (last?.kind === 'worked' && last.active) ||
-    (last?.kind === 'assistant_message' && !last.item.isComplete);
+  const tailShowsProgress = last?.kind === 'worked' && last.active;
   if (activeRunId !== null && !tailShowsProgress) {
     const lastItem = items[items.length - 1];
     const since =
