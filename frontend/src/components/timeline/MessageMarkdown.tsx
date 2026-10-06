@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { createHighlighter, type BundledLanguage, type Highlighter } from 'shiki';
 import { CopyButton } from './CopyButton';
 import { splitMarkdownSegments } from './asciiBox';
+import { remarkHtmlBreaks } from './remarkHtmlBreaks';
 
 export interface MessageMarkdownProps {
   content: string;
@@ -154,71 +155,71 @@ const HighlightContext = React.createContext(true);
 
 const markdownComponents: Components = {
   // 标题 Headings
-  h1: ({ children, ...rest }) => (
+  h1: ({ node: _node, children, ...rest }) => (
     <h1 className="text-xl font-bold text-text-primary mt-4 mb-2 pb-1 border-b border-border-subtle" {...rest}>
       {children}
     </h1>
   ),
-  h2: ({ children, ...rest }) => (
+  h2: ({ node: _node, children, ...rest }) => (
     <h2 className="text-lg font-semibold text-text-primary mt-3 mb-2" {...rest}>
       {children}
     </h2>
   ),
-  h3: ({ children, ...rest }) => (
+  h3: ({ node: _node, children, ...rest }) => (
     <h3 className="text-base font-semibold text-text-primary mt-2 mb-1" {...rest}>
       {children}
     </h3>
   ),
-  h4: ({ children, ...rest }) => (
+  h4: ({ node: _node, children, ...rest }) => (
     <h4 className="text-[15px] font-semibold text-text-primary mt-2 mb-1" {...rest}>
       {children}
     </h4>
   ),
-  h5: ({ children, ...rest }) => (
+  h5: ({ node: _node, children, ...rest }) => (
     <h5 className="text-sm font-medium text-text-secondary mt-1 mb-1" {...rest}>
       {children}
     </h5>
   ),
-  h6: ({ children, ...rest }) => (
+  h6: ({ node: _node, children, ...rest }) => (
     <h6 className="text-sm font-medium text-text-tertiary mt-1 mb-1" {...rest}>
       {children}
     </h6>
   ),
 
   // 段落、引用与水平分割线
-  p: ({ children, ...rest }) => (
+  p: ({ node: _node, children, ...rest }) => (
     <p className="my-2 text-[15px] leading-7 text-text-secondary" {...rest}>
       {children}
     </p>
   ),
-  blockquote: ({ children, ...rest }) => (
+  blockquote: ({ node: _node, children, ...rest }) => (
     <blockquote className="my-2 border-l-2 border-accent/60 bg-bg-surface/30 pl-3 py-1 text-[15px] italic text-text-secondary" {...rest}>
       {children}
     </blockquote>
   ),
-  hr: ({ ...rest }) => (
+  hr: ({ node: _node, ...rest }) => (
     <hr className="my-4 border-t border-border-default" {...rest} />
   ),
 
   // 格式化文本
-  strong: ({ children, ...rest }) => (
+  strong: ({ node: _node, children, ...rest }) => (
     <strong className="font-semibold text-text-primary" {...rest}>
       {children}
     </strong>
   ),
-  em: ({ children, ...rest }) => (
+  em: ({ node: _node, children, ...rest }) => (
     <em className="italic text-text-secondary" {...rest}>
       {children}
     </em>
   ),
-  del: ({ children, ...rest }) => (
+  del: ({ node: _node, children, ...rest }) => (
     <del className="line-through text-text-tertiary" {...rest}>
       {children}
     </del>
   ),
 
   // 安全链接校验：只允许 http:, https:, mailto: 协议，危险协议严禁渲染到 href 中
-  a: ({ href, children, ...rest }) => {
+  a: ({ node: _node, href, children, ...rest }) => {
     if (!href || !isSafeUrl(href)) {
       return <span>{children}</span>;
     }
@@ -236,41 +237,41 @@ const markdownComponents: Components = {
   },
 
   // 表格 Tables (GFM)
-  table: ({ children, ...rest }) => (
+  table: ({ node: _node, children, ...rest }) => (
     <div className="my-3 overflow-x-auto" data-testid="markdown-table">
       <table className="w-full text-left border-collapse text-sm border border-border-default" {...rest}>
         {children}
       </table>
     </div>
   ),
-  thead: ({ children, ...rest }) => (
+  thead: ({ node: _node, children, ...rest }) => (
     <thead className="border-b border-border-default bg-bg-surface/80" {...rest}>
       {children}
     </thead>
   ),
-  tbody: ({ children, ...rest }) => (
+  tbody: ({ node: _node, children, ...rest }) => (
     <tbody className="divide-y divide-border-subtle bg-bg-app/20" {...rest}>
       {children}
     </tbody>
   ),
-  tr: ({ children, ...rest }) => (
+  tr: ({ node: _node, children, ...rest }) => (
     <tr className="hover:bg-bg-surface/30 transition-colors" {...rest}>
       {children}
     </tr>
   ),
-  th: ({ children, ...rest }) => (
+  th: ({ node: _node, children, ...rest }) => (
     <th className="px-3 py-2 font-medium text-text-primary border-r border-border-subtle last:border-r-0" {...rest}>
       {children}
     </th>
   ),
-  td: ({ children, ...rest }) => (
+  td: ({ node: _node, children, ...rest }) => (
     <td className="px-3 py-1.5 text-text-secondary border-r border-border-subtle last:border-r-0" {...rest}>
       {children}
     </td>
   ),
 
   // 列表 Lists & 复选框 Checkboxes
-  ul: ({ children, className, ...rest }) => {
+  ul: ({ node: _node, children, className, ...rest }) => {
     const isTaskList = className?.includes('contains-task-list');
     return (
       <ul
@@ -283,7 +284,7 @@ const markdownComponents: Components = {
       </ul>
     );
   },
-  ol: ({ children, className, ...rest }) => (
+  ol: ({ node: _node, children, className, ...rest }) => (
     <ol
       className={`my-2 space-y-1.5 text-[15px] leading-7 text-text-secondary list-decimal pl-5 ${className || ''}`}
       {...rest}
@@ -291,7 +292,7 @@ const markdownComponents: Components = {
       {children}
     </ol>
   ),
-  li: ({ children, className, ...rest }) => {
+  li: ({ node: _node, children, className, ...rest }) => {
     const isTaskItem = className?.includes('task-list-item');
     return (
       <li
@@ -316,7 +317,8 @@ const markdownComponents: Components = {
         />
       );
     }
-    return <input {...props} />;
+    const { node: _node, ...inputProps } = props;
+    return <input {...inputProps} />;
   },
 
   // 代码块与行内代码
@@ -325,7 +327,7 @@ const markdownComponents: Components = {
       {children}
     </InPreContext.Provider>
   ),
-  code: ({ className, children, ...rest }) => {
+  code: ({ node: _node, className, children, ...rest }) => {
     const isInsidePre = React.useContext(InPreContext);
     if (isInsidePre) {
       const match = /language-(\w+)/.exec(className || '');
@@ -380,7 +382,7 @@ export function MessageMarkdown({ content, className = '', streaming = false }: 
           ) : (
             <ReactMarkdown
               key={`md-${index}`}
-              remarkPlugins={[remarkGfm]}
+              remarkPlugins={[remarkGfm, remarkHtmlBreaks]}
               components={markdownComponents}
               urlTransform={(url) => {
                 if (isSafeUrl(url)) return url;
