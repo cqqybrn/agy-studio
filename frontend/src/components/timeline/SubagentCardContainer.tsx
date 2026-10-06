@@ -16,6 +16,12 @@ export interface SubagentCardContainerProps {
 }
 
 /**
+ * 子 agent 运行期间轮询其 transcript 的间隔。agy 的 stream 只推送 subagent.spawned，
+ * 子 agent 自己的步骤只写在它的 transcript 里，所以运行中要主动去读。
+ */
+export const SUBAGENT_POLL_MS = 3000;
+
+/**
  * 模块级内存缓存，缓存在组件外。
  * 键为 `${sessionId}:${conversationId}`，反复折叠/展开只请求一次。
  */
@@ -43,6 +49,14 @@ export function getSubagentTranscriptFromCache(key: string): TranscriptStep[] | 
 /** 手动设置模块级缓存（测试或预热使用） */
 export function setSubagentTranscriptInCache(key: string, steps: TranscriptStep[]): void {
   subagentTranscriptCache.set(key, steps);
+}
+
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'object' && err !== null && 'message' in err) {
+    return String((err as { message: unknown }).message);
+  }
+  return '获取子 Agent 执行步骤失败';
 }
 
 export function SubagentCardContainer({
@@ -97,18 +111,38 @@ export function SubagentCardContainer({
       subagentTranscriptCache.set(cacheKey, res.steps);
       setLoadedSteps(res.steps);
     } catch (err: unknown) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : typeof err === 'object' && err !== null && 'message' in err
-            ? String((err as { message: unknown }).message)
-            : '获取子 Agent 执行步骤失败';
-      setError(message);
+      setError(errorMessage(err));
     } finally {
       subagentInflightRequests.delete(cacheKey);
       setIsLoading(false);
     }
   }, [cacheKey, hasItemSteps, isRunning, item.conversationId, targetSessionId]);
+
+  // 运行中：定时读取子 agent 的 transcript（折叠时也读，标题栏实时显示步数）。
+  // 结果不进缓存，运行结束后展开时按完整 transcript 重新加载。
+  useEffect(() => {
+    if (!isRunning || hasItemSteps) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const poll = async () => {
+      try {
+        const res = await getSubagentTranscript(targetSessionId, item.conversationId);
+        if (cancelled) return;
+        setLoadedSteps(res.steps);
+        setError(null);
+      } catch {
+        // 子 agent 刚启动时 transcript 可能还不存在，下一轮再试
+      }
+      if (!cancelled) timer = setTimeout(poll, SUBAGENT_POLL_MS);
+    };
+    void poll();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [isRunning, hasItemSteps, targetSessionId, item.conversationId]);
 
   // 展开时按需懒加载
   useEffect(() => {
@@ -139,13 +173,13 @@ export function SubagentCardContainer({
   };
 
   // 步骤优先级：
-  // 1. 运行中或 item 中已有 steps：直接使用传入的 steps
-  // 2. 缓存中已有 steps：使用缓存
-  // 3. 本地已加载 steps：使用 loadedSteps
-  // 4. 兜底空数组
-  const effectiveSteps: TranscriptStep[] =
-    isRunning || hasItemSteps
-      ? item.steps
+  // 1. item 中已有 steps（事件流推送的）：直接使用
+  // 2. 运行中：使用轮询得到的 steps
+  // 3. 已结束：缓存 → 本地已加载 → 空数组
+  const effectiveSteps: TranscriptStep[] = hasItemSteps
+    ? item.steps
+    : isRunning
+      ? loadedSteps ?? []
       : cachedSteps ?? loadedSteps ?? [];
 
   return (
@@ -154,7 +188,7 @@ export function SubagentCardContainer({
       steps={effectiveSteps}
       isExpanded={isExpanded}
       onToggleExpand={handleToggleExpand}
-      isLoading={isLoading}
+      isLoading={isLoading || (isRunning && !hasItemSteps && loadedSteps === null)}
       error={error}
       onRetry={handleRetry}
       className={className}

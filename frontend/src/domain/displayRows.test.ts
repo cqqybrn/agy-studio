@@ -189,9 +189,13 @@ describe('buildDisplayRows', () => {
     expect(worked(rows)[0].startedAt).toBe(at(5));
   });
 
-  it('adds no extra Working… row while a message streams or work is shown', () => {
+  it('keeps Working… under a message that is still streaming', () => {
     const streaming = { ...assistant('a1', 5), isComplete: false };
-    expect(worked(buildDisplayRows([user('u1', 0), streaming], { activeRunId: 'run-1' }))).toHaveLength(0);
+    const rows = buildDisplayRows([user('u1', 0), streaming], { activeRunId: 'run-1' });
+    expect(rows.map((r) => r.kind)).toEqual(['user_message', 'assistant_message', 'worked']);
+  });
+
+  it('adds no extra Working… row while work is shown or no run is active', () => {
     const busy = [user('u1', 0), tool('t1', 'run_command', 1, null)];
     expect(worked(buildDisplayRows(busy, { activeRunId: 'run-1' }))).toHaveLength(1);
     expect(worked(buildDisplayRows([user('u1', 0)], { activeRunId: null }))).toHaveLength(0);

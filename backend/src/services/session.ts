@@ -314,6 +314,12 @@ export class SessionService implements SessionServicePort {
 
     const runId = runResult.runId;
 
+    // supervisor 已把会话标记为 running，立即广播，侧栏才能显示"运行中"
+    const startedSession = this.sessionsRepo.findById(sessionId);
+    if (startedSession) {
+      this.eventBus.publishGlobal({ type: 'session.upserted', session: startedSession });
+    }
+
     // 监听 supervisor 的输出事件：
     // * 首次收到包含 conversationId 的事件（如 init 或 step 或 run.completed）时，回填 sessions.agy_conversation_id
     // * 运行结束时更新 session 状态并发布全局事件 publishGlobal({ type: 'session.upserted', session })

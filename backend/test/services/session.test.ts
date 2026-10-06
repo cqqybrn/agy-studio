@@ -230,6 +230,24 @@ describe('SessionService', () => {
   });
 
   describe('send', () => {
+    it('broadcasts the running session as soon as the run starts', async () => {
+      const session = await sessionService.createSession({ workspaceId, title: 'New Session' });
+      mockSupervisor.start.mockImplementation(async (sessionId: string) => {
+        // the real supervisor marks the session running before returning
+        sessionsRepo.update(sessionId, { status: 'running', lastRunId: 'run-live' });
+        return { runId: 'run-live', completion: new Promise<void>(() => {}) };
+      });
+      const globalEvents: GlobalEvent[] = [];
+      eventBus.subscribeGlobal((e) => globalEvents.push(e));
+
+      await sessionService.send({ sessionId: session.id, text: 'hello', attachmentIds: [] });
+
+      const upserts = globalEvents.filter(
+        (e): e is Extract<GlobalEvent, { type: 'session.upserted' }> => e.type === 'session.upserted',
+      );
+      expect(upserts.at(-1)?.session).toMatchObject({ id: session.id, status: 'running', lastRunId: 'run-live' });
+    });
+
     it('publishes user.message, updates title if default, starts run, and backfills conversationId', async () => {
       const session = await sessionService.createSession({
         workspaceId,
