@@ -172,6 +172,32 @@ describe('Inbox Components', () => {
       expect(inboxIndicator(mockSession1, 10, true)).toBe('running');
     });
 
+    it('置顶的会话排在最前，按置顶时间倒序', () => {
+      const recent = { ...mockSession2, id: 'recent', pinnedAt: null, updatedAt: '2026-09-30T00:00:00.000Z' };
+      const pinnedOld = { ...mockSession3, id: 'pinned-old', pinnedAt: '2026-09-02T00:00:00.000Z', updatedAt: '2026-09-01T00:00:00.000Z' };
+      const pinnedNew = { ...mockSession3, id: 'pinned-new', pinnedAt: '2026-09-05T00:00:00.000Z', updatedAt: '2026-08-01T00:00:00.000Z' };
+      expect(sortSessionsByActivity([recent, pinnedOld, pinnedNew]).map((s) => s.id)).toEqual([
+        'pinned-new',
+        'pinned-old',
+        'recent',
+      ]);
+    });
+
+    it('置顶的会话显示置顶图标，并提供置顶 / 重命名操作', () => {
+      const pinned = renderToString(
+        <InboxItem session={{ ...mockSession3, pinnedAt: '2026-09-05T00:00:00.000Z' }} />,
+      );
+      expect(pinned).toContain('data-pinned="true"');
+      expect(pinned).toContain('data-testid="inbox-item-pinned"');
+      expect(pinned).toContain('取消置顶');
+
+      const normal = renderToString(<InboxItem session={mockSession3} />);
+      expect(normal).toContain('data-pinned="false"');
+      expect(normal).not.toContain('inbox-item-pinned');
+      expect(normal).toContain('data-testid="pin-session-btn"');
+      expect(normal).toContain('data-testid="rename-session-btn"');
+    });
+
     it('按最近活动时间倒序排列', () => {
       const older = { ...mockSession2, id: 'old', updatedAt: '2026-09-01T00:00:00.000Z' };
       const newer = { ...mockSession3, id: 'new', updatedAt: '2026-09-30T00:00:00.000Z' };

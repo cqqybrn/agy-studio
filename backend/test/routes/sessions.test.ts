@@ -161,6 +161,27 @@ describe('Sessions HTTP Routes', () => {
     expect(body.effort).toBe('high');
   });
 
+  it('PATCH /api/sessions/:sessionId pins, trims titles and rejects empty ones', async () => {
+    const created = await sessionService.createSession({ workspaceId, title: 'Initial' });
+
+    const pinned = await app.inject({
+      method: 'PATCH',
+      url: `/api/sessions/${created.id}`,
+      payload: { pinned: true, title: '  重命名  ' },
+    });
+    expect(pinned.statusCode).toBe(200);
+    const body: Session = JSON.parse(pinned.body);
+    expect(body.pinnedAt).toEqual(expect.any(String));
+    expect(body.title).toBe('重命名');
+
+    const empty = await app.inject({
+      method: 'PATCH',
+      url: `/api/sessions/${created.id}`,
+      payload: { title: '   ' },
+    });
+    expect(empty.statusCode).toBe(400);
+  });
+
   it('DELETE /api/sessions/:sessionId deletes session and supports ?purge=true', async () => {
     const created = await sessionService.createSession({ workspaceId });
 

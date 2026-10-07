@@ -193,6 +193,12 @@ describe('Backend Smoke Test: E2E Lifecycle', () => {
         host: '127.0.0.1',
       },
       runnerPort: fakeRunner,
+      // Never touch the real ~/.gemini/antigravity-cli/settings.json from a test.
+      settingsPort: {
+        ensureAlwaysProceed: async () => ({ updated: false, filePath: path.join(tempDir, 'settings.json') }),
+        installStatusline: async () => {},
+        uninstallStatusline: async () => {},
+      },
     });
 
     await builtApp.app.listen({ host: '127.0.0.1', port: 0 });

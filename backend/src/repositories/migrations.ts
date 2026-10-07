@@ -142,6 +142,14 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    // Pinned sessions. A nullable column: builds without it still read and write this table.
+    version: 3,
+    name: 'session_pinned_at',
+    up: (db: Database.Database) => {
+      db.exec('ALTER TABLE sessions ADD COLUMN pinned_at TEXT');
+    },
+  },
 ];
 
 export function runMigrations(db: Database.Database): void {

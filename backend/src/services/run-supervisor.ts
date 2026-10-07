@@ -44,6 +44,24 @@ export type SupervisorEventListener = (
   event: AgentEvent,
 ) => void | Promise<void>;
 
+/**
+ * agy reports token usage as a running total for the whole conversation (verified against the
+ * per-call `input_tokens` in its transcript: each run's total minus the previous run's equals
+ * that run's calls). Returns this run's share. Falls back to the reported value when there is no
+ * earlier total or the difference would be negative (e.g. agy reset its count).
+ */
+export function perRunUsage(current: TokenUsage | null, previousTotal: TokenUsage | null): TokenUsage | null {
+  if (!current || !previousTotal) return current;
+  const delta: TokenUsage = {
+    inputTokens: current.inputTokens - previousTotal.inputTokens,
+    outputTokens: current.outputTokens - previousTotal.outputTokens,
+    thinkingTokens: current.thinkingTokens - previousTotal.thinkingTokens,
+    cacheReadTokens: current.cacheReadTokens - previousTotal.cacheReadTokens,
+    totalTokens: current.totalTokens - previousTotal.totalTokens,
+  };
+  return Object.values(delta).some((n) => n < 0) ? current : delta;
+}
+
 export interface SupervisorProfileConfig {
   stream: {
     multiTurnStdin: boolean;
@@ -326,11 +344,22 @@ export class RunSupervisor {
       this.activeSessions.delete(sessionId);
       this.activeRunsMap.delete(runId);
 
+      // runs 表保留 agy 报的会话累计值（下一次运行要拿它做差）；run.completed 给出本次运行的用量
+      let previousTotal: TokenUsage | null = null;
+      try {
+        const earlier = this.runsRepo
+          .listBySessionId(sessionId)
+          .filter((r) => r.id !== runId && r.usage && r.startedAt <= startedAt);
+        previousTotal = earlier.length > 0 ? earlier[earlier.length - 1].usage : null;
+      } catch (err) {
+        this.logger?.warn?.({ err, sessionId }, 'Failed to read earlier run usage');
+      }
+
       // 发出恰好一条 run.completed 事件
       const completedEvent: AgentEvent = {
         type: 'run.completed',
         status,
-        usage: finalUsage,
+        usage: perRunUsage(finalUsage, previousTotal),
         error,
         durationMs,
         agyConversationId: conversationId,

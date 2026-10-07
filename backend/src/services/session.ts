@@ -196,9 +196,13 @@ export class SessionService implements SessionServicePort {
       throw new AppError('NOT_FOUND', `Session ${sessionId} not found`);
     }
 
-    const patch: Partial<Session> = {};
+    // Renaming, pinning and picking a model are not activity: keep the list order (updatedAt).
+    const patch: Partial<Session> = { updatedAt: session.updatedAt };
     if (input.title !== undefined) {
       patch.title = input.title;
+    }
+    if (input.pinned !== undefined) {
+      patch.pinnedAt = input.pinned ? (session.pinnedAt ?? new Date().toISOString()) : null;
     }
     if (input.model !== undefined) {
       patch.model = input.model;

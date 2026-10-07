@@ -64,6 +64,8 @@ export interface CreateSessionBody {
 
 export interface UpdateSessionBody {
   title?: string;
+  /** Pin to / unpin from the top of the session list. */
+  pinned?: boolean;
   model?: string | null;
   effort?: Effort | null;
   mode?: AgentMode | null;

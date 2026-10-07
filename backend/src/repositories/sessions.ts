@@ -23,6 +23,7 @@ interface SessionRow {
   last_seq: number;
   created_at: string;
   updated_at: string;
+  pinned_at: string | null;
 }
 
 function toDomain(row: SessionRow): Session {
@@ -41,6 +42,7 @@ function toDomain(row: SessionRow): Session {
     lastSeq: row.last_seq,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    pinnedAt: row.pinned_at ?? null,
   };
 }
 
@@ -76,8 +78,8 @@ export class SessionsRepository {
         `INSERT INTO sessions (
           id, workspace_id, account_name, title, agy_conversation_id,
           status, model, effort, mode, source,
-          last_run_id, last_seq, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          last_run_id, last_seq, created_at, updated_at, pinned_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         session.id,
@@ -94,6 +96,7 @@ export class SessionsRepository {
         session.lastSeq,
         session.createdAt,
         session.updatedAt,
+        session.pinnedAt ?? null,
       );
     return session;
   }
@@ -192,7 +195,7 @@ export class SessionsRepository {
         `UPDATE sessions
          SET workspace_id = ?, account_name = ?, title = ?, agy_conversation_id = ?,
              status = ?, model = ?, effort = ?, mode = ?, source = ?,
-             last_run_id = ?, last_seq = ?, updated_at = ?
+             last_run_id = ?, last_seq = ?, updated_at = ?, pinned_at = ?
          WHERE id = ?`,
       )
       .run(
@@ -208,6 +211,7 @@ export class SessionsRepository {
         updated.lastRunId,
         updated.lastSeq,
         updated.updatedAt,
+        updated.pinnedAt ?? null,
         id,
       );
 
