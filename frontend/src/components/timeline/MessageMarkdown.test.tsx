@@ -29,3 +29,31 @@ describe('MessageMarkdown <br> handling', () => {
     expect(html).not.toContain('node="');
   });
 });
+
+describe('MessageMarkdown math', () => {
+  it('renders $$…$$ formulas, including CJK text inside \text{}', () => {
+    const html = render(String.raw`句式：
+
+$$\text{【主语（주어）】} + \text{【名词短语（설명어）】} + \text{也（종결사）}$$`);
+    expect(html).toContain('katex-display');
+    expect(html).toContain('【主语（주어）】');
+    const visible = html.replace(/<annotation[\s\S]*?<\/annotation>/g, '').replace(/<[^>]+>/g, '');
+    expect(visible).not.toContain('$$');
+    expect(visible).not.toContain('\text');
+  });
+
+  it('renders inline $…$ and shows broken formulas instead of failing', () => {
+    expect(render(String.raw`面积 $S = \pi r^2$ 公式`)).toMatch(/class="katex"/);
+    const broken = render(String.raw`坏公式 $\frac{1$ 结束`);
+    expect(broken).toContain('结束');
+  });
+});
+
+describe('MessageMarkdown CJK emphasis', () => {
+  it('closes **bold** that ends in CJK punctuation right before CJK text', () => {
+    const html = render('习惯了**“谓语”**这个词，**“是”**老子的主旨。');
+    expect(html).not.toContain('**');
+    expect(html.match(/<strong/g)).toHaveLength(2);
+    expect(html).toMatch(/<strong[^>]*>“是”<\/strong>老子/);
+  });
+});
