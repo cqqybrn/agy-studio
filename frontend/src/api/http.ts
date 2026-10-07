@@ -91,6 +91,26 @@ export function buildUrl(
   return url;
 }
 
+/**
+ * LAN links look like http://192.168.1.20:8790/?token=…: keep the access code for API and
+ * WebSocket calls and take it out of the address bar (so it is not shared by accident).
+ * Returns true when a code was found.
+ */
+export function captureTokenFromUrl(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const url = new URL(window.location.href);
+    const token = url.searchParams.get('token');
+    if (!token) return false;
+    window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
+    url.searchParams.delete('token');
+    window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function getAuthToken(): string | null {
   if (typeof window !== 'undefined' && window.localStorage) {
     try {

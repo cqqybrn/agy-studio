@@ -161,6 +161,7 @@ WS   : 实时事件推送 + 发送消息 + 中止运行（单连接订阅多个�
 - 默认只监听 `127.0.0.1`，不校验 token
 - 监听非回环地址时**必须**设置 `AGY_STUDIO_TOKEN`，否则拒绝启动
 - REST 用 `Authorization: Bearer <token>`，WS 用 `?token=`
+- **2026-10-07 修订（设置页局域网访问）**：`LanAccessService` + `utils/lan-listener.ts`。开启后另起一个 `0.0.0.0:<端口>` 监听（Windows 允许与 `127.0.0.1:<端口>` 并存，本机请求仍走回环），把请求和 WebSocket upgrade 转交主服务并打上"来自局域网"标记；带标记的 `/api` 与 `/ws` 请求必须带访问码（Bearer 或 `?token=`），静态页面不需要。按监听口而不是来源 IP 判断，本机上的反向代理不会绕过。开关与访问码存 `DATA_DIR/lan-access.json`；只有本机请求能修改或看到访问码。前端启动时从链接的 `?token=` 取出访问码存入 localStorage 并从地址栏移除。`HOST` 已非回环时（环境变量模式）此功能不可用
 
 ---
 

@@ -8,6 +8,7 @@ import type {
   CreateSessionBody,
   CreateWorkspaceBody,
   DirectoryListing,
+  LanAccessStatus,
   Health,
   ImportSessionsBody,
   Model,
@@ -42,6 +43,20 @@ export function getCapabilities(options?: RequestOptions<'GET /api/capabilities'
 
 export function getWorkspaces(options?: RequestOptions<'GET /api/workspaces'>): Promise<Workspace[]> {
   return request('GET /api/workspaces', options);
+}
+
+// ---------- LAN access ----------
+
+export function getLanAccess(): Promise<LanAccessStatus> {
+  return request('GET /api/lan-access');
+}
+
+export function setLanAccess(enabled: boolean): Promise<LanAccessStatus> {
+  return request('PUT /api/lan-access', { body: { enabled } });
+}
+
+export function regenerateLanAccess(): Promise<LanAccessStatus> {
+  return request('POST /api/lan-access/regenerate');
 }
 
 /** Folder picker: sub-folders of `path`, or the drives when `path` is omitted. */

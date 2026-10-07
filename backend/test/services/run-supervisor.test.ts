@@ -668,13 +668,19 @@ describe('RunSupervisor Integration Tests', () => {
       },
     };
 
+    const emitted: Array<{ sessionId: string; runId: string; event: AgentEvent }> = [];
     const supervisor = new RunSupervisor({
       runsRepo,
       sessionsRepo,
       runner,
       profile: mockProfile,
       acquireLease: (acc) => createMockLease(acc),
+      onEvent: (sessionId, runId, event) => {
+        emitted.push({ sessionId, runId, event });
+      },
     });
+    // the session was left marked running by the run that got cut off
+    sessionsRepo.update('sess-orphan', { status: 'running' });
 
     const count = await supervisor.reapOrphans();
     expect(count).toBe(1);
@@ -686,6 +692,16 @@ describe('RunSupervisor Integration Tests', () => {
     const updated = runsRepo.findById('run-orphan-1');
     expect(updated?.status).toBe('failed');
     expect(updated?.error?.code).toBe('AGY_EXIT');
+
+    // the page learns the run ended, and the session is no longer stuck as running
+    expect(emitted).toEqual([
+      expect.objectContaining({
+        sessionId: 'sess-orphan',
+        runId: 'run-orphan-1',
+        event: expect.objectContaining({ type: 'run.completed', status: 'failed' }),
+      }),
+    ]);
+    expect(sessionsRepo.findById('sess-orphan')?.status).toBe('error');
   });
 
   it('10. multiTurnStdin = false 时，新起进程并带续聊参数', async () => {

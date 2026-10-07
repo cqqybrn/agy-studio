@@ -60,6 +60,9 @@ export async function bootstrap(): Promise<void> {
     `AGY Studio listening on http://${config.host}:${config.port}`,
   );
 
+  // 3.1 上次开着局域网访问：重新打开局域网监听
+  await container.lanAccessService.restore();
+
   // 4. 替代 agy 自带的后台更新：启动后与每隔几小时，在没有运行时静默执行 agy update
   const updateScheduler = studioRunsAgyUpdates
     ? new AgyUpdateScheduler({
