@@ -2,6 +2,11 @@ import http from 'node:http';
 import { spawnSync } from 'node:child_process';
 import process from 'node:process';
 import { buildApp } from './app.js';
+import {
+  AgyUpdateScheduler,
+  disableAgyBackgroundUpdater,
+  runAgyUpdate,
+} from './integrations/agy/updater.js';
 import { loadConfig } from './utils/config.js';
 import { logger } from './utils/logger.js';
 import { applySystemProxyToEnv } from './utils/proxy.js';
@@ -28,6 +33,8 @@ function reexecWithEnvProxyIfNeeded(): void {
 
 export async function bootstrap(): Promise<void> {
   (http as typeof http & { setGlobalProxyFromEnv?: () => void }).setGlobalProxyFromEnv?.();
+  // Before any agy process starts: agy's own updater flashes a console window (see updater.ts).
+  const studioRunsAgyUpdates = disableAgyBackgroundUpdater();
   const config = loadConfig();
   const { app, container, close } = buildApp({ config });
 
@@ -53,12 +60,23 @@ export async function bootstrap(): Promise<void> {
     `AGY Studio listening on http://${config.host}:${config.port}`,
   );
 
-  // 4. 监听 SIGINT / SIGTERM 信号并执行优雅关闭
+  // 4. 替代 agy 自带的后台更新：启动后与每隔几小时，在没有运行时静默执行 agy update
+  const updateScheduler = studioRunsAgyUpdates
+    ? new AgyUpdateScheduler({
+        update: () => runAgyUpdate(container.profile, config.agyBin),
+        isBusy: () => container.supervisor.hasActiveRuns(),
+        logger,
+      })
+    : null;
+  updateScheduler?.start();
+
+  // 5. 监听 SIGINT / SIGTERM 信号并执行优雅关闭
   let shuttingDown = false;
   const handleSignal = async (signal: string) => {
     if (shuttingDown) return;
     shuttingDown = true;
     logger.info({ signal }, `Received ${signal}, commencing graceful shutdown...`);
+    updateScheduler?.stop();
     try {
       await close();
       logger.info('Graceful shutdown complete');
