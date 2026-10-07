@@ -190,6 +190,25 @@ describe('SessionService', () => {
       expect(updated.effort).toBe('low');
       expect(globalEvents.some((e) => e.type === 'session.upserted')).toBe(true);
     });
+
+    it('pins and unpins without changing the activity time', async () => {
+      const created = await sessionService.createSession({ workspaceId, title: 'Initial' });
+
+      const pinned = await sessionService.updateSession(created.id, { pinned: true });
+      expect(pinned.pinnedAt).toEqual(expect.any(String));
+      expect(pinned.updatedAt).toBe(created.updatedAt);
+      // pinning again keeps the original pin time
+      const again = await sessionService.updateSession(created.id, { pinned: true });
+      expect(again.pinnedAt).toBe(pinned.pinnedAt);
+
+      const renamed = await sessionService.updateSession(created.id, { title: '新名字' });
+      expect(renamed.title).toBe('新名字');
+      expect(renamed.pinnedAt).toBe(pinned.pinnedAt);
+      expect(renamed.updatedAt).toBe(created.updatedAt);
+
+      const unpinned = await sessionService.updateSession(created.id, { pinned: false });
+      expect(unpinned.pinnedAt).toBeNull();
+    });
   });
 
   describe('deleteSession', () => {

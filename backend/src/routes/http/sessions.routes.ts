@@ -19,7 +19,8 @@ const CreateSessionSchema = z.object({
 });
 
 const UpdateSessionSchema = z.object({
-  title: z.string().optional(),
+  title: z.string().trim().min(1, 'Title must not be empty').max(200).optional(),
+  pinned: z.boolean().optional(),
   model: z.string().nullable().optional(),
   effort: EffortEnum.nullable().optional(),
   mode: z.string().nullable().optional(),

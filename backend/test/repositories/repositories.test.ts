@@ -201,6 +201,7 @@ describe('Repositories Integration Tests', () => {
         lastSeq: 0,
         createdAt: '2026-09-28T10:00:00.000Z',
         updatedAt: '2026-09-28T10:00:00.000Z',
+        pinnedAt: null,
       };
 
       const session2: Session = {
@@ -250,6 +251,13 @@ describe('Repositories Integration Tests', () => {
       });
       expect(updated?.title).toBe('Session One Updated');
       expect(updated?.status).toBe('error');
+
+      // Pin survives unrelated updates; unpin clears it
+      sessionRepo.update('sess-1', { pinnedAt: '2026-09-28T12:00:00.000Z' });
+      sessionRepo.update('sess-1', { status: 'idle' });
+      expect(sessionRepo.findById('sess-1')?.pinnedAt).toBe('2026-09-28T12:00:00.000Z');
+      sessionRepo.update('sess-1', { pinnedAt: null });
+      expect(sessionRepo.findById('sess-1')?.pinnedAt).toBeNull();
 
       // Update lastSeq
       sessionRepo.updateLastSeq('sess-1', 42);

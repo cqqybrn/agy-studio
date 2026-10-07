@@ -95,6 +95,8 @@ export interface SessionState {
   handleRunStatus: (run: Pick<Run, 'id' | 'sessionId'> & { status: RunStatus }) => void;
   createSession: (body: CreateSessionBody) => Promise<Session>;
   renameSession: (sessionId: string, title: string) => Promise<Session>;
+  /** Pin to / unpin from the top of the session list. */
+  pinSession: (sessionId: string, pinned: boolean) => Promise<Session>;
   deleteSession: (sessionId: string, purge?: boolean) => Promise<void>;
   importSessions: (body: ImportSessionsBody) => Promise<Session[]>;
 }
@@ -181,9 +183,17 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   fetchSessions: async (query?: ApiEndpoints['GET /api/sessions']['query']) => {
     set({ listLoading: true, listError: null });
     try {
-      const page = await getSessions(query);
-      set({ list: page.items, listLoading: false });
-      return page.items;
+      // Load every page: pinned or older sessions must not fall off after the first page.
+      const items: Session[] = [];
+      let cursor = query?.cursor;
+      for (let i = 0; i < 50; i++) {
+        const page = await getSessions({ limit: 100, ...query, cursor });
+        items.push(...page.items);
+        if (!page.hasMore || !page.nextCursor) break;
+        cursor = page.nextCursor;
+      }
+      set({ list: items, listLoading: false });
+      return items;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       set({ listLoading: false, listError: msg });
@@ -456,6 +466,12 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
 
   renameSession: async (sessionId: string, title: string) => {
     const updated = await apiUpdateSession(sessionId, { title });
+    get().handleSessionUpserted(updated);
+    return updated;
+  },
+
+  pinSession: async (sessionId: string, pinned: boolean) => {
+    const updated = await apiUpdateSession(sessionId, { pinned });
     get().handleSessionUpserted(updated);
     return updated;
   },

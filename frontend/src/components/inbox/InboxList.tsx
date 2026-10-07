@@ -18,10 +18,11 @@ export function inboxIndicator(session: Session, readSeq: number, isActive: bool
   return 'none';
 }
 
-/** Most recent activity first. */
+/** Pinned sessions first (most recently pinned on top), then most recent activity first. */
 export function sortSessionsByActivity(sessions: readonly Session[]): Session[] {
   const time = (s: Session) => Date.parse(s.updatedAt || s.createdAt) || 0;
-  return [...sessions].sort((a, b) => time(b) - time(a));
+  const pinTime = (s: Session) => (s.pinnedAt ? Date.parse(s.pinnedAt) || 1 : 0);
+  return [...sessions].sort((a, b) => pinTime(b) - pinTime(a) || time(b) - time(a));
 }
 
 /** Each workspace has its own session list; with no workspace selected, everything is shown. */

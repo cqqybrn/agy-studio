@@ -49,6 +49,8 @@ export interface Session {
   lastSeq: number;
   createdAt: ISODateString;
   updatedAt: ISODateString;
+  /** When the session was pinned to the top of the list; null / absent when not pinned. */
+  pinnedAt?: ISODateString | null;
 }
 
 export type RunStatus =

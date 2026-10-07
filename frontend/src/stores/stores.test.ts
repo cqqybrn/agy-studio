@@ -67,6 +67,7 @@ vi.mock('../api/ws', () => {
 vi.mock('../api/endpoints', () => ({
   getSessionEvents: vi.fn(),
   getSessions: vi.fn(),
+  updateSession: vi.fn(),
   createSession: vi.fn(),
   deleteSession: vi.fn(),
   importSessions: vi.fn(),
@@ -566,6 +567,62 @@ describe('Frontend Stores', () => {
       const list = await useSessionStore.getState().fetchSessions();
       expect(list).toEqual(mockSessions);
       expect(useSessionStore.getState().list).toEqual(mockSessions);
+    });
+
+    it('fetchSessions loads every page', async () => {
+      const make = (id: string): Session => ({
+        id,
+        workspaceId: 'w-1',
+        title: id,
+        agyConversationId: null,
+        status: 'idle',
+        model: null,
+        effort: null,
+        mode: null,
+        source: 'studio',
+        accountName: null,
+        lastRunId: null,
+        lastSeq: 0,
+        createdAt: '2026-09-28T10:00:00.000Z',
+        updatedAt: '2026-09-28T10:00:00.000Z',
+      });
+      vi.mocked(endpoints.getSessions)
+        .mockResolvedValueOnce({ items: [make('a'), make('b')], total: 3, hasMore: true, nextCursor: 'c1' })
+        .mockResolvedValueOnce({ items: [make('c')], total: 3, hasMore: false, nextCursor: null });
+
+      const list = await useSessionStore.getState().fetchSessions();
+      expect(list.map((s) => s.id)).toEqual(['a', 'b', 'c']);
+      expect(vi.mocked(endpoints.getSessions).mock.calls[1][0]).toMatchObject({ cursor: 'c1' });
+    });
+
+    it('pinSession and renameSession update the list from the server response', async () => {
+      const base: Session = {
+        id: 's-pin',
+        workspaceId: 'w-1',
+        title: 'Old',
+        agyConversationId: null,
+        status: 'idle',
+        model: null,
+        effort: null,
+        mode: null,
+        source: 'studio',
+        accountName: null,
+        lastRunId: null,
+        lastSeq: 0,
+        createdAt: '2026-09-28T10:00:00.000Z',
+        updatedAt: '2026-09-28T10:00:00.000Z',
+      };
+      useSessionStore.setState({ list: [base] });
+
+      vi.mocked(endpoints.updateSession).mockResolvedValueOnce({ ...base, pinnedAt: '2026-10-07T00:00:00.000Z' });
+      await useSessionStore.getState().pinSession('s-pin', true);
+      expect(endpoints.updateSession).toHaveBeenLastCalledWith('s-pin', { pinned: true });
+      expect(useSessionStore.getState().list[0].pinnedAt).toBe('2026-10-07T00:00:00.000Z');
+
+      vi.mocked(endpoints.updateSession).mockResolvedValueOnce({ ...base, title: '新标题', pinnedAt: '2026-10-07T00:00:00.000Z' });
+      await useSessionStore.getState().renameSession('s-pin', '新标题');
+      expect(endpoints.updateSession).toHaveBeenLastCalledWith('s-pin', { title: '新标题' });
+      expect(useSessionStore.getState().list[0].title).toBe('新标题');
     });
 
     it('responds to session.upserted and session.deleted', () => {
