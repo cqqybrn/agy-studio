@@ -751,15 +751,39 @@ export class RunSupervisor {
         }
       }
 
+      const error = new AppError(
+        'AGY_EXIT',
+        '上次关闭 AGY Studio 时这次运行还没结束，已终止',
+      ).toApiError();
+      const endedAt = new Date().toISOString();
       try {
-        this.runsRepo.update(run.id, {
-          status: 'failed',
-          error: new AppError('AGY_EXIT', 'Orphaned run terminated during startup reap').toApiError(),
-          endedAt: new Date().toISOString(),
-        });
+        this.runsRepo.update(run.id, { status: 'failed', error, endedAt });
         reapedCount++;
       } catch (err) {
         this.logger?.error({ err, runId: run.id }, 'Failed to mark orphan run as failed');
+        continue;
+      }
+
+      // The run never emitted run.completed: without one the page keeps showing it as running
+      // (Working…, stop button) after every reload.
+      const session = this.sessionsRepo.findById(run.sessionId);
+      await this.emitEvent(run.sessionId, run.id, {
+        type: 'run.completed',
+        status: 'failed',
+        usage: run.usage ?? null,
+        error,
+        durationMs: Math.max(0, Date.parse(endedAt) - Date.parse(run.startedAt)) || 0,
+        agyConversationId: session?.agyConversationId ?? null,
+      });
+    }
+
+    // Nothing runs right after startup: a session still marked running was cut off.
+    for (const session of this.sessionsRepo.listAll()) {
+      if (session.status !== 'running') continue;
+      try {
+        this.sessionsRepo.update(session.id, { status: 'error', updatedAt: session.updatedAt });
+      } catch (err) {
+        this.logger?.error({ err, sessionId: session.id }, 'Failed to reset interrupted session');
       }
     }
 

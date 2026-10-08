@@ -1,10 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import remarkCjkFriendly from 'remark-cjk-friendly';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { createHighlighter, type BundledLanguage, type Highlighter } from 'shiki';
 import { CopyButton } from './CopyButton';
 import { splitMarkdownSegments } from './asciiBox';
 import { remarkHtmlBreaks } from './remarkHtmlBreaks';
+import { normalizeDisplayMath } from './displayMath';
 
 export interface MessageMarkdownProps {
   content: string;
@@ -25,6 +30,17 @@ export function shouldHighlightCode(code: string): boolean {
   }
   return true;
 }
+
+/**
+ * Math in replies: $…$ blocks and $…$ inline. KaTeX never throws on bad input (it shows the
+ * source in red instead) and accepts CJK text inside 	ext{…}.
+ */
+// remark-cjk-friendly: CommonMark does not close **bold** that ends in CJK punctuation right
+// before a CJK character (**“是”**老子), so the asterisks would show as text.
+const REMARK_PLUGINS = [remarkGfm, remarkCjkFriendly, remarkHtmlBreaks, remarkMath];
+const REHYPE_PLUGINS: React.ComponentProps<typeof ReactMarkdown>['rehypePlugins'] = [
+  [rehypeKatex, { throwOnError: false, strict: 'ignore', output: 'htmlAndMathml' }],
+];
 
 // ---------------------------------------------------------------------------
 // 链接安全校验：只允许 http:, https:, mailto: 协议
@@ -382,14 +398,15 @@ export function MessageMarkdown({ content, className = '', streaming = false }: 
           ) : (
             <ReactMarkdown
               key={`md-${index}`}
-              remarkPlugins={[remarkGfm, remarkHtmlBreaks]}
+              remarkPlugins={REMARK_PLUGINS}
+              rehypePlugins={REHYPE_PLUGINS}
               components={markdownComponents}
               urlTransform={(url) => {
                 if (isSafeUrl(url)) return url;
                 return '';
               }}
             >
-              {segment.text}
+              {normalizeDisplayMath(segment.text)}
             </ReactMarkdown>
           ),
         )}

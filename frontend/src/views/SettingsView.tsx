@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { UpdatePrefsBody } from '@agy-studio/contracts';
 import { usePrefsStore } from '../stores/prefs.store';
+import { LanAccessSection } from './LanAccessSection';
 
 /** Number settings: value range and what the user sees. */
 export const NUMBER_SETTINGS = {
@@ -160,6 +161,10 @@ export function SettingsView() {
             </Row>
           </div>
         )}
+
+        <div className="mt-4 rounded-lg border border-border-default bg-bg-surface px-5">
+          <LanAccessSection />
+        </div>
       </div>
     </div>
   );

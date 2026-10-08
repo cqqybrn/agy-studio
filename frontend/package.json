@@ -12,15 +12,21 @@
   "dependencies": {
     "@agy-studio/contracts": "*",
     "@tanstack/react-virtual": "^3.14.13",
+    "katex": "^0.19.0",
+    "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^10.1.0",
+    "rehype-katex": "^7.0.1",
+    "remark-cjk-friendly": "^2.3.2",
     "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
     "shiki": "^4.4.3",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
     "@types/node": "^22.13.9",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",

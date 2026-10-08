@@ -36,6 +36,29 @@ export interface CreateWorkspaceBody {
   name?: string;
 }
 
+/** An address phones and other computers on the same network can open. */
+export interface LanAccessAddress {
+  /** Network adapter, e.g. "WLAN". */
+  name: string;
+  address: string;
+  /** Full link. Includes the access code only when shown on this computer. */
+  url: string;
+}
+
+export interface LanAccessStatus {
+  /** False when the server is already exposed through HOST / AGY_STUDIO_TOKEN (managed outside the app). */
+  available: boolean;
+  enabled: boolean;
+  /** The LAN listener is open right now. */
+  listening: boolean;
+  /** Why the listener could not open (e.g. port taken), if it failed. */
+  error: string | null;
+  port: number;
+  addresses: LanAccessAddress[];
+  /** The request comes from this computer; only it may change the setting or see the access code. */
+  canManage: boolean;
+}
+
 /** A folder on the machine running AGY Studio, for picking a workspace location. */
 export interface DirectoryEntry {
   name: string;
@@ -109,6 +132,11 @@ export interface ApiEndpoints {
   'GET /api/workspaces': { response: Workspace[] };
   'POST /api/workspaces': { body: CreateWorkspaceBody; response: Workspace };
   'DELETE /api/workspaces/:workspaceId': { response: { ok: true } };
+  /** LAN access: other devices on the network open the app with a link containing an access code. */
+  'GET /api/lan-access': { response: LanAccessStatus };
+  'PUT /api/lan-access': { body: { enabled: boolean }; response: LanAccessStatus };
+  /** New access code; links handed out before stop working. */
+  'POST /api/lan-access/regenerate': { response: LanAccessStatus };
   /** Lists sub-folders of `path` (or the drives / filesystem root when omitted) for the folder picker. */
   'GET /api/fs/directories': { query: { path?: string }; response: DirectoryListing };
 

@@ -66,6 +66,10 @@ import { AgentService } from './services/agent.js';
 
 import { workspacesRoutes } from './routes/http/workspaces.routes.js';
 import { DirectoryBrowser } from './services/directory-browser.js';
+import { LanAccessService } from './services/lan-access.js';
+import { lanAccessRoutes } from './routes/http/lan-access.routes.js';
+import { isLanRequest, LanListener, lanAddresses } from './utils/lan-listener.js';
+import { WS_PATH } from '@agy-studio/contracts';
 import { sessionsRoutes } from './routes/http/sessions.routes.js';
 import { subagentsRoutes } from './routes/http/subagents.routes.js';
 import { attachmentsRoutes } from './routes/http/attachments.routes.js';
@@ -124,10 +128,13 @@ export interface AppContainer {
   workspaceService: WorkspaceService;
   quotaService: QuotaService;
   agentService: AgentService;
+  lanAccessService: LanAccessService;
 }
 
 export interface AppOptions {
   config?: Partial<AppConfig>;
+  /** Address the LAN listener binds to (tests use a loopback alias instead of 0.0.0.0). */
+  lanListenerHost?: string;
   db?: Database.Database;
   dbPath?: string;
   profile?: AgyProfile;
@@ -474,6 +481,28 @@ export function buildApp(options?: AppOptions): BuiltApp {
     });
   }
 
+  // LAN access: requests that came in through the LAN listener must carry the access code.
+  // The app shell (static files) loads without it; the code then rides along on API / WebSocket calls.
+  const lanAccessService = new LanAccessService({
+    dataDir: config.dataDir,
+    port: config.port,
+    listener: new LanListener(app.server, options?.lanListenerHost),
+    addresses: lanAddresses,
+    managedByEnv: !isLoopbackHost(config.host),
+    logger: appLogger,
+  });
+  app.addHook('onRequest', async (request) => {
+    if (!isLanRequest(request.raw)) return;
+    const pathname = request.url.split('?')[0];
+    if (!pathname.startsWith('/api') && pathname !== WS_PATH) return;
+    const authHeader = request.headers.authorization;
+    const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+    const queryToken = (request.query as Record<string, string | undefined> | undefined)?.token;
+    if (!lanAccessService.verifyToken(bearer ?? queryToken)) {
+      throw new AppError('UNAUTHORIZED', '局域网访问需要访问码，请用设置页里的链接打开');
+    }
+  });
+
   // Legacy health.test compatibility hook
   if (isFromHealthTest) {
     app.addHook('onSend', async (request, _reply, payload) => {
@@ -503,6 +532,7 @@ export function buildApp(options?: AppOptions): BuiltApp {
   void app.register(accountsRoutes, { accountService });
   void app.register(quotaRoutes, { quotaService });
   void app.register(agentsRoutes, { agentService });
+  void app.register(lanAccessRoutes, { lanAccessService });
 
   // Register WebSocket Gateway
   void app.register(async (wsApp) => {
@@ -554,12 +584,19 @@ export function buildApp(options?: AppOptions): BuiltApp {
         const ext = path.extname(filePath).toLowerCase();
         const contentType = MIME_TYPES[ext] || 'application/octet-stream';
         reply.header('Content-Type', contentType);
+        // Vite puts a content hash in every file under assets/; index.html must always be
+        // revalidated, or browsers keep loading the previous version after an update.
+        reply.header(
+          'Cache-Control',
+          relativePath.startsWith('assets/') ? 'public, max-age=31536000, immutable' : 'no-cache',
+        );
         return reply.send(fs.createReadStream(filePath));
       }
 
       const indexPath = path.join(distDir, 'index.html');
       if (fs.existsSync(indexPath)) {
         reply.header('Content-Type', 'text/html; charset=utf-8');
+        reply.header('Cache-Control', 'no-cache');
         return reply.send(fs.createReadStream(indexPath));
       }
     }
@@ -618,7 +655,12 @@ export function buildApp(options?: AppOptions): BuiltApp {
       appLogger.warn({ err }, 'Error flushing eventBus during shutdown');
     }
 
-    // 6. 关闭 Fastify app
+    // 6. 关闭局域网监听与 Fastify app
+    try {
+      await lanAccessService.close();
+    } catch (err) {
+      appLogger.warn({ err }, 'Error closing LAN listener');
+    }
     try {
       await closeFastify();
     } catch (err) {
@@ -670,6 +712,7 @@ export function buildApp(options?: AppOptions): BuiltApp {
     workspaceService,
     quotaService,
     agentService,
+    lanAccessService,
   };
 
   return Object.assign(app, {

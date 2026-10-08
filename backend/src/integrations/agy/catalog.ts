@@ -13,7 +13,12 @@ export type CommandExecutor = (
   argv: string[],
 ) => Promise<{ stdout: string; stderr: string }>;
 
-const defaultCommandExecutor: CommandExecutor = (bin: string, argv: string[]) => {
+/** Runs agy without a window and collects its output. */
+export function execAgy(
+  bin: string,
+  argv: string[],
+  timeoutMs = 20_000,
+): Promise<{ stdout: string; stderr: string }> {
   // Only .cmd/.bat shims need a shell on Windows. With a shell the command line is joined
   // unescaped, so an unquoted path such as C:\Users\John Smith\...\agy.exe would be split at
   // the space.
@@ -26,7 +31,7 @@ const defaultCommandExecutor: CommandExecutor = (bin: string, argv: string[]) =>
         encoding: 'utf-8',
         windowsHide: true,
         shell: needsShell,
-        timeout: 20_000,
+        timeout: timeoutMs,
       },
       (err, stdout, stderr) => {
         if (err) {
@@ -40,7 +45,9 @@ const defaultCommandExecutor: CommandExecutor = (bin: string, argv: string[]) =>
       },
     );
   });
-};
+}
+
+const defaultCommandExecutor: CommandExecutor = (bin: string, argv: string[]) => execAgy(bin, argv);
 
 function catalogCommandError(err: unknown, action: string): AppError {
   const e = err as { message?: string; stdout?: string; stderr?: string };
