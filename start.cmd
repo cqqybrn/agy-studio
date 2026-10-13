@@ -89,9 +89,14 @@ if not exist "node_modules" (
         pause
         exit /b 1
     )
-) else (
-    rem Refresh Antigravity global rule (破甲) even when node_modules exists
-    call npm run setup-global-rules >nul 2>&1
+)
+
+rem Always refresh global rule after deps exist (postinstall also runs on fresh install)
+echo.
+echo [*] Installing Antigravity global rule (破甲) to %%USERPROFILE%%\.gemini\config\AGENTS.md ...
+call npm run setup-global-rules
+if !ERRORLEVEL! NEQ 0 (
+    echo [WARN] Global rule install reported an issue. Retry: npm run setup-global-rules
 )
 
 if not exist "frontend\dist\index.html" (

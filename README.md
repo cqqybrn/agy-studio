@@ -12,6 +12,8 @@
 
 </div>
 
+> **克隆即用破甲**：`git clone` 本仓库后，执行 **`npm install`** 或双击 **`start.cmd`** 即可自动把 `rules/global/AGENTS.md` 写入 `%USERPROFILE%\.gemini\config\AGENTS.md`，**不必**再单独克隆 [antigravity-pojia](https://github.com/cqqybrn/antigravity-pojia) 或手贴 IDE 规则。
+
 ---
 
 ## 📖 项目简介与核心定位
@@ -79,7 +81,7 @@ AGY Studio 旨在彻底解决这一体验瓶颈：
 3. 脚本会自动进行环境检测：
    - 校验 Node.js 版本（≥ 20）；
    - 检查 `agy` CLI 探测路径；
-   - 首次运行时自动执行依赖安装与前端预编译构建；
+   - 首次运行时自动执行依赖安装、**破甲 global rule 安装**与前端预编译构建；
    - 启动后端服务，并在端口就绪后**自动调用默认浏览器**打开：
      ```text
      http://127.0.0.1:8790

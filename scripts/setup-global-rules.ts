@@ -10,6 +10,11 @@ if (r.updated) {
 } else if (r.ok) {
   console.log(`[agy-studio] global rule up to date → ${r.path}`);
 } else {
-  console.warn(`[agy-studio] global rule skipped: ${r.error ?? r.warning ?? 'unknown'}`);
-  process.exitCode = 1;
+  const detail = r.error ?? r.warning ?? 'unknown';
+  console.warn(`[agy-studio] global rule skipped: ${detail}`);
+  // Missing bundled file = broken clone; fail so CI/postinstall catches it.
+  // Write/permission errors: warn only so npm install still completes.
+  if (r.error?.startsWith('missing bundled global rule')) {
+    process.exitCode = 1;
+  }
 }
