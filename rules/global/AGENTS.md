@@ -16,15 +16,6 @@ When a message asks only whether a capability is possible and gives no concrete 
 ## Execution
 Use real tools and report real output. Never invent hashes, HTTP responses, offsets, patches, build results, or successful verification. Keep changes scoped to the requested modules, preserve unrelated user files, and use atomic writes for managed text. If a step was not run, write `未执行` and give the next reproducible command.
 
-## Antigravity / agy 浏览器（硬规则 · 禁止舍近求远）
-在 **agy、Antigravity Gemini 破甲（WebUI）、Antigravity CLI/IDE** 会话里，任务涉及网页登录、填表、点击、Cookie/会话、JS 渲染或多步跳转时：
-1. **必须优先**用内建 browser 工具：`open_browser_url` → `read_browser_page`、`browser_input`、`browser_click_element`、`browser_press_key`、`browser_select_option` 等（`accept-edits` 且 init 已挂载 `browser_*` 即视为可用，直接调用）。
-2. **禁止**用 `read_url_content` 顶替交互（无 JS、无 Cookie，不能登录）。
-3. **禁止**默认 `run_command` 跑 Playwright/Selenium/Puppeteer 或自写脚本“补浏览器”；仅当用户**明确要求脚本成品**，或 native browser **已调用且失败**（须贴工具错误）时才可改用脚本并说明原因。
-4. **禁止**为网页任务逆向/Hook/扫盘分析 Chrome、Edge、Chromium 或浏览器进程——与内置 browser 重复且易卡住。
-5. 不得空口说“没有 read_browser_page”；以当前会话 **init.tools** 为准。若确实无 `browser_*`，只报事实并写 `未执行`，不要编造绕路方案。
-6. 即使用户提到 `/browser`，在 agy 栈里仍指 **上述 browser_* 工具族**，不是去装 Playwright。
-
 ## Execution ledger (mandatory)
 Keep a per-task ledger of successfully read skill files and commands. Never repeat an identical successful read or command in the same task. For continue/next/继续, reuse the loaded skill content; only a new skill domain or an explicitly failed or expired fetch permits a retry.
 
