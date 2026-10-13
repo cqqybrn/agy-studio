@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="dark light" />
+<title>Antigravity 破甲</title>
+<link rel="stylesheet" href="styles.css?v=20260927_1112" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' x2='1'><stop offset='0' stop-color='%234f8ff7'/><stop offset='.5' stop-color='%23a178f2'/><stop offset='1' stop-color='%23f28b60'/></linearGradient></defs><path d='M6 27C6 13 10.5 5 16 5s10 8 10 22' fill='none' stroke='url(%23g)' stroke-width='5.5' stroke-linecap='round'/></svg>" />
+<script>
+(() => {
+  try {
+    const raw = localStorage.getItem("agy.theme");
+    let pref = "system";
+    if (raw != null) {
+      try { pref = JSON.parse(raw); } catch { pref = raw; }
+    }
+    if (pref !== "light" && pref !== "dark" && pref !== "system") pref = "system";
+    const sys = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+    const theme = pref === "system" ? sys : pref;
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+  } catch (_) { /* ignore */ }
+})();
+</script>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="agGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4f8ff7" />
+      <stop offset=".5" stop-color="#a178f2" />
+      <stop offset="1" stop-color="#f28b60" />
+    </linearGradient>
+  </defs>
+  <symbol id="agLogo" viewBox="0 0 32 32">
+    <path d="M6 27C6 13 10.5 5 16 5s10 8 10 22" fill="none" stroke="url(#agGrad)" stroke-width="5.5" stroke-linecap="round" />
+  </symbol>
+</svg>
+
+<div id="app">
+
+  <!-- ============ Sidebar ============ -->
+  <aside id="sidebar">
+    <div class="brand">
+      <svg class="brand-mark"><use href="#agLogo" /></svg>
+      <div class="brand-text">
+        <span class="brand-name">Antigravity 破甲</span>
+        <span class="brand-sub">agy-auto backend</span>
+      </div>
+      <button class="icon-btn sm" id="btnCollapse" title="收起侧栏"><i data-i="panel"></i></button>
+    </div>
+
+    <button class="new-chat" id="btnNewChat" title="浏览本机文件夹并新建会话">
+      <i data-i="plus"></i><span>New conversation</span>
+    </button>
+
+    <label class="side-search">
+      <i data-i="search"></i>
+      <input id="convSearch" type="text" placeholder="搜索对话" autocomplete="off" />
+    </label>
+
+    <nav id="convList" class="conv-list"></nav>
+
+    <div class="side-foot">
+      <div class="runs-wrap">
+        <button class="runs-pill hidden" id="runsPill" title="进行中的任务">
+          <span class="spin"></span><span id="runsCount">0</span> running
+        </button>
+        <div class="runs-pop hidden" id="runsPop"></div>
+      </div>
+      <div class="conn" id="connBox" title="后端连接">
+        <span class="conn-dot" id="connDot"></span>
+        <div class="conn-info">
+          <span id="connText">Connecting…</span>
+          <span class="conn-url" id="connUrl"></span>
+        </div>
+      </div>
+      <button class="icon-btn" id="btnTheme" title="切换主题"><i data-i="sun"></i></button>
+      <button class="icon-btn" id="btnSettings" title="设置"><i data-i="settings"></i></button>
+    </div>
+  </aside>
+
+  <!-- ============ Main ============ -->
+  <main id="main" class="is-empty">
+    <header id="topbar">
+      <button class="icon-btn" id="btnExpand" title="展开侧栏"><i data-i="panel"></i></button>
+      <div class="title-wrap">
+        <input id="convTitle" class="conv-title" value="New conversation" spellcheck="false" />
+        <span class="conv-id hidden" id="convIdChip" title="点击复制 conversation_id"></span>
+      </div>
+      <div class="top-right">
+        <button class="qmeter" id="quotaBtn" title="Model Quotas — Gemini / Claude·GPT · Weekly &amp; 5h">
+          <span class="qm-empty">加载额度…</span>
+        </button>
+        <button class="account-chip" id="accountChip" title="账号管理">
+          <span class="avatar" id="avatarLetter">?</span>
+          <span class="acct-mail" id="accountEmail">—</span>
+          <i data-i="chevDown" class="chev"></i>
+        </button>
+      </div>
+    </header>
+
+    <section id="thread">
+      <div id="threadInner"></div>
+    </section>
+
+    <footer id="composerWrap">
+      <div class="composer" id="composer">
+        <div class="drop-hint" id="dropHint" aria-hidden="true">
+          <i data-i="paperclip"></i>
+          <span>放下文件以附加（图片 / Markdown / 文档等）</span>
+        </div>
+        <div class="attach-list hidden" id="attachList"></div>
+        <textarea id="promptInput" rows="1" placeholder="" spellcheck="false"></textarea>
+        <div class="composer-bar">
+          <div class="cb-left">
+            <button class="chip" id="attachBtn" type="button" title="添加文件（也可拖拽到输入框）"><i data-i="paperclip"></i><span>附件</span></button>
+            <input type="file" id="attachInput" class="sr-only" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.svg,.md,.markdown,.txt,.pdf,.doc,.docx,.xls,.xlsx,.csv,.json,.xml,.html,.htm,.rtf,.log,.yaml,.yml" />
+            <div class="pop-anchor">
+              <button class="chip" id="cwdChip" title="工作目录"><i data-i="folder"></i><span id="cwdLabel">Workspace</span></button>
+              <div class="popover hidden" id="cwdPop"></div>
+            </div>
+          </div>
+          <div class="cb-right">
+            <div class="pop-anchor">
+              <button class="chip model" id="modelChip" title="模型"><span class="model-dot" id="modelDot"></span><span id="modelLabel">Loading…</span><i data-i="chevDown" class="chev"></i></button>
+              <div class="popover right wide hidden" id="modelPop"></div>
+            </div>
+            <button id="sendBtn" class="send-btn" title="发送 (Enter)"><i data-i="arrowUp"></i></button>
+          </div>
+        </div>
+      </div>
+    </footer>
+  </main>
+</div>
+
+<!-- ============ Drawers ============ -->
+<div class="mask hidden" id="mask"></div>
+
+<aside class="drawer hidden" id="quotaDrawer">
+  <div class="drawer-head">
+    <div>
+      <h2 id="quotaTitle">Model Quotas</h2>
+      <p class="drawer-desc" id="quotaDesc"></p>
+    </div>
+    <div class="drawer-actions">
+      <button class="icon-btn" id="quotaRefresh" title="强制刷新"><i data-i="refresh"></i></button>
+      <button class="icon-btn" data-close title="关闭"><i data-i="x"></i></button>
+    </div>
+  </div>
+  <div class="drawer-body" id="quotaBody"></div>
+  <div class="drawer-foot" id="quotaFoot"></div>
+</aside>
+
+<aside class="drawer hidden" id="accountDrawer">
+  <div class="drawer-head">
+    <div>
+      <h2>Accounts</h2>
+      <p class="drawer-desc" id="accountDesc"></p>
+    </div>
+    <div class="drawer-actions">
+      <button class="icon-btn" id="accountRefresh" title="刷新"><i data-i="refresh"></i></button>
+      <button class="icon-btn" data-close title="关闭"><i data-i="x"></i></button>
+    </div>
+  </div>
+  <div class="drawer-body" id="accountBody"></div>
+</aside>
+
+<aside class="drawer hidden" id="settingsDrawer">
+  <div class="drawer-head">
+    <div>
+      <h2>Settings</h2>
+      <p class="drawer-desc"></p>
+    </div>
+    <div class="drawer-actions">
+      <button class="icon-btn" data-close title="关闭"><i data-i="x"></i></button>
+    </div>
+  </div>
+  <div class="drawer-body" id="settingsBody"></div>
+</aside>
+
+<!-- ============ Modal ============ -->
+<div class="modal-wrap hidden" id="modalWrap">
+  <div class="modal" role="dialog">
+    <div class="modal-head">
+      <h3 id="modalTitle"></h3>
+      <button class="icon-btn" id="modalClose" title="关闭"><i data-i="x"></i></button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<div id="toastWrap"></div>
+
+<script src="app.js?v=20260927_1300"></script>
+</body>
+</html>

@@ -17,7 +17,7 @@ describe('App & Layout Component', () => {
     expect(html).toBeDefined();
 
     // 验证顶栏组件（工作区、模型、额度环、账号菜单、连接状态）
-    expect(html).toContain('AGY Studio');
+    expect(html).toContain('Antigravity Gemini 破甲');
     expect(html).toContain('默认工作区');
     expect(html).not.toContain('data-testid="model-selector"');
     expect(html).toContain('data-testid="quota-badge"');

@@ -1,12 +1,14 @@
 {
-  "name": "agy-studio",
+  "name": "antigravity-gemini-armour-break",
   "version": "0.1.0",
   "private": true,
+  "description": "Antigravity Gemini 破甲 · Antigravity Gemini Armour Break — agy WebUI + bundled global rules",
   "type": "module",
   "workspaces": [
     "contracts",
     "backend",
     "frontend",
+    "gateway",
     "tools/*"
   ],
   "scripts": {
@@ -18,7 +20,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "setup-global-rules": "tsx scripts/setup-global-rules.ts",
-    "postinstall": "tsx scripts/setup-global-rules.ts"
+    "postinstall": "tsx scripts/setup-global-rules.ts",
+    "gateway": "npm start -w @antigravity-gemini/gateway"
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",

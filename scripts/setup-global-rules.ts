@@ -6,12 +6,12 @@ import { ensureGlobalRules } from '../backend/src/integrations/agy/global-rules.
 
 const r = await ensureGlobalRules();
 if (r.updated) {
-  console.log(`[agy-studio] global rule installed → ${r.path}`);
+  console.log(`[antigravity-gemini] global rule installed → ${r.path}`);
 } else if (r.ok) {
-  console.log(`[agy-studio] global rule up to date → ${r.path}`);
+  console.log(`[antigravity-gemini] global rule up to date → ${r.path}`);
 } else {
   const detail = r.error ?? r.warning ?? 'unknown';
-  console.warn(`[agy-studio] global rule skipped: ${detail}`);
+  console.warn(`[antigravity-gemini] global rule skipped: ${detail}`);
   // Missing bundled file = broken clone; fail so CI/postinstall catches it.
   // Write/permission errors: warn only so npm install still completes.
   if (r.error?.startsWith('missing bundled global rule')) {

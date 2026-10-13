@@ -7,7 +7,7 @@ import { expandPathTokens, homeEnvOverrides } from './paths.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-/** Repo-root bundled rule (shared with antigravity-pojia layout). */
+/** Repo-root bundled rule (`rules/global/AGENTS.md`). */
 function resolveBundledGlobalRulePath(): string {
   const candidates = [
     path.resolve(__dirname, '../../../../rules/global/AGENTS.md'),

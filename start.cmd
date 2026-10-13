@@ -1,10 +1,10 @@
 @echo off
 setlocal enabledelayedexpansion
-title AGY Studio Launcher
+title Antigravity Gemini Launcher
 cd /d "%~dp0"
 
 echo ===================================================
-echo               AGY Studio Launcher
+echo     Antigravity Gemini Armour Break / WebUI Launcher
 echo ===================================================
 echo.
 
@@ -26,7 +26,7 @@ rem 2. Check Node.js is installed and version >= 20
 where node >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo [ERROR] Node.js not found.
-    echo AGY Studio needs Node.js v20 or newer.
+    echo Antigravity Gemini needs Node.js v20 or newer.
     echo.
     echo Download the LTS version from https://nodejs.org/
     echo then run this script again.
@@ -44,7 +44,7 @@ if not defined NODE_MAJOR (
 ) else (
     if !NODE_MAJOR! LSS 20 (
         echo [ERROR] Node.js version too old: v!NODE_MAJOR!
-        echo AGY Studio requires Node.js ^>= 20.0.0
+        echo Antigravity Gemini requires Node.js ^>= 20.0.0
         echo Download the latest LTS from https://nodejs.org/
         echo ===================================================
         pause
@@ -65,7 +65,7 @@ if defined AGY_BIN set AGY_FOUND=1
 
 if %AGY_FOUND% EQU 0 (
     echo [WARN] The agy CLI was not found on PATH or in the usual locations.
-    echo AGY Studio relies on the official Antigravity agy CLI for agent chat.
+    echo This WebUI relies on the official Antigravity agy CLI for agent chat.
     echo Install and log in to agy first, see:
     echo   https://antigravity.google/docs
     echo.

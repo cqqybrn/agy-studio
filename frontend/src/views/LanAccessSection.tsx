@@ -35,7 +35,7 @@ function QrCode({ text }: { text: string }) {
   );
 }
 
-/** Settings → LAN access: let phones and other computers on the same network open AGY Studio. */
+/** Settings → LAN access: let phones and other computers on the same network open the WebUI. */
 export function LanAccessSection({ initial = null }: { initial?: LanAccessStatus | null }) {
   const [status, setStatus] = useState<LanAccessStatus | null>(initial);
   const [selected, setSelected] = useState(0);
@@ -92,7 +92,7 @@ export function LanAccessSection({ initial = null }: { initial?: LanAccessStatus
         <div className="min-w-0">
           <div className="text-sm font-medium text-text-primary">局域网访问</div>
           <div className="mt-1 text-xs leading-5 text-text-tertiary">
-            开启后，同一 Wi-Fi / 局域网里的手机、平板和其他电脑可以用下面的链接打开 AGY Studio。
+            开启后，同一 Wi-Fi / 局域网里的手机、平板和其他电脑可以用下面的链接打开 Antigravity Gemini 破甲 WebUI。
           </div>
         </div>
         {status.canManage && (
@@ -124,7 +124,7 @@ export function LanAccessSection({ initial = null }: { initial?: LanAccessStatus
 
       {status.available && !status.canManage && (
         <div className="mt-3 rounded border border-border-default bg-bg-panel p-3 text-xs text-text-secondary">
-          你正在通过局域网访问。只能在运行 AGY Studio 的那台电脑上修改这个设置。
+          你正在通过局域网访问。只能在运行 WebUI 的那台电脑上修改这个设置。
         </div>
       )}
 

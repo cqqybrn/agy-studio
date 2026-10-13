@@ -1,0 +1,19 @@
+{
+  "name": "@antigravity-gemini/gateway",
+  "version": "1.4.0",
+  "private": true,
+  "description": "Antigravity Gemini 破甲 · headless HTTP/SSE gateway (optional)",
+  "type": "module",
+  "main": "src/server.js",
+  "bin": {
+    "agy-auto": "./bin/agy-auto.js"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "cli": "node bin/agy-auto.js",
+    "setup-settings": "node scripts/run-setup-settings.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -14,6 +14,7 @@ import {
 } from './components/inbox';
 import { QuotaRing } from './components/quota';
 import { AccountMenu } from './components/account';
+import { PRODUCT_MARK, PRODUCT_NAME_EN, PRODUCT_NAME_ZH } from './branding';
 
 export type CurrentSession = Session | null;
 
@@ -35,9 +36,10 @@ function TopBar() {
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2 font-medium text-text-primary">
           <span className="flex h-5 w-5 items-center justify-center rounded bg-accent text-[11px] font-bold text-accent-foreground shadow-sm">
-            A
+            {PRODUCT_MARK}
           </span>
-          <span className="tracking-wide">AGY Studio</span>
+          <span className="tracking-wide">{PRODUCT_NAME_ZH}</span>
+          <span className="hidden text-text-tertiary sm:inline">· {PRODUCT_NAME_EN}</span>
         </div>
         <div className="h-3.5 w-px bg-border-subtle" />
         <div

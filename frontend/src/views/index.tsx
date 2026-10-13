@@ -264,7 +264,7 @@ const mockBrowserTool: ToolItem = {
     input: {
       action: 'navigate',
       url: 'http://localhost:5173/playground',
-      title: 'AGY Studio Playground',
+      title: 'Antigravity Gemini 破甲 Playground',
     },
     target: 'http://localhost:5173/playground',
     output: 'Navigation succeeded (HTTP 200 OK, DOM loaded in 120ms)',
