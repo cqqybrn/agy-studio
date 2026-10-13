@@ -1,6 +1,6 @@
-# AGY Studio · 架构设计与分块派工（v2 · 零移植版）
+# Antigravity Gemini 破甲 · 架构设计（v2 · 零移植版）
 
-> 一个复刻 Antigravity Agent 界面的本地 WebUI：底层直接调用本机 `agy` CLI，敏感操作**全部自动同意**，
+> 本地 WebUI（Antigravity Gemini Armour Break）：底层直接调用本机 `agy` CLI，敏感操作**全部自动同意**，
 > 可以看思考过程、子 agent、额度，并切换账号。
 >
 > 本文档按 `cursor-architect-copilot` 的六阶段流程编写。契约的唯一真相源是 `contracts/src/*.ts`，文档与代码冲突时以代码为准。

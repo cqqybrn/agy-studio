@@ -1,256 +1,84 @@
 # Antigravity Gemini 破甲
 
-<div align="center">
+**Antigravity Gemini Armour Break** — 本机 `agy` 的 Web 客户端，内置全局规则（破甲）。
 
-**Antigravity Gemini Armour Break**
-
-*Antigravity / Gemini 本地 WebUI + 内置全局规则（破甲）*
-
-*底层 `agy` CLI · `npm install` 自动写入 `~/.gemini/config/AGENTS.md` · 强制自动同意 · 思考流与子 Agent · 额度与多账号 · 可选 headless 网关（`gateway/`）*
-
-[![Node.js Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen.svg)](https://nodejs.org/)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue.svg)](https://microsoft.com)
-
-</div>
-
-> **克隆即用破甲**：`git clone` 本仓库后，执行 **`npm install`** 或双击 **`start.cmd`** 即可自动把 `rules/global/AGENTS.md` 写入 `%USERPROFILE%\.gemini\config\AGENTS.md`，无需手贴 IDE Global Rules。展示名见根目录 [`brand.json`](brand.json)（中 / 英）。
+| | |
+|---|---|
+| 中文名 | Antigravity Gemini 破甲 |
+| English | Antigravity Gemini Armour Break |
+| 要求 | Windows 10/11 · Node ≥ 20 · 已安装并登录 `agy` |
 
 ---
 
-## 📖 项目简介与核心定位
-
-**Antigravity Gemini 破甲**（**Antigravity Gemini Armour Break**）是专为 **Antigravity CLI (`agy`)** 打造的生产级本地 Web 客户端；**全局规则（破甲）** 源文件内置在 `rules/global/AGENTS.md`，headless HTTP/SSE 网关已并入 `gateway/`。
-
-在原生 CLI 或 IDE 插件环境下，许多开发者常常遇到 **"Always Proceed" 设置失效、耗时较长的自动化长任务频频被权限确认弹窗阻断** 的痛点，导致无法脱手离开屏幕。
-
-本项目旨在彻底解决这一体验瓶颈：
-- **破甲一体化**：`npm install` / 启动 / 每次 run 前，将 `rules/global/AGENTS.md` 安装到 `%USERPROFILE%\.gemini\config\AGENTS.md`，Studio 里 spawn 的 **agy 与官方 IDE 读同一条 Global Rule**，无需手贴 IDE 规则；
-- **解决阻断**：**强制自动同意四层兜底**，让编码、测试与重构流水线一气呵成；
-- **全方位视觉复刻**：主会话思考流、多级子 Agent 调用树与耗时统计。
-
-> 仅需 headless HTTP/SSE（无 WebUI）时：仓库根目录执行 **`npm run gateway`**，详见 [`gateway/README.md`](gateway/README.md)。
-
-> ⚠️ 本 WebUI **不提供**工作区快照或回滚。Agent 在自动同意下可以直接修改、删除文件，请在发起任务前用项目自己的 git 提交或备份。
-
----
-
-## ✨ 核心功能与亮点
-
-1. **流畅对话与思考全展开**
-   - 完整捕获模型思维链（Thinking Process），展开折叠自由切换。
-   - 动态嵌套渲染子 Agent（Subagent）执行流程，步骤计时与细节一目了然。
-   - 工具调用（文件读写、终端命令、搜索等）结构化卡片展示，未知输出平滑降级，绝不断流。
-2. **Antigravity Gemini 破甲（全局规则）**
-   - 源文件：`rules/global/AGENTS.md`
-   - 安装：`npm install`（postinstall）、`npm run setup-global-rules`、后端启动与每次 run 前自动刷新
-   - 生效：本机所有 agy 会话（含 Studio 内对话）
-3. **强制自动同意四层兜底体系（Zero-Stall Pipeline）**
-   - **L1 参数强制放行**：启动命令强制携带 `--dangerously-skip-permissions`。
-   - **L2 配置文件同步**：原子化自动校准并写入 `settings.json`（`toolPermission: always-proceed`）。
-   - **L3 权限事件截获**：流中若仍冒出权限确认帧，runner 层毫秒级直接回填确认。
-   - **L4 卡死巡检看门狗**：针对无响应状态实现心跳看门狗检测，长命令自动放宽时限，防止进程僵死。
-4. **额度透视与多账号无损切换**
-   - 顶栏常驻环形额度进度条，直观反映当前账号的 Weekly 额度与 5h 动态用量。
-   - 采用 Windows DPAPI 本地数据保护加密技术备份凭据快照，支持无缝切换与管理多个 Google/Antigravity 账号，隔离并发租约，防止凭据串扰。
-5. **附件与多模态扩展**
-   - 支持粘贴截图、拖拽图片及多格式文档（PDF / Word / Excel 服务端智能提取并注入 Prompt 路径）。
-6. **编辑重问**
-   - 鼠标移到自己发过的消息上点「编辑」，改完发送：这条消息之后的所有回答一并删除，agy 也会忘掉那些轮次，然后按新内容重新提问（与 Claude 的 edit 相同）。
-   - agy 在被删除的轮次里改过的文件会一起还原。运行中不能编辑。
-
----
-
-## 💻 系统环境要求
-
-- **操作系统**：Windows 10 / Windows 11 (x64)
-- **Node.js**：版本 **≥ 20.0.0**（建议使用最新 LTS 版本）
-- **Antigravity CLI**：已在本机安装并成功登录 `agy`
-  - 官方文档与安装指南：[https://antigravity.google/docs](https://antigravity.google/docs)
-  - 验证命令：在终端运行 `agy --version`，确保可正确返回版本号。
-  - 已验证版本：1.2.12（完整实录）、1.2.16（兼容性复核，见 `docs/VERIFY.md`）。agy 会在后台自动升级。
-- **无需** Visual Studio / C++ 编译工具：根目录 `.npmrc` 已跳过依赖的本地编译（better-sqlite3 自带预编译文件）。
-- **网络**：需要能访问 Google（登录、额度、对话都要用到）。使用代理时会自动沿用 Windows 系统代理，详见 FAQ Q5；代理出口地区需在 Gemini API 支持范围内，详见 FAQ Q6。
-
----
-
-## 🚀 安装与快速启动
-
-### 方式一：一键双击启动（推荐 Windows 用户）
-
-1. 克隆本项目（GitHub 仓库名可能仍为 `agy-studio`，产品名见 [`brand.json`](brand.json)）：
-   ```bash
-   git clone https://github.com/cqqybrn/agy-studio.git
-   cd agy-studio
-   ```
-2. 在项目根目录下，直接双击运行 **`start.cmd`** 脚本。
-3. 脚本会自动进行环境检测：
-   - 校验 Node.js 版本（≥ 20）；
-   - 检查 `agy` CLI 探测路径；
-   - 首次运行时自动执行依赖安装、**破甲 global rule 安装**与前端预编译构建；
-   - 启动后端服务，并在端口就绪后**自动调用默认浏览器**打开：
-     ```text
-     http://127.0.0.1:8790
-     ```
-
-### 方式二：命令行手动启动
+## 快速开始
 
 ```bash
-# 1. 安装依赖（postinstall 会安装破甲 global rule → ~/.gemini/config/AGENTS.md）
-npm install
-# 改规则后：npm run setup-global-rules
-
-# 2. 构建前端生产产物
-npm run build -w frontend
-
-# 3. 启动后端主服务
-npx tsx backend/src/main.ts
+git clone https://github.com/cqqybrn/agy-studio.git
+cd agy-studio
+npm install          # postinstall 自动破甲，见下
+start.cmd            # 或: npm run build -w frontend && npx tsx backend/src/main.ts
 ```
 
-启动完成后，使用浏览器访问 `http://127.0.0.1:8790` 即可开始使用。
+浏览器打开 **http://127.0.0.1:8790**。
 
 ---
 
-## 🎯 首次使用流程
+## 破甲（全局规则）
 
-1. **导入/确认当前账号**
-   - 首次打开 WebUI 时，若系统已在原生环境登录过 `agy`，会自动感知当前活跃账号。
-   - 亦可点击右上角头像呼出**账号管理面板**，点击“添加账号”，将唤起系统终端供您完成官方 OAuth 鉴权，并在登录成功后以 DPAPI 本地加密存储该快照。
-2. **选择或添加工作区（Workspace）**
-   - 在左侧侧边栏点击“添加工作区”，指定本机代码工程所在目录。
-   - 将以该目录作为 Agent 执行的根上下文。
-3. **开启新会话（New Session）**
-   - 在输入栏选择模型（列表来自本机 `agy models`，如 Gemini 3.x Flash / Pro、Claude、GPT-OSS），所选模型会保存为默认值。
-   - 输入您的提示词或拖入需求文件/需求文档，开启丝滑的无阻断自动化开发体验！
+| 项 | 说明 |
+|---|---|
+| 仓库内源文件 | [`rules/global/AGENTS.md`](rules/global/AGENTS.md) |
+| 安装目标 | `%USERPROFILE%\.gemini\config\AGENTS.md` |
+| 何时写入 | `npm install`（postinstall）、`start.cmd`、`npm run setup-global-rules`、后端启动与每次 run 前 |
+
+本机 **agy / IDE / WebUI** 共用该 Global Rule，无需再手贴 IDE 规则。产品名常量见 [`brand.json`](brand.json)。
 
 ---
 
-## 🔒 局域网与手机访问指南（安全红线）
+## 仓库结构
 
-> ⚠️ **高危安全警示**：
-> 本 WebUI 开启了强制自动放行权限，**获得该 Web 访问权即意味着拥有在本机执行任意代码和读写磁盘文件的等同权限**。
+Monorepo（npm workspaces）。日常只用根目录的 `start.cmd` 或 `backend` + `frontend`；其余目录多为类型、测试或可选组件。
 
-1. **默认安全策略**
-   - 服务默认仅监听本机回环地址（`127.0.0.1:8790`），此模式下免鉴权，确保本机便捷体验。
-2. **在设置页开启「局域网访问」（推荐）**
-   - 打开「设置 → 局域网访问」，打开开关即可，无需重启。页面会列出本机的局域网地址、二维码和带**访问码**的链接；手机扫码或在其他电脑的浏览器里打开链接即可。
-   - 通过局域网进来的接口与 WebSocket 请求都必须带访问码，本机访问不受影响；只能在本机修改开关或「更换访问码」（旧链接立即失效）。
-   - 第一次开启时 Windows 可能弹出防火墙提示，选择「允许」（专用网络）。开关状态和访问码保存在数据目录的 `lan-access.json`，重启后保持。
-3. **用环境变量开放（高级）**
-   - 也可以像以前一样在启动前指定监听网卡和令牌，此时设置页的开关不可用：
-     ```cmd
-     set HOST=0.0.0.0
-     set PORT=8790
-     set AGY_STUDIO_TOKEN=your-very-strong-and-secret-token
-     start.cmd
-     ```
-   - 若 `HOST` 不是回环地址且未设置 `AGY_STUDIO_TOKEN`，后端将**直接拒绝启动**；此模式下所有请求（包括本机）都需要令牌，浏览器用 `http://地址:端口/?token=令牌` 打开即可。
-4. **推荐网络方案**
-   - **强烈建议使用 [Tailscale](https://tailscale.com/) 等点对点加密组网工具**建立安全访问信道，监听 Tailscale 分配的内网 IP。
-   - **严禁将未加鉴权保护的端口直接映射暴露至公网（如路由器公网端口映射、无防护的内网穿透）！**
+| 路径 | 作用 |
+|---|---|
+| [`backend/`](backend/) | **主服务**：Fastify API/WebSocket、spawn `agy`、会话与工作区、账号/额度、四层自动同意、刷新 global rule |
+| [`frontend/`](frontend/) | **WebUI**（React）：对话、思考流、子 Agent、设置与局域网访问 |
+| [`contracts/`](contracts/) | 前后端共享的 API / 事件 TypeScript 类型（非独立应用） |
+| [`rules/global/`](rules/global/) | **破甲规则**正文与说明 |
+| [`scripts/`](scripts/) | `setup-global-rules.ts` 等安装脚本 |
+| [`gateway/`](gateway/) | **可选**：无 WebUI 的 HTTP/SSE 网关 → 根目录 `npm run gateway` |
+| [`start.cmd`](start.cmd) | Windows：检查 Node/agy → `npm install` → 装规则 → 构建前端 → 启 backend |
+| [`tools/`](tools/) | 开发用：`discover`（探测 agy）、`fake-agy`（测试回放）等 |
+| [`docs/`](docs/) | 架构与验证：`ARCHITECTURE.md`、`VERIFY.md`、[`TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) |
+| [`e2e/`](e2e/) | Playwright 端到端测试 |
+| [`fixtures/agy/`](fixtures/agy/) | 录制的 agy 输出样本（单元测试/fixtures，非运行时数据） |
+
+根目录 [`package.json`](package.json)：`setup-global-rules`、`postinstall`、`gateway` 等脚本入口。
 
 ---
 
-## 🛡️ 自动同意四层兜底与安全防护机制
-
-为了在“无阻断极速执行”与“代码安全保障”之间取得最佳平衡，本项目实现了严密的防御架构：
-
-### 1. 自动同意的运行逻辑
-- **层层递进**：优先通过原生命令行参数 `--dangerously-skip-permissions` 请求全放行；
-- **配置持久化防御**：在会话启动前后检查工作区与用户级配置，避免因 IDE 切换导致 `toolPermission` 被重置；
-- **协议层回填**：对于极少数顽固的交互确认提示，适配器在事件总线层拦截并自动回传同意响应；
-- **状态超时看门狗**：一旦侦测到既无输出又无命令退出的假死挂起，看门狗会尝试注入回车唤醒，二次超时则优雅标记异常，拒绝无限期耗电挂死。
-
-### 2. 文件安全：请使用自己的版本控制
-- 本 WebUI **没有**内置快照或回滚（原影子 Git 检查点功能已于 2026-10-04 移除）。在自动同意下，Agent 对工作区的修改、删除会直接生效。
-- 例外：「编辑重问」会让 agy 还原它在被删除轮次里改过的文件（这是 agy 自带的回退能力，只覆盖 agy 自己的改动）。
-- **建议**：对重要项目，发起任务前先 `git commit` 或 `git stash`；任务结束后用 `git diff` 检查改动，不满意时用 `git checkout -- .` / `git restore` 撤回。非 git 项目请自行备份。
-
----
-
-## 🔄 “agy 升级后”的维护与探测步骤
-
-当 Google 官方更新了 `agy` CLI，或者其输出事件结构、默认模型、参数配置发生变动时，无需重构业务层代码，只需按如下标准三步更新工程：
+## 常用命令
 
 ```bash
-# 步骤 1：运行阶段 0 探测工具，重新对本机 agy 行为进行黑盒探测
-npm run test -w tools/discover
-# 或单独运行录制/捕获工具（如 quota-probe、record-stream 等）
-
-# 步骤 2：更新 backend/agy-profile.json
-# 将探测产出的最新事件格式、CLI 参数结构与路径规约写入 backend/agy-profile.json 与相关 fixtures 测试快照
-
-# 步骤 3：运行测试套件验证兼容性
-npm run test
+npm run setup-global-rules   # 手动刷新 ~/.gemini/config/AGENTS.md
+npm run dev                  # 各 workspace 开发模式（若已配置）
+npm run test                 # 全仓测试
+npm run gateway              # 仅 headless 网关（见 gateway/README.md）
 ```
 
-- **当前状态**：本机 agy 已自动升级到 1.2.16，模型列表、额度接口、事件适配器均已复核兼容（结论与待补录项见 `docs/VERIFY.md` 的“agy 1.2.16 复核”）。
-- **架构优势**：严格遵循**端口与适配器设计原则**。业务逻辑与外部细节完全隔离，所有与版本紧密相关的定义统一由 `agy-profile.json` 声明。即使遇到尚未识别的未知新事件，适配器也会自动降级包装为 `raw` 事件，绝不抛出未捕获异常导致流断裂。
+---
+
+## 安全提示
+
+- 默认只监听 `127.0.0.1`；开启局域网访问后，持有链接+访问码者≈本机 shell 权限。勿裸奔公网。
+- 无内置工作区回滚；重要改动请先 `git commit`。自动同意下 Agent 可直接改删文件。
 
 ---
 
-## ❓ 常见问题排查（FAQ）
+## 文档
 
-### Q1: 运行 `start.cmd` 提示端口被占用？
-- **排查**：默认端口为 `8790`。若被其他软件占用，可通过设置 `PORT` 环境变量启动：
-  ```cmd
-  set PORT=9000
-  start.cmd
-  ```
+- 架构与模块划分：[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- agy 版本兼容记录：[docs/VERIFY.md](docs/VERIFY.md)
+- 故障排查：[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
 
-### Q2: 提示“未检测到 agy CLI”或“agy: command not found”？
-- **排查**：
-  1. 请先确认是否已安装 Antigravity CLI 并在系统终端中能够正常键入 `agy`；
-  2. 若已安装但未加入系统全局 PATH（如位于特定软件目录或自定义开发环境），可在启动前配置 `AGY_BIN` 绝对路径：
-     ```cmd
-     set AGY_BIN=D:\tools\antigravity\agy.exe
-     start.cmd
-     ```
-
-### Q3: 额度面板显示“不可用”或“连接超时”？
-- **排查**：
-  1. 额度查询通过官方受保护接口低频拉取。若使用了系统级代理（VPN/梯子），Node 环境默认可能不走代理，后端已在 `backend/src/main.ts` 中内置注入全局环境变量代理适配；请确认网络能否正常访问 Google 认证域名；
-  2. 若账号凭据过期，可在账号管理中重新点击登录刷新凭据快照。
-
-### Q4: 提示 Node.js 模块或 contracts 找不到？
-- **排查**：
-  - 本项目为 Monorepo 架构，在仓库根目录下运行一次 `npm install` 即可自动建立 workspaces 内部符号链接。
-
-### Q5: 点击登录提示“无法连接 Google 登录服务”，或登录窗口里一直转圈？
-- **原因**：`agy` 只读取 `HTTPS_PROXY` 环境变量，**不会使用** Windows 系统代理（浏览器用的那个）。因此即使浏览器能打开授权页，`agy` 换取令牌时也可能连不上 Google。
-- **默认行为（无需配置）**：
-  - 已设置 `HTTPS_PROXY` / `HTTP_PROXY` 环境变量 → 直接使用你的设置；
-  - 未设置，但系统代理已开启且代理端口可连通 → 启动时自动沿用系统代理；
-  - 未使用代理 → 直连，不做任何改动。
-- **排查**：
-  1. 启动日志出现 `Using the Windows system proxy` 说明已自动沿用系统代理；
-  2. 如果代理使用 **PAC 脚本** 或 **仅 SOCKS** 协议，无法自动识别，请手动指定 HTTP 代理后再启动：
-     ```cmd
-     set HTTPS_PROXY=http://127.0.0.1:7890
-     set HTTP_PROXY=http://127.0.0.1:7890
-     start.cmd
-     ```
-  3. 想强制直连（忽略系统代理），启动前设置 `set AGY_STUDIO_PROXY=off`；
-  4. 登录前的网络预检误报时，可用 `set AGY_STUDIO_SKIP_NET_CHECK=1` 跳过；
-  5. agy 自身日志位于 `%USERPROFILE%\.gemini\antigravity-cli\log\`，登录失败时搜索 `token exchange failed` 可看到具体网络错误（日志里大量 `You are not logged into Antigravity` 是登录过程中的正常现象）。
-
-### Q6: 发送消息后报错 “User location is not supported for the API use”？
-- **原因**：Google 根据**出口 IP 所在地区**拒绝了模型调用。使用代理时，这说明当前代理节点所在地区不在 Gemini API 支持范围内（额度查询走的是另一个接口，可能仍然正常）。
-- **处理**：切换到受支持地区的代理节点后重试即可；如果更换了代理端口，需要重启 WebUI 以重新识别系统代理。
-
-### Q7: `npm install` 报 `node-gyp` 或 “Could not find any Visual Studio installation”？
-- **原因**：根目录的 `.npmrc`（`ignore-scripts=true`）缺失或被覆盖，npm 尝试本地编译 better-sqlite3。
-- **处理**：确认 `.npmrc` 存在，或手动执行 `npm install --ignore-scripts`。该包自带 Windows 预编译文件，不需要 Visual Studio。
-
-### Q8: 「编辑重问」点发送后要等好几十秒，或者提示失败？
-- **原因**：agy 没有提供无界面的回退命令。WebUI 在后台开一个隐藏的 agy 交互界面，执行它自带的 `/rewind`，退出后再开一次核对回退确实生效，然后才删除界面里的记录并重新提问。agy 每次启动要加载十几秒，所以通常需要 20–60 秒；第一次在某个工作区里编辑时，还要先替 agy 确认信任该文件夹，会更慢一些。
-- **提示「找不到这条消息」**：那次提问没有成功送达 agy（例如启动就失败），agy 的历史里没有它，无法回退。可以直接新开会话。
-- **提示「agy 回退失败」或「没有完成回退」**：界面上的记录不会被删除，可以稍后重试。如果反复失败，说明这段对话在 agy 里已损坏，请新开会话。
-- 依赖 `node-pty`（随 `npm install` 安装，自带 Windows 预编译文件，不需要 Visual Studio）。
-
----
-
-## 📄 开源许可
-
-本项目依据 MIT 许可协议开源。
-更多架构设计细节可参阅 `docs/ARCHITECTURE.md`。
+MIT License。
