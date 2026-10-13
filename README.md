@@ -37,21 +37,22 @@ start.cmd            # 或: npm run build -w frontend && npx tsx backend/src/mai
 
 ## 仓库结构
 
-Monorepo（npm workspaces）。日常只用根目录的 `start.cmd` 或 `backend` + `frontend`；其余目录多为类型、测试或可选组件。
+Monorepo（npm workspaces）。**每个顶层目录里都有 `README.md`**，在 GitHub 点进文件夹即可看说明。
 
 | 路径 | 作用 |
 |---|---|
-| [`backend/`](backend/) | **主服务**：Fastify API/WebSocket、spawn `agy`、会话与工作区、账号/额度、四层自动同意、刷新 global rule |
-| [`frontend/`](frontend/) | **WebUI**（React）：对话、思考流、子 Agent、设置与局域网访问 |
-| [`contracts/`](contracts/) | 前后端共享的 API / 事件 TypeScript 类型（非独立应用） |
-| [`rules/global/`](rules/global/) | **破甲规则**正文与说明 |
-| [`scripts/`](scripts/) | `setup-global-rules.ts` 等安装脚本 |
-| [`gateway/`](gateway/) | **可选**：无 WebUI 的 HTTP/SSE 网关 → 根目录 `npm run gateway` |
-| [`start.cmd`](start.cmd) | Windows：检查 Node/agy → `npm install` → 装规则 → 构建前端 → 启 backend |
-| [`tools/`](tools/) | 开发用：`discover`（探测 agy）、`fake-agy`（测试回放）等 |
-| [`docs/`](docs/) | 架构与验证：`ARCHITECTURE.md`、`VERIFY.md`、[`TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) |
-| [`e2e/`](e2e/) | Playwright 端到端测试 |
-| [`fixtures/agy/`](fixtures/agy/) | 录制的 agy 输出样本（单元测试/fixtures，非运行时数据） |
+| [`backend/`](backend/README.md) | Fastify 主服务 · spawn agy · 会话/账号/破甲刷新 |
+| [`frontend/`](frontend/README.md) | React WebUI |
+| [`contracts/`](contracts/README.md) | 前后端 API 类型（npm 包，非应用） |
+| [`rules/`](rules/README.md) | 破甲源文件 → [`global/AGENTS.md`](rules/global/AGENTS.md) |
+| [`scripts/`](scripts/README.md) | `setup-global-rules` 等 |
+| [`gateway/`](gateway/README.md) | 可选 headless 网关 · `npm run gateway` |
+| [`docs/`](docs/README.md) | 架构 / VERIFY / FAQ |
+| [`tools/`](tools/README.md) | discover、fake-agy（开发） |
+| [`e2e/`](e2e/README.md) | Playwright 测试 |
+| [`fixtures/`](fixtures/README.md) | agy 录制样本（仅测试） |
+| [`start.cmd`](start.cmd) | Windows 一键：依赖 → 破甲 → 构建 → 启 backend |
+| [`brand.json`](brand.json) | 产品中英文名 |
 
 根目录 [`package.json`](package.json)：`setup-global-rules`、`postinstall`、`gateway` 等脚本入口。
 
