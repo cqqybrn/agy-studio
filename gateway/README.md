@@ -1,8 +1,6 @@
-# Headless 网关（可选）
+# gateway
 
-**Antigravity Gemini 破甲 · Antigravity Gemini Armour Break**
-
-无 WebUI 时可用本目录的 HTTP/SSE 网关（原独立仓库已并入 monorepo）。
+**可选 headless 网关** — HTTP/SSE + 自动同意，无 React WebUI；与 WebUI 共用根目录 `rules/global/AGENTS.md`。
 
 ```bash
 # 在仓库根目录
