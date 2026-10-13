@@ -1,6 +1,6 @@
 # Antigravity Gemini 破甲
 
-**Antigravity Gemini Armour Break** — 本机 `agy` 的 Web 客户端，内置全局规则（破甲）。
+**Antigravity Gemini Armour Break** — 本机 `agy` 的 Web 客户端，自动同意所有操作 无需点击 内置全局规则（破甲）。
 
 | | |
 |---|---|
