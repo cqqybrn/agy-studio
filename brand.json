@@ -1,8 +1,8 @@
 {
   "nameZh": "Antigravity Gemini 破甲",
   "nameEn": "Antigravity Gemini Armour Break",
-  "taglineZh": "Antigravity / Gemini 本地 WebUI + 内置全局规则",
-  "taglineEn": "Local agy WebUI with bundled Gemini global rules",
+  "taglineZh": "本机 agy WebUI · 强制自动同意 · 内置全局规则（破甲）",
+  "taglineEn": "Local agy WebUI with forced auto-approve and bundled global rules",
   "logPrefix": "antigravity-gemini",
   "serviceId": "antigravity-gemini-armour-break"
 }

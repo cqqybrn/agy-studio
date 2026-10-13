@@ -1,7 +1,7 @@
 # scripts
 
-**仓库级脚本** — 与 `package.json` 的 `postinstall` / `setup-global-rules` 对应。
-
 | 文件 | 作用 |
 |---|---|
-| `setup-global-rules.ts` | 将 `rules/global/AGENTS.md` 写入 `~/.gemini/config/AGENTS.md` |
+| `setup-global-rules.ts` | 把 `rules/global/AGENTS.md` 装到 `~/.gemini/config/AGENTS.md` |
+
+根目录 `npm run setup-global-rules` / `postinstall` 调用。破甲说明见 [`../rules/README.md`](../rules/README.md)。

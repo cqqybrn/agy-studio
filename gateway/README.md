@@ -1,12 +1,11 @@
-# gateway
+# gateway（可选）
 
-**可选 headless 网关** — HTTP/SSE + 自动同意，无 React WebUI；与 WebUI 共用根目录 `rules/global/AGENTS.md`。
+无 WebUI 时的 HTTP/SSE 网关。破甲规则**不在这里**，与 WebUI 共用仓库根目录 [`rules/global/AGENTS.md`](../rules/global/AGENTS.md)。
 
 ```bash
 # 在仓库根目录
+npm install          # 已含破甲安装
 npm run gateway
-# 或
-npm start -w @antigravity-gemini/gateway
 ```
 
-全局规则与 WebUI 共用根目录 `rules/global/AGENTS.md`；`npm install` 在根目录执行即可，无需单独 postinstall。
+日常用浏览器界面请用根目录 `start.cmd`，不必启动本目录。

@@ -2,7 +2,7 @@
   "name": "antigravity-gemini-armour-break",
   "version": "0.1.0",
   "private": true,
-  "description": "Antigravity Gemini 破甲 · Antigravity Gemini Armour Break — agy WebUI + bundled global rules",
+  "description": "Antigravity Gemini 破甲 · Armour Break — agy WebUI, forced auto-approve, bundled global rules",
   "type": "module",
   "workspaces": [
     "contracts",
