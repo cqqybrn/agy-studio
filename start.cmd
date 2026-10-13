@@ -89,6 +89,9 @@ if not exist "node_modules" (
         pause
         exit /b 1
     )
+) else (
+    rem Refresh Antigravity global rule (破甲) even when node_modules exists
+    call npm run setup-global-rules >nul 2>&1
 )
 
 if not exist "frontend\dist\index.html" (

@@ -16,7 +16,9 @@
     "e2e": "playwright test -c e2e/playwright.config.ts",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "setup-global-rules": "tsx scripts/setup-global-rules.ts",
+    "postinstall": "tsx scripts/setup-global-rules.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",
@@ -24,6 +26,7 @@
     "eslint": "^9.21.0",
     "eslint-config-prettier": "^10.0.2",
     "prettier": "^3.5.2",
+    "tsx": "^4.19.3",
     "typescript": "^5.8.2",
     "typescript-eslint": "^8.25.0"
   }

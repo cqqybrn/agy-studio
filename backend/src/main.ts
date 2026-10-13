@@ -2,6 +2,7 @@ import http from 'node:http';
 import { spawnSync } from 'node:child_process';
 import process from 'node:process';
 import { buildApp } from './app.js';
+import { ensureGlobalRules } from './integrations/agy/global-rules.js';
 import {
   AgyUpdateScheduler,
   disableAgyBackgroundUpdater,
@@ -36,6 +37,17 @@ export async function bootstrap(): Promise<void> {
   // Before any agy process starts: agy's own updater flashes a console window (see updater.ts).
   const studioRunsAgyUpdates = disableAgyBackgroundUpdater();
   const config = loadConfig();
+
+  const globalRules = await ensureGlobalRules();
+  if (globalRules.updated) {
+    logger.info({ path: globalRules.path }, 'Installed Antigravity global rule (AGENTS.md)');
+  } else if (!globalRules.ok) {
+    logger.warn(
+      { path: globalRules.path, err: globalRules.error ?? globalRules.warning },
+      'Global rule install skipped or failed',
+    );
+  }
+
   const { app, container, close } = buildApp({ config });
 
   // 1. 清理孤儿运行

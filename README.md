@@ -1,10 +1,10 @@
-# AGY Studio
+# AGY Studio × Antigravity 破甲
 
 <div align="center">
 
-**一个复刻 Antigravity Agent 界面的本地 WebUI**
+**Antigravity Agent 本地 WebUI + 内置全局规则（破甲）**
 
-*底层直接调用本机 `agy` CLI · 敏感操作强制自动同意 · 思考过程与子 Agent 嵌套展开 · 额度面板与多账号无缝切换*
+*底层 `agy` CLI · `npm install` 自动写入 `~/.gemini/config/AGENTS.md` · 强制自动同意 · 思考流与子 Agent · 额度与多账号*
 
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen.svg)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -16,13 +16,16 @@
 
 ## 📖 项目简介与核心定位
 
-**AGY Studio** 是专为 **Antigravity CLI (`agy`)** 打造的生产级本地 Web 客户端。
+**AGY Studio** 是专为 **Antigravity CLI (`agy`)** 打造的生产级本地 Web 客户端，并与 **[antigravity-pojia](https://github.com/cqqybrn/antigravity-pojia)** 共用同一套 **全局规则（破甲）** 源文件 `rules/global/AGENTS.md`。
 
 在原生 CLI 或 IDE 插件环境下，许多开发者常常遇到 **"Always Proceed" 设置失效、耗时较长的自动化长任务频频被权限确认弹窗阻断** 的痛点，导致无法脱手离开屏幕。
 
 AGY Studio 旨在彻底解决这一体验瓶颈：
-- **解决阻断**：采用**强制自动同意四层兜底机制**，让编码、测试与重构流水线一气呵成；
-- **全方位视觉复刻**：深度还原官方 Antigravity 界面交互体验，清晰呈现主会话思考流（Thinking Process）、多级子 Agent 调用树与耗时统计。
+- **破甲一体化**：`npm install` / 启动 / 每次 run 前，将 `rules/global/AGENTS.md` 安装到 `%USERPROFILE%\.gemini\config\AGENTS.md`，Studio 里 spawn 的 **agy 与官方 IDE 读同一条 Global Rule**，无需手贴 IDE 规则；
+- **解决阻断**：**强制自动同意四层兜底**，让编码、测试与重构流水线一气呵成；
+- **全方位视觉复刻**：主会话思考流、多级子 Agent 调用树与耗时统计。
+
+> 仅需 headless HTTP/SSE 网关（无 WebUI）时，可单独使用 [antigravity-pojia](https://github.com/cqqybrn/antigravity-pojia)；规则正文以两边仓库的 `rules/global/AGENTS.md` 为准，改一处请同步另一仓库。
 
 > ⚠️ AGY Studio **不提供**工作区快照或回滚。Agent 在自动同意下可以直接修改、删除文件，请在发起任务前用项目自己的 git 提交或备份。
 
@@ -34,17 +37,21 @@ AGY Studio 旨在彻底解决这一体验瓶颈：
    - 完整捕获模型思维链（Thinking Process），展开折叠自由切换。
    - 动态嵌套渲染子 Agent（Subagent）执行流程，步骤计时与细节一目了然。
    - 工具调用（文件读写、终端命令、搜索等）结构化卡片展示，未知输出平滑降级，绝不断流。
-2. **强制自动同意四层兜底体系（Zero-Stall Pipeline）**
+2. **Antigravity 破甲（全局规则）**
+   - 源文件：`rules/global/AGENTS.md`（与 antigravity-pojia 同步）
+   - 安装：`npm install`（postinstall）、`npm run setup-global-rules`、后端启动与每次 run 前自动刷新
+   - 生效：本机所有 agy 会话（含 Studio 内对话）
+3. **强制自动同意四层兜底体系（Zero-Stall Pipeline）**
    - **L1 参数强制放行**：启动命令强制携带 `--dangerously-skip-permissions`。
    - **L2 配置文件同步**：原子化自动校准并写入 `settings.json`（`toolPermission: always-proceed`）。
    - **L3 权限事件截获**：流中若仍冒出权限确认帧，runner 层毫秒级直接回填确认。
    - **L4 卡死巡检看门狗**：针对无响应状态实现心跳看门狗检测，长命令自动放宽时限，防止进程僵死。
-3. **额度透视与多账号无损切换**
+4. **额度透视与多账号无损切换**
    - 顶栏常驻环形额度进度条，直观反映当前账号的 Weekly 额度与 5h 动态用量。
    - 采用 Windows DPAPI 本地数据保护加密技术备份凭据快照，支持无缝切换与管理多个 Google/Antigravity 账号，隔离并发租约，防止凭据串扰。
-4. **附件与多模态扩展**
+5. **附件与多模态扩展**
    - 支持粘贴截图、拖拽图片及多格式文档（PDF / Word / Excel 服务端智能提取并注入 Prompt 路径）。
-5. **编辑重问**
+6. **编辑重问**
    - 鼠标移到自己发过的消息上点「编辑」，改完发送：这条消息之后的所有回答一并删除，agy 也会忘掉那些轮次，然后按新内容重新提问（与 Claude 的 edit 相同）。
    - agy 在被删除的轮次里改过的文件会一起还原。运行中不能编辑。
 
@@ -81,8 +88,9 @@ AGY Studio 旨在彻底解决这一体验瓶颈：
 ### 方式二：命令行手动启动
 
 ```bash
-# 1. 安装项目所有依赖（国内网络较慢时可先执行：set npm_config_registry=https://registry.npmmirror.com）
+# 1. 安装依赖（postinstall 会安装破甲 global rule → ~/.gemini/config/AGENTS.md）
 npm install
+# 改规则后：npm run setup-global-rules
 
 # 2. 构建前端生产产物
 npm run build -w frontend

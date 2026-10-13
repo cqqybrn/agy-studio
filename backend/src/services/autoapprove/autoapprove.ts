@@ -1,4 +1,5 @@
 import type { AgentEvent } from '@agy-studio/contracts';
+import { ensureGlobalRules } from '../../integrations/agy/global-rules.js';
 import type { EnsureAlwaysProceedResult, SettingsPort } from '../ports/settings.port.js';
 
 export interface AutoApproveRunOptions {
@@ -40,12 +41,30 @@ export class AutoApproveService {
     const globalRes = await this.settingsPort.ensureAlwaysProceed('global');
     await handleResult(globalRes);
 
+    const globalRules = await ensureGlobalRules();
+    if (!globalRules.ok && (globalRules.error || globalRules.warning)) {
+      await handleResult({
+        updated: false,
+        filePath: globalRules.path,
+        warning: globalRules.error ?? globalRules.warning,
+      });
+    }
+
     // 2. 账号 home 配置（isolated_home 模式下提供）
     if (options.homeDir) {
       const accountHomeRes = await this.settingsPort.ensureAlwaysProceed('global', {
         homeDir: options.homeDir,
       });
       await handleResult(accountHomeRes);
+
+      const homeRules = await ensureGlobalRules(options.homeDir);
+      if (!homeRules.ok && (homeRules.error || homeRules.warning)) {
+        await handleResult({
+          updated: false,
+          filePath: homeRules.path,
+          warning: homeRules.error ?? homeRules.warning,
+        });
+      }
     }
 
     // 3. 工作区配置
