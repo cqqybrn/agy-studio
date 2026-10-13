@@ -4,9 +4,9 @@
 
 | | |
 |---|---|
-| 中文名 | Antigravity Gemini 破甲 |
-| English | Antigravity Gemini Armour Break |
-| 要求 | Windows 10/11 · Node ≥ 20 · 已安装并登录 `agy` |
+| 中文名 | Antigravity Gemini 自动同意 破甲 |
+| English | Antigravity Gemini Armour Break auto agree |
+| 要求 | Windows 10/11 · Node ≥ 20 ·  |
 
 ---
 
