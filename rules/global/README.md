@@ -13,4 +13,4 @@
 npm run setup-global-rules
 ```
 
-本机 **所有 agy 会话**（WebUI、CLI、IDE）共用该文件。
+本机 **所有 agy 会话**（WebUI、CLI、IDE）共用该文件。上级目录说明见 [`../README.md`](../README.md)。
