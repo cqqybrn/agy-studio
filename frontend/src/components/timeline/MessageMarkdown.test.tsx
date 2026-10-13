@@ -1,7 +1,7 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { MessageMarkdown } from './MessageMarkdown';
+import { MessageMarkdown, toRenderableMediaUrl } from './MessageMarkdown';
 
 const render = (content: string) => renderToStaticMarkup(<MessageMarkdown content={content} />);
 
@@ -55,5 +55,17 @@ describe('MessageMarkdown CJK emphasis', () => {
     expect(html).not.toContain('**');
     expect(html.match(/<strong/g)).toHaveLength(2);
     expect(html).toMatch(/<strong[^>]*>“是”<\/strong>老子/);
+  });
+});
+
+describe('MessageMarkdown local images', () => {
+  it('rewrites file:// gemini images to /api/local-media', () => {
+    const file =
+      'file:///C:/Users/cqqyb/.gemini/antigravity-cli/brain/x/celestial_solar_goddess_wings.jpg';
+    expect(toRenderableMediaUrl(file)).toContain('/api/local-media?path=');
+    const html = render(`![翅膀](${file})`);
+    expect(html).toContain('data-testid="markdown-img"');
+    expect(html).toContain('/api/local-media?path=');
+    expect(html).not.toContain('file://');
   });
 });

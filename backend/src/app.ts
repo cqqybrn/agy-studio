@@ -66,13 +66,10 @@ import { AgentService } from './services/agent.js';
 
 import { workspacesRoutes } from './routes/http/workspaces.routes.js';
 import { DirectoryBrowser } from './services/directory-browser.js';
-import { LanAccessService } from './services/lan-access.js';
-import { lanAccessRoutes } from './routes/http/lan-access.routes.js';
-import { isLanRequest, LanListener, lanAddresses } from './utils/lan-listener.js';
-import { WS_PATH } from '@agy-studio/contracts';
 import { sessionsRoutes } from './routes/http/sessions.routes.js';
 import { subagentsRoutes } from './routes/http/subagents.routes.js';
 import { attachmentsRoutes } from './routes/http/attachments.routes.js';
+import { localMediaRoutes } from './routes/http/local-media.routes.js';
 import { modelsRoutes } from './routes/http/models.routes.js';
 import { prefsRoutes } from './routes/http/prefs.routes.js';
 import { systemRoutes } from './routes/http/system.routes.js';
@@ -128,13 +125,10 @@ export interface AppContainer {
   workspaceService: WorkspaceService;
   quotaService: QuotaService;
   agentService: AgentService;
-  lanAccessService: LanAccessService;
 }
 
 export interface AppOptions {
   config?: Partial<AppConfig>;
-  /** Address the LAN listener binds to (tests use a loopback alias instead of 0.0.0.0). */
-  lanListenerHost?: string;
   db?: Database.Database;
   dbPath?: string;
   profile?: AgyProfile;
@@ -468,40 +462,20 @@ export function buildApp(options?: AppOptions): BuiltApp {
     reply.status(appError.status).send(appError.toApiErrorResponse());
   });
 
-  // Authentication hook for REST /api routes when AGY_STUDIO_TOKEN is configured
+  // Authentication hook for REST /api routes when AGY_STUDIO_TOKEN is configured.
+  // Also accept ?token= so <img src="/api/local-media?..."> can authenticate.
   if (config.token) {
     app.addHook('onRequest', async (request) => {
       if (request.url.startsWith('/api')) {
         const authHeader = request.headers.authorization;
         const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
-        if (!bearer || bearer !== config.token) {
+        const queryToken = (request.query as Record<string, string | undefined> | undefined)?.token;
+        if (bearer !== config.token && queryToken !== config.token) {
           throw new AppError('UNAUTHORIZED', 'Invalid or missing authorization token');
         }
       }
     });
   }
-
-  // LAN access: requests that came in through the LAN listener must carry the access code.
-  // The app shell (static files) loads without it; the code then rides along on API / WebSocket calls.
-  const lanAccessService = new LanAccessService({
-    dataDir: config.dataDir,
-    port: config.port,
-    listener: new LanListener(app.server, options?.lanListenerHost),
-    addresses: lanAddresses,
-    managedByEnv: !isLoopbackHost(config.host),
-    logger: appLogger,
-  });
-  app.addHook('onRequest', async (request) => {
-    if (!isLanRequest(request.raw)) return;
-    const pathname = request.url.split('?')[0];
-    if (!pathname.startsWith('/api') && pathname !== WS_PATH) return;
-    const authHeader = request.headers.authorization;
-    const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
-    const queryToken = (request.query as Record<string, string | undefined> | undefined)?.token;
-    if (!lanAccessService.verifyToken(bearer ?? queryToken)) {
-      throw new AppError('UNAUTHORIZED', '局域网访问需要访问码，请用设置页里的链接打开');
-    }
-  });
 
   // Legacy health.test compatibility hook
   if (isFromHealthTest) {
@@ -532,7 +506,7 @@ export function buildApp(options?: AppOptions): BuiltApp {
   void app.register(accountsRoutes, { accountService });
   void app.register(quotaRoutes, { quotaService });
   void app.register(agentsRoutes, { agentService });
-  void app.register(lanAccessRoutes, { lanAccessService });
+  void app.register(localMediaRoutes);
 
   // Register WebSocket Gateway
   void app.register(async (wsApp) => {
@@ -655,12 +629,7 @@ export function buildApp(options?: AppOptions): BuiltApp {
       appLogger.warn({ err }, 'Error flushing eventBus during shutdown');
     }
 
-    // 6. 关闭局域网监听与 Fastify app
-    try {
-      await lanAccessService.close();
-    } catch (err) {
-      appLogger.warn({ err }, 'Error closing LAN listener');
-    }
+    // 6. 关闭 Fastify app
     try {
       await closeFastify();
     } catch (err) {
@@ -712,7 +681,6 @@ export function buildApp(options?: AppOptions): BuiltApp {
     workspaceService,
     quotaService,
     agentService,
-    lanAccessService,
   };
 
   return Object.assign(app, {

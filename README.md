@@ -71,7 +71,7 @@ npm run gateway              # 仅 headless 网关（见 gateway/README.md）
 
 ## 安全提示
 
-- 默认只监听 `127.0.0.1`；开启局域网访问后，持有链接+访问码者≈本机 shell 权限。勿裸奔公网。
+- 默认只监听 `127.0.0.1`。若用环境变量把 `HOST` 绑到非回环地址，必须设置 `AGY_STUDIO_TOKEN`，勿裸奔公网。
 - 无内置工作区回滚；重要改动请先 `git commit`。自动同意下 Agent 可直接改删文件。
 
 ---

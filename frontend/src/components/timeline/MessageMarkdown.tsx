@@ -42,6 +42,8 @@ const REHYPE_PLUGINS: React.ComponentProps<typeof ReactMarkdown>['rehypePlugins'
   [rehypeKatex, { throwOnError: false, strict: 'ignore', output: 'htmlAndMathml' }],
 ];
 
+const LOCAL_IMAGE_EXT = /\.(jpe?g|png|gif|webp|bmp|svg)$/i;
+
 // ---------------------------------------------------------------------------
 // 链接安全校验：只允许 http:, https:, mailto: 协议
 // 危险协议（如 javascript:, vbscript:, data: 等）严禁渲染到 href 中
@@ -51,6 +53,45 @@ export function isSafeUrl(url?: string): boolean {
   const trimmed = url.trim();
   // 只允许 http:, https:, mailto: 协议
   return /^(https?|mailto):/i.test(trimmed);
+}
+
+/** file:///… under ~/.gemini → /api/local-media (browsers cannot load file:// from http pages). */
+export function toRenderableMediaUrl(url?: string): string | null {
+  if (!url) return null;
+  const trimmed = url.trim();
+  if (/^https?:/i.test(trimmed)) return trimmed;
+  if (/^data:image\//i.test(trimmed)) return trimmed;
+
+  let localPath: string | null = null;
+  if (/^file:/i.test(trimmed)) {
+    localPath = fileUrlToLocalPath(trimmed);
+  } else if (/^[A-Za-z]:[\\/]/.test(trimmed) || trimmed.startsWith('\\\\')) {
+    localPath = trimmed;
+  }
+  if (!localPath || !LOCAL_IMAGE_EXT.test(localPath)) return null;
+
+  let media = `/api/local-media?path=${encodeURIComponent(localPath)}`;
+  try {
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('agy-studio-token') : null;
+    if (token) media += `&token=${encodeURIComponent(token)}`;
+  } catch {
+    /* SSR / private mode */
+  }
+  return media;
+}
+
+function fileUrlToLocalPath(url: string): string | null {
+  try {
+    let s = url.replace(/^file:\/\//i, '');
+    s = s.replace(/^localhost/i, '');
+    if (s.startsWith('/') && /^\/[A-Za-z]([:|])/.test(s)) {
+      s = s.slice(1);
+      if (s[1] === '|') s = `${s[0]}:${s.slice(2)}`;
+    }
+    return decodeURIComponent(s).replace(/\//g, '\\');
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -252,6 +293,28 @@ const markdownComponents: Components = {
     );
   },
 
+  // agy 生成图常用 file:///C:/Users/.../.gemini/.../x.jpg，需走后端代理
+  img: ({ node: _node, src, alt, ...rest }) => {
+    const mediaSrc = toRenderableMediaUrl(src);
+    if (!mediaSrc) {
+      return (
+        <span className="my-2 block text-xs text-text-tertiary" data-testid="markdown-img-missing">
+          [图片无法显示{alt ? `: ${alt}` : ''}]
+        </span>
+      );
+    }
+    return (
+      <img
+        src={mediaSrc}
+        alt={alt ?? ''}
+        loading="lazy"
+        className="my-3 max-h-[480px] max-w-full rounded-md border border-border-default object-contain"
+        data-testid="markdown-img"
+        {...rest}
+      />
+    );
+  },
+
   // 表格 Tables (GFM)
   table: ({ node: _node, children, ...rest }) => (
     <div className="my-3 overflow-x-auto" data-testid="markdown-table">
@@ -403,6 +466,8 @@ export function MessageMarkdown({ content, className = '', streaming = false }: 
               components={markdownComponents}
               urlTransform={(url) => {
                 if (isSafeUrl(url)) return url;
+                // Keep file:// / absolute image paths so the img component can rewrite them.
+                if (toRenderableMediaUrl(url)) return url;
                 return '';
               }}
             >
