@@ -1455,9 +1455,11 @@ export function PlaygroundView() {
               <div className="text-[11px] text-text-tertiary font-medium">独立选择器与附件胶囊组件：</div>
               <div className="flex flex-wrap items-center gap-3">
                 <ModelPicker
-                  value="gemini-3.8-flash-high"
+                  value="gemini-4-argon-high"
                   models={[
-                    { id: 'gemini-3.8-flash-high', label: 'Gemini 3.8 Flash (High)', group: 'gemini', isDefault: true },
+                    { id: 'gemini-4-argon-high', label: 'Gemini 4 Argon (High)', group: 'gemini', isDefault: true },
+                    { id: 'gemini-4-argon-medium', label: 'Gemini 4 Argon (Medium)', group: 'gemini', isDefault: false },
+                    { id: 'gemini-3.8-flash-high', label: 'Gemini 3.8 Flash (High)', group: 'gemini', isDefault: false },
                     { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6 (Thinking)', group: 'third_party', isDefault: false },
                   ]}
                   onChange={() => {}}

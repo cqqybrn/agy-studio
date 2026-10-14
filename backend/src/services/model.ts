@@ -5,6 +5,7 @@ import type { ModelCatalogPort } from './ports/model-catalog.port.js';
 import type { PrefsService } from './prefs.js';
 import type { AppConfig } from '../utils/config.js';
 import { AppError } from '../utils/errors.js';
+import { mergeSupplementalModels } from './supplemental-models.js';
 
 export const DEFAULT_MODEL_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 export const MODELS_CACHE_FILE = 'models-cache.json';
@@ -136,7 +137,8 @@ export class ModelService {
     }
 
     const prefs = await this.prefsService.getPrefs();
-    const models = this.cachedModels ?? [];
+    // Surface Gemini 4 Argon in the picker even before the live CLI catalog lists it.
+    const models = mergeSupplementalModels(this.cachedModels ?? []);
 
     if (models.length === 0) {
       return [];
@@ -146,7 +148,10 @@ export class ModelService {
     if (prefs.defaultModel && models.some((m) => m.id === prefs.defaultModel)) {
       defaultModelId = prefs.defaultModel;
     } else {
-      const firstGemini = models.find((m) => m.group === 'gemini');
+      // Prefer a live gemini (e.g. 3.8 Flash) over supplemental Argon until CLI offers it.
+      const liveIds = new Set((this.cachedModels ?? []).map((m) => m.id));
+      const firstLiveGemini = models.find((m) => m.group === 'gemini' && liveIds.has(m.id));
+      const firstGemini = firstLiveGemini ?? models.find((m) => m.group === 'gemini');
       if (firstGemini) {
         defaultModelId = firstGemini.id;
       } else {
